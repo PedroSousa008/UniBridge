@@ -37,6 +37,9 @@ export interface InnovationStartup {
   founderName: string;
   featured: boolean;
   memberCount: number;
+  readinessScore: number;
+  progressPercent: number;
+  lookingFor: string[];
 }
 
 export interface InnovationFounder {
@@ -132,6 +135,11 @@ export function UniversityInnovationClient({
     { key: 'founder', header: 'Founder', cell: (r) => r.founderName },
     { key: 'industry', header: 'Industry', cell: (r) => r.industry ?? '—' },
     { key: 'stage', header: 'Stage', cell: (r) => r.stage ?? '—' },
+    {
+      key: 'readiness',
+      header: 'Readiness',
+      cell: (r) => `${Math.round(r.readinessScore)}%`,
+    },
     {
       key: 'featured',
       header: 'Featured',

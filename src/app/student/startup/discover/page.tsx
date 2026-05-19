@@ -1,12 +1,5 @@
-import { ModulePage } from '@/components/layout/module-page';
+import { DiscoverStartupsClient } from './discover-client';
 
 export default function DiscoverStartupsPage() {
-  return (
-    <ModulePage
-      title="Discover ventures"
-      subtitle="Explore startups created by students in the ecosystem."
-      iconName="search"
-      description="Public startup profiles will appear here as founders publish their ventures."
-    />
-  );
+  return <DiscoverStartupsClient />;
 }

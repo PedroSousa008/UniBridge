@@ -1,9 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/lib/session';
 import { prisma } from '@/lib/db';
-import { PageHeader } from '@/components/layout/page-header';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { StartupProfileView } from '@/components/startup/startup-profile-view';
 
 export default async function StartupDetailPage({
   params,
@@ -13,58 +11,63 @@ export default async function StartupDetailPage({
   const session = await requireSession('STUDENT');
   const { id } = await params;
 
-  const startup = await prisma.startup.findFirst({
-    where: {
-      id,
-      OR: [
-        { founderId: session.user.id },
-        { members: { some: { userId: session.user.id } } },
-      ],
-    },
+  const startup = await prisma.startup.findUnique({
+    where: { id },
     include: {
-      founder: { select: { name: true } },
-      members: { include: { user: { select: { name: true } } } },
+      founder: { select: { id: true, name: true, email: true } },
+      members: {
+        include: { user: { select: { id: true, name: true, image: true } } },
+      },
+      media: { orderBy: { sortOrder: 'asc' } },
+      milestones: { orderBy: { sortOrder: 'asc' } },
+      tractionMetrics: true,
+      openings: true,
     },
   });
 
   if (!startup) notFound();
 
+  const isMember =
+    startup.founderId === session.user.id ||
+    startup.members.some((m) => m.userId === session.user.id);
+
   return (
-    <div>
-      <PageHeader
-        title={startup.name}
-        subtitle={startup.tagline || 'Your startup profile'}
-        badge={startup.stage || undefined}
-      />
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardContent className="p-6 space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Industry</p>
-              <p className="font-medium">{startup.industry || 'Not set'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Description</p>
-              <p className="text-sm leading-relaxed">
-                {startup.description || 'Add vision, roadmap, and milestones as you build.'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground mb-3">Team</p>
-            <ul className="space-y-2">
-              {startup.members.map((member) => (
-                <li key={member.id} className="flex items-center justify-between text-sm">
-                  <span>{member.user.name}</span>
-                  <Badge variant="secondary">{member.role}</Badge>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    <StartupProfileView
+      currentUserId={session.user.id}
+      startup={{
+        id: startup.id,
+        name: startup.name,
+        tagline: startup.tagline,
+        logoUrl: startup.logoUrl,
+        coverUrl: startup.coverUrl,
+        industry: startup.industry,
+        stage: startup.stage,
+        website: startup.website,
+        readinessScore: startup.readinessScore,
+        progressPercent: startup.progressPercent,
+        problem: startup.problem,
+        solution: startup.solution,
+        targetCustomer: startup.targetCustomer,
+        visionOneLiner: startup.visionOneLiner,
+        canEdit: startup.founderId === session.user.id,
+        isMember,
+        founder: startup.founder,
+        members: startup.members.map((m) => ({
+          id: m.id,
+          role: m.role,
+          isMainFounder: m.isMainFounder,
+          user: m.user,
+        })),
+        media: startup.media,
+        milestones: startup.milestones.map((m) => ({
+          label: m.label,
+          status: m.status,
+        })),
+        openings: startup.openings,
+        tractionPublic: startup.tractionMetrics
+          .filter((t) => !t.isPrivate && t.value)
+          .map((t) => ({ label: t.label, value: t.value! })),
+      }}
+    />
   );
 }

@@ -10,11 +10,13 @@ export default async function UniversityInnovationPage() {
 
   const [startups, programs] = await Promise.all([
     prisma.startup.findMany({
+      where: ctx ? { universityId: ctx.university.id } : undefined,
       include: {
         founder: { select: { name: true, email: true } },
         _count: { select: { members: true } },
+        openings: { take: 2 },
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { readinessScore: 'desc' },
     }),
     ctx
       ? prisma.incubatorProgram.findMany({
@@ -48,12 +50,12 @@ export default async function UniversityInnovationPage() {
   }));
 
   const rankings = [...startups]
-    .sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0))
+    .sort((a, b) => b.readinessScore - a.readinessScore)
     .slice(0, 10)
-    .map((s, i) => ({
+    .map((s) => ({
       id: s.id,
       name: s.name,
-      score: 100 - i * 7,
+      score: Math.round(s.readinessScore),
       category: s.industry || 'General',
     }));
 
@@ -82,6 +84,9 @@ export default async function UniversityInnovationPage() {
         founderName: s.founder.name || s.founder.email,
         featured: s.featured,
         memberCount: s._count.members,
+        readinessScore: s.readinessScore,
+        progressPercent: s.progressPercent,
+        lookingFor: s.openings.map((o) => o.role),
       }))}
       founders={founders}
       rankings={rankings}

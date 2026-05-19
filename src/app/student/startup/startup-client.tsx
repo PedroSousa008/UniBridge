@@ -13,6 +13,8 @@ interface Startup {
   tagline: string | null;
   industry: string | null;
   stage: string | null;
+  readinessScore: number;
+  progressPercent: number;
 }
 
 export function StudentStartupClient({ startups }: { startups: Startup[] }) {
@@ -43,7 +45,7 @@ export function StudentStartupClient({ startups }: { startups: Startup[] }) {
         <EmptyState
           iconName="rocket"
           title={tr('common.emptyState')}
-          description={tr('common.comingSoon')}
+          description="Create your venture profile and connect with cofounders, mentors, and companies."
           action={
             <Button asChild>
               <Link href="/student/startup/create">{tr('student.startup.create')}</Link>
@@ -62,6 +64,9 @@ export function StudentStartupClient({ startups }: { startups: Startup[] }) {
               {startup.tagline ? (
                 <p className="mt-2 text-sm text-muted-foreground">{startup.tagline}</p>
               ) : null}
+              <p className="mt-3 text-xs text-muted-foreground">
+                Readiness {Math.round(startup.readinessScore)}% · Progress {startup.progressPercent}%
+              </p>
             </Link>
           ))}
         </div>

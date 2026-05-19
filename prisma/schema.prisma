@@ -143,6 +143,9 @@ model User {
 
   startupsFounded     Startup[]              @relation("StartupFounder")
   startupMembers      StartupMember[]
+  startupInterests    StartupInterest[]      @relation("StartupInterestUser")
+  startupFollows      StartupFollower[]      @relation("StartupFollowerUser")
+  startupBookmarks    StartupBookmark[]      @relation("StartupBookmarkUser")
   careerTargets       CareerTarget[]
   subjects            SubjectEnrollment[]
   assignments         AssignmentSubmission[]
@@ -662,6 +665,7 @@ model Startup {
   id          String   @id @default(cuid())
   founderId   String
   founder     User     @relation("StartupFounder", fields: [founderId], references: [id], onDelete: Cascade)
+  universityId String?
   name        String
   tagline     String?
   description String?  @db.Text
@@ -669,23 +673,163 @@ model Startup {
   stage       String?
   logoUrl     String?
   coverUrl    String?
+  website     String?
+  linkedIn    String?
+  instagram   String?
+  twitter     String?
+  contactEmail String?
+  foundedAt   DateTime?
   lookingFor  String[]
   traction    String?  @db.Text
   featured    Boolean  @default(false)
   watchlisted Boolean  @default(false)
+  readinessScore Float @default(0)
+  progressPercent Int  @default(0)
+  defaultVisibility String @default("PUBLIC")
+
+  problem           String? @db.Text
+  targetCustomer    String? @db.Text
+  solution          String? @db.Text
+  whyNow            String? @db.Text
+  differentiator    String? @db.Text
+  businessModelText String? @db.Text
+  visionOneLiner    String? @db.Text
+
+  revenueModels      String[]
+  expectedPricing    String?
+  targetCustomersBm  String?
+  revenueGoal        String?
+  monetizationStage  String?
+
+  targetMarket         String? @db.Text
+  marketSizeEstimate   String?
+  competitors          String? @db.Text
+  currentAlternatives  String? @db.Text
+
+  sectionVisibility Json?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members StartupMember[]
+  members      StartupMember[]
+  media        StartupMedia[]
+  milestones   StartupMilestone[]
+  tractionMetrics StartupTractionMetric[]
+  openings     StartupOpening[]
+  interests    StartupInterest[]
+  followers    StartupFollower[]
+  bookmarks    StartupBookmark[]
+
+  @@index([universityId])
+  @@index([industry])
+  @@index([stage])
 }
 
 model StartupMember {
+  id              String   @id @default(cuid())
+  startupId       String
+  startup         Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            String
+  photoUrl        String?
+  course          String?
+  yearOfStudy     Int?
+  linkedIn        String?
+  bio             String?  @db.Text
+  ownershipPercent Float?
+  ownershipPrivate Boolean @default(true)
+  isMainFounder   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@unique([startupId, userId])
+}
+
+model StartupMedia {
+  id        String   @id @default(cuid())
+  startupId String
+  startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  type      String
+  title     String?
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([startupId])
+}
+
+model StartupMilestone {
+  id        String   @id @default(cuid())
+  startupId String
+  startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  key       String
+  label     String
+  status    String   @default("pending")
+  date      DateTime?
+  proofUrl  String?
+  notes     String?  @db.Text
+  sortOrder Int      @default(0)
+
+  @@unique([startupId, key])
+  @@index([startupId])
+}
+
+model StartupTractionMetric {
+  id        String   @id @default(cuid())
+  startupId String
+  startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  metricKey String
+  label     String
+  value     String?
+  isPrivate Boolean  @default(false)
+
+  @@unique([startupId, metricKey])
+}
+
+model StartupOpening {
+  id             String   @id @default(cuid())
+  startupId      String
+  startup        Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  role           String
+  description    String?  @db.Text
+  skillsRequired String[]
+  timeCommitment String?
+  compensation   String?
+  createdAt      DateTime @default(now())
+}
+
+model StartupInterest {
   id        String   @id @default(cuid())
   startupId String
   startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String
+  user      User     @relation("StartupInterestUser", fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  message   String?  @db.Text
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  @@unique([startupId, userId, type])
+  @@index([startupId])
+}
+
+model StartupFollower {
+  id        String   @id @default(cuid())
+  startupId String
+  startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("StartupFollowerUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([startupId, userId])
+}
+
+model StartupBookmark {
+  id        String   @id @default(cuid())
+  startupId String
+  startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("StartupBookmarkUser", fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@unique([startupId, userId])
