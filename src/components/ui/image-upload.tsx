@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { upload } from '@vercel/blob/client';
 import { Crop, ImagePlus, Loader2, X } from 'lucide-react';
@@ -14,6 +14,7 @@ import {
   MAX_DATA_URL_BYTES,
   MAX_IMAGE_BYTES,
   readFileAsDataUrl,
+  resolveImageSourceForCrop,
   validateImageFile,
 } from '@/lib/uploads/validate-image';
 
@@ -25,7 +26,6 @@ interface ImageUploadProps {
   className?: string;
   aspect?: 'square' | 'banner';
   hint?: string;
-  /** Set false to upload without cropping (e.g. SVG). */
   enableCrop?: boolean;
 }
 
@@ -41,32 +41,28 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [cropPreparing, setCropPreparing] = useState(false);
   const [error, setError] = useState('');
   const [cropOpen, setCropOpen] = useState(false);
   const [cropSource, setCropSource] = useState('');
   const [pendingName, setPendingName] = useState('image.jpg');
-  const objectUrlRef = useRef<string | null>(null);
 
   const cropAspect = CROP_ASPECT[aspect];
   const maxOutputWidth = aspect === 'banner' ? 1920 : 1200;
 
-  function revokeObjectUrl() {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
+  async function openCropper(src: string, fileName: string) {
+    setCropPreparing(true);
+    setError('');
+    try {
+      const dataUrl = await resolveImageSourceForCrop(src);
+      setPendingName(fileName);
+      setCropSource(dataUrl);
+      setCropOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open image for cropping');
+    } finally {
+      setCropPreparing(false);
     }
-  }
-
-  useEffect(() => () => revokeObjectUrl(), []);
-
-  function openCropper(src: string, fileName: string) {
-    revokeObjectUrl();
-    if (src.startsWith('blob:')) {
-      objectUrlRef.current = src;
-    }
-    setPendingName(fileName);
-    setCropSource(src);
-    setCropOpen(true);
   }
 
   async function uploadViaBlob(file: File) {
@@ -136,7 +132,7 @@ export function ImageUpload({
     }
   }
 
-  function handleRawFile(file: File) {
+  async function handleRawFile(file: File) {
     const err = validateImageFile(file, MAX_IMAGE_BYTES);
     if (err) {
       setError(err);
@@ -150,18 +146,24 @@ export function ImageUpload({
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    objectUrlRef.current = url;
-    openCropper(url, file.name);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setPendingName(file.name);
+      setCropSource(dataUrl);
+      setCropOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read image');
+    }
     if (inputRef.current) inputRef.current.value = '';
   }
 
   async function handleCroppedBlob(blob: Blob) {
     const file = blobToFile(blob, pendingName);
-    revokeObjectUrl();
     setCropSource('');
     await uploadFile(file);
   }
+
+  const busy = uploading || cropPreparing || cropOpen;
 
   return (
     <div className={cn('space-y-2', className)}>
@@ -189,17 +191,17 @@ export function ImageUpload({
         ) : (
           <button
             type="button"
-            disabled={uploading || cropOpen}
+            disabled={busy}
             onClick={() => inputRef.current?.click()}
             className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
           >
-            {uploading ? (
+            {uploading || cropPreparing ? (
               <Loader2 className="h-8 w-8 animate-spin" />
             ) : (
               <ImagePlus className="h-8 w-8" />
             )}
             <span className="text-xs font-medium">
-              {uploading ? 'Uploading…' : 'Upload from device'}
+              {uploading ? 'Uploading…' : cropPreparing ? 'Loading…' : 'Upload from device'}
             </span>
           </button>
         )}
@@ -211,7 +213,7 @@ export function ImageUpload({
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) handleRawFile(file);
+          if (file) void handleRawFile(file);
         }}
       />
       {value ? (
@@ -220,7 +222,7 @@ export function ImageUpload({
             type="button"
             variant="outline"
             size="sm"
-            disabled={uploading || cropOpen}
+            disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
             Replace image
@@ -230,8 +232,8 @@ export function ImageUpload({
               type="button"
               variant="outline"
               size="sm"
-              disabled={uploading || cropOpen}
-              onClick={() => openCropper(value, 'image.jpg')}
+              disabled={busy}
+              onClick={() => void openCropper(value, 'image.jpg')}
             >
               <Crop className="mr-1.5 h-3.5 w-3.5" />
               Adjust crop
@@ -246,10 +248,7 @@ export function ImageUpload({
         open={cropOpen}
         onOpenChange={(open) => {
           setCropOpen(open);
-          if (!open) {
-            revokeObjectUrl();
-            setCropSource('');
-          }
+          if (!open) setCropSource('');
         }}
         imageSrc={cropSource}
         aspect={cropAspect}

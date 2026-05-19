@@ -5,7 +5,7 @@ function createImage(url: string): Promise<HTMLImageElement> {
     const image = new Image();
     image.addEventListener('load', () => resolve(image));
     image.addEventListener('error', reject);
-    image.crossOrigin = 'anonymous';
+    if (url.startsWith('http')) image.crossOrigin = 'anonymous';
     image.src = url;
   });
 }

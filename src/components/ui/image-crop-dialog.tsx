@@ -39,14 +39,31 @@ export function ImageCropDialog({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [displaySrc, setDisplaySrc] = useState('');
+  const [imageReady, setImageReady] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-      setCroppedAreaPixels(null);
-      setError('');
+    if (!open || !imageSrc) {
+      setDisplaySrc('');
+      setImageReady(false);
+      return;
     }
+
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setError('');
+    setImageReady(false);
+    setDisplaySrc(imageSrc);
+
+    const img = new Image();
+    if (imageSrc.startsWith('http')) img.crossOrigin = 'anonymous';
+    img.onload = () => setImageReady(true);
+    img.onerror = () => {
+      setError('Could not display this image. Try choosing the file again.');
+      setImageReady(false);
+    };
+    img.src = imageSrc;
   }, [open, imageSrc]);
 
   const onCropComplete = useCallback((_: Area, pixels: Area) => {
@@ -54,11 +71,11 @@ export function ImageCropDialog({
   }, []);
 
   async function handleApply() {
-    if (!croppedAreaPixels) return;
+    if (!croppedAreaPixels || !displaySrc) return;
     setSaving(true);
     setError('');
     try {
-      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, maxOutputWidth);
+      const blob = await getCroppedImageBlob(displaySrc, croppedAreaPixels, maxOutputWidth);
       await onConfirm(blob);
       onOpenChange(false);
     } catch (e) {
@@ -75,28 +92,38 @@ export function ImageCropDialog({
         if (!saving) onOpenChange(next);
       }}
     >
-      <DialogContent className="max-w-2xl gap-4 p-0 sm:p-0 overflow-hidden">
+      <DialogContent className="max-w-2xl gap-4 overflow-hidden p-0 sm:p-0">
         <div className="p-6 pb-0">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>
-              Drag to reposition. Pinch or use the slider to zoom. The frame shows what will be saved.
+              Drag to reposition. Use the slider to zoom. The frame shows what will be saved.
             </DialogDescription>
           </DialogHeader>
         </div>
-        <div className="relative h-[min(55vh,360px)] w-full bg-muted">
-          {open && imageSrc ? (
-            <Cropper
-              image={imageSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={aspect}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-              showGrid
-              objectFit="contain"
-            />
+        <div className="relative h-[min(55vh,360px)] w-full bg-neutral-900">
+          {open && displaySrc ? (
+            imageReady ? (
+              <Cropper
+                image={displaySrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={aspect}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                showGrid
+                objectFit="contain"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                {error ? (
+                  <p className="max-w-sm px-4 text-center text-sm text-red-400">{error}</p>
+                ) : (
+                  <Loader2 className="h-10 w-10 animate-spin text-white/70" />
+                )}
+              </div>
+            )
           ) : null}
         </div>
         <div className="space-y-4 px-6 pb-6">
@@ -108,12 +135,13 @@ export function ImageCropDialog({
               max={3}
               step={0.02}
               value={zoom}
+              disabled={!imageReady}
               onChange={(e) => setZoom(Number(e.target.value))}
-              className="h-2 w-full cursor-pointer accent-primary"
+              className="h-2 w-full cursor-pointer accent-primary disabled:opacity-40"
             />
           </label>
-          {error ? <p className="text-xs text-red-600">{error}</p> : null}
-          <DialogFooter className="sm:justify-between gap-2">
+          {error && imageReady ? <p className="text-xs text-red-600">{error}</p> : null}
+          <DialogFooter className="gap-2 sm:justify-between">
             <Button
               type="button"
               variant="outline"
@@ -122,7 +150,11 @@ export function ImageCropDialog({
             >
               Cancel
             </Button>
-            <Button type="button" disabled={saving || !croppedAreaPixels} onClick={() => void handleApply()}>
+            <Button
+              type="button"
+              disabled={saving || !croppedAreaPixels || !imageReady}
+              onClick={() => void handleApply()}
+            >
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
