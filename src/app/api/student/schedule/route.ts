@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { ClassSessionType } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { ensureStudentWeeklyClassTable } from '@/lib/db/ensure-schedule-schema';
 import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
 import { DEFAULT_CLASS_COLORS, durationMinutes } from '@/lib/student/weekly-schedule';
 
@@ -13,6 +14,8 @@ export async function GET() {
   if (!session?.user?.id || session.user.role !== 'STUDENT') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  await ensureStudentWeeklyClassTable();
 
   try {
     const classes = await prisma.studentWeeklyClass.findMany({
@@ -69,6 +72,18 @@ export async function POST(request: Request) {
     if (!enrolled) {
       return NextResponse.json({ error: 'Subject not enrolled' }, { status: 400 });
     }
+  }
+
+  const ready = await ensureStudentWeeklyClassTable();
+  if (!ready) {
+    return NextResponse.json(
+      {
+        error:
+          'Could not initialize schedule storage. Your class was not saved — please try again in a moment.',
+        code: 'SCHEDULE_DB_NOT_READY',
+      },
+      { status: 503 }
+    );
   }
 
   try {

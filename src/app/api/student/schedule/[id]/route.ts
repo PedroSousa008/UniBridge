@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { ClassSessionType } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { ensureStudentWeeklyClassTable } from '@/lib/db/ensure-schedule-schema';
 import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
 import { DEFAULT_CLASS_COLORS, durationMinutes } from '@/lib/student/weekly-schedule';
 
@@ -22,6 +23,8 @@ export async function PATCH(
   }
 
   const { id } = await params;
+  await ensureStudentWeeklyClassTable();
+
   let existing;
   try {
     existing = await prisma.studentWeeklyClass.findFirst({
@@ -46,6 +49,11 @@ export async function PATCH(
 
   const type: ClassSessionType =
     body.classType && TYPES.has(body.classType) ? body.classType : existing.classType;
+
+  const ready = await ensureStudentWeeklyClassTable();
+  if (!ready) {
+    return NextResponse.json({ ...DB_NOT_READY, code: 'SCHEDULE_DB_NOT_READY' }, { status: 503 });
+  }
 
   try {
     const updated = await prisma.studentWeeklyClass.update({
@@ -84,6 +92,8 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  await ensureStudentWeeklyClassTable();
+
   try {
     const existing = await prisma.studentWeeklyClass.findFirst({
       where: { id, studentId: session.user.id },

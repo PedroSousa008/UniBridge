@@ -9,7 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { AddClassDialog } from '@/components/student/schedule/add-class-dialog';
 import {
-  CALENDAR_START_HOUR,
+  isLocalClassId,
+  loadLocalScheduleClasses,
+  removeLocalScheduleClass,
+} from '@/lib/student/schedule-local-storage';
+import {
   calendarHours,
   CLASS_TYPE_LABELS,
   currentTimeLineTopPx,
@@ -28,18 +32,32 @@ import {
 type ViewMode = 'week' | 'day' | 'agenda';
 
 interface WeeklyScheduleClientProps {
+  userId: string;
   initialClasses: CalendarClass[];
   subjects: EnrolledSubjectOption[];
   dbSyncNeeded?: boolean;
 }
 
+function mergeClasses(server: CalendarClass[], local: CalendarClass[]) {
+  const serverIds = new Set(server.map((c) => c.id));
+  const merged = [...server];
+  for (const c of local) {
+    if (!serverIds.has(c.id)) merged.push(c);
+  }
+  return merged;
+}
+
 export function WeeklyScheduleClient({
+  userId,
   initialClasses,
   subjects,
   dbSyncNeeded = false,
 }: WeeklyScheduleClientProps) {
   const router = useRouter();
-  const [classes, setClasses] = useState(initialClasses);
+  const [classes, setClasses] = useState(() =>
+    mergeClasses(initialClasses, loadLocalScheduleClasses(userId))
+  );
+  const [savedLocally, setSavedLocally] = useState(false);
   const [view, setView] = useState<ViewMode>('week');
   const [mobileDay, setMobileDay] = useState<number>(() => new Date().getDay());
   const [now, setNow] = useState(() => new Date());
@@ -57,8 +75,8 @@ export function WeeklyScheduleClient({
   const nextClass = nextClassToday(classes, now);
 
   useEffect(() => {
-    setClasses(initialClasses);
-  }, [initialClasses]);
+    setClasses(mergeClasses(initialClasses, loadLocalScheduleClasses(userId)));
+  }, [initialClasses, userId]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
@@ -97,9 +115,21 @@ export function WeeklyScheduleClient({
   async function deleteClass(cls: CalendarClass) {
     if (!cls.canEdit) return;
     if (!confirm('Remove this class from your schedule?')) return;
-    await fetch(`/api/student/schedule/${cls.id}`, { method: 'DELETE' });
+    if (isLocalClassId(cls.id)) {
+      removeLocalScheduleClass(userId, cls.id);
+    } else {
+      await fetch(`/api/student/schedule/${cls.id}`, { method: 'DELETE' });
+    }
     setClasses((list) => list.filter((c) => c.id !== cls.id));
     refresh();
+  }
+
+  function handleClassSavedLocally(cls: CalendarClass) {
+    setClasses((list) => {
+      const without = list.filter((c) => c.id !== cls.id);
+      return [...without, cls];
+    });
+    setSavedLocally(true);
   }
 
   function classesForDay(dayOfWeek: number) {
@@ -148,11 +178,13 @@ export function WeeklyScheduleClient({
 
   return (
     <div>
-      {dbSyncNeeded ? (
+      {savedLocally ? (
+        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Class saved on this device. It will sync to your account automatically once storage is ready.
+        </div>
+      ) : dbSyncNeeded ? (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Custom classes need a database update. The calendar still works — run{' '}
-          <code className="rounded bg-amber-100 px-1">npm run db:push</code> against your Neon database
-          to enable saving new classes.
+          Setting up schedule storage… You can still add classes; they appear on your calendar right away.
         </div>
       ) : null}
 
@@ -349,11 +381,14 @@ export function WeeklyScheduleClient({
       <AddClassDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        userId={userId}
         subjects={subjects}
         editing={editing}
         onSaved={() => {
+          setSavedLocally(false);
           refresh();
         }}
+        onClassSavedLocally={handleClassSavedLocally}
       />
     </div>
   );

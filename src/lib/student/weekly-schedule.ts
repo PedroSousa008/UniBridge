@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { ensureStudentWeeklyClassTable } from '@/lib/db/ensure-schedule-schema';
 import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
 import type { ClassSessionType } from '@prisma/client';
 
@@ -181,6 +182,7 @@ async function loadEnrollmentsForSchedule(userId: string) {
 }
 
 async function loadStudentCustomClasses(userId: string) {
+  await ensureStudentWeeklyClassTable();
   try {
     return await prisma.studentWeeklyClass.findMany({
       where: { studentId: userId },
@@ -190,6 +192,10 @@ async function loadStudentCustomClasses(userId: string) {
     if (isPrismaSchemaMismatchError(error)) return [];
     throw error;
   }
+}
+
+export async function isScheduleDatabaseReady() {
+  return ensureStudentWeeklyClassTable();
 }
 
 export async function loadStudentWeeklySchedule(userId: string) {

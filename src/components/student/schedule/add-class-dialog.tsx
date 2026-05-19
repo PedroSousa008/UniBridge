@@ -23,6 +23,12 @@ import {
   type EnrolledSubjectOption,
   WEEK_DAYS_MON_FIRST,
 } from '@/lib/student/weekly-schedule';
+import {
+  createLocalClassId,
+  isLocalClassId,
+  saveLocalScheduleClass,
+  type LocalClassPayload,
+} from '@/lib/student/schedule-local-storage';
 import { Loader2 } from 'lucide-react';
 
 const CLASS_TYPES = Object.keys(CLASS_TYPE_LABELS) as ClassSessionType[];
@@ -89,20 +95,41 @@ function fromClass(cls: CalendarClass): ClassFormState {
   };
 }
 
+function formToPayload(form: ClassFormState): LocalClassPayload {
+  return {
+    subjectName: form.subjectName.trim(),
+    subjectId: form.subjectId || null,
+    classType: form.classType,
+    professor: form.professor || null,
+    dayOfWeek: form.dayOfWeek,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    repeatWeekly: form.repeatWeekly,
+    building: form.building || null,
+    room: form.room || null,
+    isOnline: form.isOnline,
+    color: form.color,
+  };
+}
+
 interface AddClassDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userId: string;
   subjects: EnrolledSubjectOption[];
   editing: CalendarClass | null;
   onSaved: () => void;
+  onClassSavedLocally: (cls: CalendarClass) => void;
 }
 
 export function AddClassDialog({
   open,
   onOpenChange,
+  userId,
   subjects,
   editing,
   onSaved,
+  onClassSavedLocally,
 }: AddClassDialogProps) {
   const [form, setForm] = useState<ClassFormState>(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -141,26 +168,66 @@ export function AddClassDialog({
 
     setSaving(true);
     setError('');
-    try {
-      const payload = {
-        ...form,
-        subjectId: form.subjectId || null,
-        professor: form.professor || null,
-        building: form.building || null,
-        room: form.room || null,
-      };
 
-      if (editing?.source === 'university') {
-        setError('University classes cannot be edited here.');
+    if (editing?.source === 'university') {
+      setError('University classes cannot be edited here.');
+      setSaving(false);
+      return;
+    }
+
+    const payload = formToPayload(form);
+    const apiPayload = {
+      ...payload,
+      subjectId: payload.subjectId,
+    };
+
+    const saveLocally = (id: string) => {
+      saveLocalScheduleClass(userId, id, payload);
+      onClassSavedLocally({
+        id,
+        source: 'student',
+        subjectName: payload.subjectName,
+        subjectId: payload.subjectId,
+        classType: payload.classType,
+        professor: payload.professor,
+        dayOfWeek: payload.dayOfWeek,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        building: payload.building,
+        room: payload.room,
+        isOnline: payload.isOnline,
+        color: payload.color,
+        attendancePercent: null,
+        repeatWeekly: payload.repeatWeekly,
+        canEdit: true,
+        durationMinutes: duration,
+      });
+      onOpenChange(false);
+    };
+
+    try {
+      if (editing && isLocalClassId(editing.id)) {
+        saveLocally(editing.id);
         return;
       }
 
-      const res = await fetch(editing ? `/api/student/schedule/${editing.id}` : '/api/student/schedule', {
-        method: editing ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        editing ? `/api/student/schedule/${editing.id}` : '/api/student/schedule',
+        {
+          method: editing ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(apiPayload),
+        }
+      );
       const data = await res.json();
+
+      if (res.status === 503 || data.code === 'SCHEDULE_DB_NOT_READY') {
+        const id =
+          editing && isLocalClassId(editing.id) ? editing.id : createLocalClassId();
+        saveLocally(id);
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || 'Could not save class');
 
       onSaved();
