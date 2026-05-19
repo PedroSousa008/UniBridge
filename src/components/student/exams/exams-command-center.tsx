@@ -98,6 +98,8 @@ export function ExamsCommandCenter({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [syncPending, setSyncPending] = useState(dbSyncNeeded);
+  const [syncing, setSyncing] = useState(false);
 
   const [form, setForm] = useState({
     title: '',
@@ -118,6 +120,26 @@ export function ExamsCommandCenter({
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    if (!syncPending) return;
+    let cancelled = false;
+    setSyncing(true);
+    fetch('/api/student/exams')
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          setSyncPending(false);
+          router.refresh();
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSyncing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [syncPending, router]);
 
   useEffect(() => {
     const id = searchParams.get('exam');
@@ -284,10 +306,11 @@ export function ExamsCommandCenter({
         }
       />
 
-      {dbSyncNeeded && (
+      {syncPending && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-          Database sync pending — new exams save locally until schema is applied. Run{' '}
-          <code className="text-xs">npm run db:push</code> against your database.
+          {syncing
+            ? 'Setting up exam storage in your database…'
+            : 'Exam storage is not ready yet — new exams are saved only in this browser for now. Refresh in a moment, or ask your admin to run npm run db:push once on the project.'}
         </p>
       )}
 
