@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  UNIVERSITY
+  COMPANY
+  OWNER
+}
+
+enum Locale {
+  EN
+  PT
+}
+
+enum NotificationType {
+  DEADLINE
+  ASSIGNMENT
+  CAREER
+  STARTUP
+  ANNOUNCEMENT
+  SYSTEM
+  ACHIEVEMENT
+}
+
+model PlatformConfig {
+  id             String   @id @default("platform")
+  ownerSlotTaken Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String
+  name          String?
+  image         String?
+  role          UserRole
+  locale        Locale    @default(EN)
+  headline      String?
+  bio           String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  studentProfile    StudentProfile?
+  teacherProfile    TeacherProfile?
+  universityProfile UniversityProfile?
+  companyProfile    CompanyProfile?
+
+  notifications Notification[]
+  accounts      Account[]
+  sessions      Session[]
+
+  startupsFounded Startup[]        @relation("StartupFounder")
+  startupMembers  StartupMember[]
+  careerTargets   CareerTarget[]
+  subjects        SubjectEnrollment[]
+  assignments     AssignmentSubmission[]
+  analyticsEvents AnalyticsEvent[]
+}
+
+model StudentProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityName   String?
+  program          String?
+  yearOfStudy      Int?
+  profileStrength  Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model TeacherProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department     String?
+  title          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subjects Subject[]
+}
+
+model UniversityProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution  String?
+  position     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model CompanyProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName String?
+  industry    String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  read      Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read, createdAt])
+}
+
+model Subject {
+  id          String   @id @default(cuid())
+  name        String
+  code        String?
+  description String?  @db.Text
+  teacherId   String?
+  teacher     TeacherProfile? @relation(fields: [teacherId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  enrollments SubjectEnrollment[]
+  assignments Assignment[]
+  exams       Exam[]
+}
+
+model SubjectEnrollment {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grade     Float?
+  attendance Float?
+  createdAt DateTime @default(now())
+
+  @@unique([subjectId, studentId])
+}
+
+model Assignment {
+  id          String   @id @default(cuid())
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?  @db.Text
+  dueDate     DateTime
+  maxScore    Float    @default(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  content      String?    @db.Text
+  score        Float?
+  submittedAt  DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@unique([assignmentId, studentId])
+}
+
+model Exam {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title     String
+  date      DateTime
+  location  String?
+  maxScore  Float    @default(100)
+  createdAt DateTime @default(now())
+}
+
+model CareerTarget {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleTitle      String
+  companyName    String?
+  compatibility  Float    @default(0)
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Startup {
+  id          String   @id @default(cuid())
+  founderId   String
+  founder     User     @relation("StartupFounder", fields: [founderId], references: [id], onDelete: Cascade)
+  name        String
+  tagline     String?
+  description String?  @db.Text
+  industry    String?
+  stage       String?
+  logoUrl     String?
+  coverUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members StartupMember[]
+}
+
+model StartupMember {
+  id        String   @id @default(cuid())
+  startupId String
+  startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  createdAt DateTime @default(now())
+
+  @@unique([startupId, userId])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event     String
+  metadata  String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([event, createdAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
