@@ -78,7 +78,7 @@ export function StudentHomeClient({
 
       {!hasData ? (
         <EmptyState
-          icon={TrendingUp}
+          iconName="trending-up"
           title={tr('student.home.emptyTitle')}
           description={tr('student.home.emptyDesc')}
           action={

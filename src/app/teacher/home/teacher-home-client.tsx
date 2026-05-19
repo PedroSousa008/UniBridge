@@ -43,7 +43,7 @@ export function TeacherHomeClient() {
         </CardHeader>
         <CardContent>
           <EmptyState
-            icon={Sparkles}
+            iconName="sparkles"
             title={tr('common.emptyState')}
             description="Performance insights and intervention recommendations will appear as you manage classes."
             className="py-10"

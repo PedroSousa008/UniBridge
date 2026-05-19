@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { Briefcase } from 'lucide-react';
 import { ModulePage } from '@/components/layout/module-page';
 
 const modules: Record<string, { title: string; subtitle?: string }> = {
@@ -28,7 +27,7 @@ export default async function CareerModulePage({
     <ModulePage
       title={mod.title}
       subtitle={mod.subtitle}
-      icon={Briefcase}
+      iconName="briefcase"
     />
   );
 }

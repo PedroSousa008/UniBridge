@@ -88,7 +88,7 @@ export function CompatibilityClient({
         <div className="lg:col-span-2 space-y-4">
           {targets.length === 0 ? (
             <EmptyState
-              icon={Target}
+              iconName="target"
               title={tr('common.emptyState')}
               description="Add a career target to begin tracking your compatibility progression."
             />

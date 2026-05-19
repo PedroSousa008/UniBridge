@@ -1,4 +1,3 @@
-import { Search } from 'lucide-react';
 import { ModulePage } from '@/components/layout/module-page';
 
 export default function DiscoverStartupsPage() {
@@ -6,7 +5,7 @@ export default function DiscoverStartupsPage() {
     <ModulePage
       title="Discover ventures"
       subtitle="Explore startups created by students in the ecosystem."
-      icon={Search}
+      iconName="search"
       description="Public startup profiles will appear here as founders publish their ventures."
     />
   );

@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { BookOpen } from 'lucide-react';
 import { ModulePage } from '@/components/layout/module-page';
 
 const pages: Record<string, string> = {
@@ -22,7 +21,7 @@ export default async function TeacherModulePage({
     <ModulePage
       title={slug.charAt(0).toUpperCase() + slug.slice(1)}
       subtitle={subtitle}
-      icon={BookOpen}
+      iconName="book-open"
     />
   );
 }

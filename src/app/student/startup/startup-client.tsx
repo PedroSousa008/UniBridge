@@ -41,7 +41,7 @@ export function StudentStartupClient({ startups }: { startups: Startup[] }) {
 
       {startups.length === 0 ? (
         <EmptyState
-          icon={Rocket}
+          iconName="rocket"
           title={tr('common.emptyState')}
           description={tr('common.comingSoon')}
           action={

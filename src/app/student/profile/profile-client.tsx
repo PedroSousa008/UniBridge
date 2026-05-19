@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Progress } from '@/components/ui/progress';
 import { useI18n } from '@/lib/i18n/context';
+import type { IconName } from '@/lib/icons';
 
 interface ProfileData {
   name?: string | null;
@@ -19,12 +20,12 @@ interface ProfileData {
 export function StudentProfileClient({ profile }: { profile: ProfileData }) {
   const { tr } = useI18n();
 
-  const sections = [
-    { icon: Award, label: tr('student.profile.achievements') },
-    { icon: Sparkles, label: tr('student.profile.certifications') },
-    { icon: FolderKanban, label: tr('student.profile.projects') },
-    { icon: Briefcase, label: tr('student.profile.internships') },
-    { icon: FileUser, label: tr('student.profile.skills') },
+  const sections: { iconName: IconName; label: string; headerIcon: typeof Award }[] = [
+    { iconName: 'award', label: tr('student.profile.achievements'), headerIcon: Award },
+    { iconName: 'sparkles', label: tr('student.profile.certifications'), headerIcon: Sparkles },
+    { iconName: 'folder-kanban', label: tr('student.profile.projects'), headerIcon: FolderKanban },
+    { iconName: 'briefcase', label: tr('student.profile.internships'), headerIcon: Briefcase },
+    { iconName: 'file-user', label: tr('student.profile.skills'), headerIcon: FileUser },
   ];
 
   return (
@@ -65,17 +66,17 @@ export function StudentProfileClient({ profile }: { profile: ProfileData }) {
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {sections.map(({ icon: Icon, label }) => (
+        {sections.map(({ iconName, label, headerIcon: HeaderIcon }) => (
           <Card key={label}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
-                <Icon className="h-4 w-4" />
+                <HeaderIcon className="h-4 w-4" />
                 {label}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <EmptyState
-                icon={Icon}
+                iconName={iconName}
                 title={tr('common.emptyState')}
                 description={tr('common.comingSoon')}
                 className="py-8"

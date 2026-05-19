@@ -1,8 +1,10 @@
+'use client';
+
 import { cn } from '@/lib/utils';
-import type { LucideIcon } from 'lucide-react';
+import { resolveIcon, type IconName } from '@/lib/icons';
 
 interface EmptyStateProps {
-  icon: LucideIcon;
+  iconName: IconName;
   title: string;
   description: string;
   className?: string;
@@ -10,12 +12,14 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
-  icon: Icon,
+  iconName,
   title,
   description,
   className,
   action,
 }: EmptyStateProps) {
+  const Icon = resolveIcon(iconName);
+
   return (
     <div
       className={cn(
