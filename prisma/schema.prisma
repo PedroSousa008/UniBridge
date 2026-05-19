@@ -210,6 +210,7 @@ model User {
   hiddenCalendarItems  StudentCalendarHidden[]
   examsCreated         Exam[]                   @relation("ExamsCreated")
   examPreparations     StudentExamPreparation[]
+  gradebookPreference  StudentGradebookPreference?
 }
 
 model StudentProfile {
@@ -598,16 +599,34 @@ model SubjectAttendanceRecord {
 }
 
 model GradeCategory {
-  id        String   @id @default(cuid())
-  subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  name      String
-  weight    Float
-  sortOrder Int      @default(0)
+  id          String   @id @default(cuid())
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name        String
+  weight      Float
+  sortOrder   Int      @default(0)
+  description String?  @db.Text
+  rulesJson   Json?
+  minGrade    Float?
 
   assignments Assignment[]
 
   @@index([subjectId])
+}
+
+model StudentGradebookPreference {
+  id                String   @id @default(cuid())
+  studentId         String   @unique
+  student           User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  goodMin           Float    @default(14)
+  moderateMin       Float    @default(10)
+  passMin           Float    @default(10)
+  targetGpa         Float?
+  creditsCompleted  Int      @default(0)
+  creditsRequired   Int      @default(180)
+  ectsPerSubject    Int      @default(6)
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
 }
 
 model SubjectMessage {
