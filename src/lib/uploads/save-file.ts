@@ -1,25 +1,7 @@
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { randomBytes } from 'crypto';
-
-const MAX_BYTES = 5 * 1024 * 1024;
-const IMAGE_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/svg+xml',
-]);
-
-export function validateImageFile(file: File) {
-  if (!IMAGE_TYPES.has(file.type)) {
-    return 'Please upload a JPEG, PNG, WebP, GIF, or SVG image.';
-  }
-  if (file.size > MAX_BYTES) {
-    return 'Image must be 5 MB or smaller.';
-  }
-  return null;
-}
+import { MAX_IMAGE_BYTES, validateImageFile } from './validate-image';
 
 function safeName(original: string) {
   const ext = path.extname(original).toLowerCase() || '.jpg';
@@ -43,8 +25,15 @@ async function saveBlob(buffer: Buffer, filename: string, contentType: string) {
   return blob.url;
 }
 
+/** Server-side upload — local development only (Vercel filesystem is read-only). */
 export async function saveUploadedImage(file: File, folder: string) {
-  const err = validateImageFile(file);
+  if (process.env.VERCEL === '1') {
+    throw new Error(
+      'Server file save is disabled on Vercel. Upload using the device picker in the app.'
+    );
+  }
+
+  const err = validateImageFile(file, MAX_IMAGE_BYTES);
   if (err) throw new Error(err);
 
   const bytes = await file.arrayBuffer();
