@@ -9,6 +9,10 @@ out/
 dist/
 build/
 
+# User uploads (local dev)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
 # Environment
 .env
 .env*.local

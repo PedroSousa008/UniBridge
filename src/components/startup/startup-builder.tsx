@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ImageUpload } from '@/components/ui/image-upload';
 import { StartupPreview } from './startup-preview';
 import {
   defaultBuilderState,
@@ -183,25 +184,30 @@ export function StartupBuilder({
                   }))
                 }
               />
-              <Input
-                placeholder="Logo URL"
+              <ImageUpload
+                label="Logo"
                 value={state.identity.logoUrl}
-                onChange={(e) =>
+                onChange={(url) =>
                   setState((s) => ({
                     ...s,
-                    identity: { ...s.identity, logoUrl: e.target.value },
+                    identity: { ...s.identity, logoUrl: url },
                   }))
                 }
+                folder="startup-logo"
+                aspect="square"
               />
-              <Input
-                placeholder="Cover / hero image URL"
+              <ImageUpload
+                label="Cover / hero banner"
                 value={state.identity.coverUrl}
-                onChange={(e) =>
+                onChange={(url) =>
                   setState((s) => ({
                     ...s,
-                    identity: { ...s.identity, coverUrl: e.target.value },
+                    identity: { ...s.identity, coverUrl: url },
                   }))
                 }
+                folder="startup-cover"
+                aspect="banner"
+                className="sm:col-span-2"
               />
               <Input
                 placeholder="Website"
@@ -295,7 +301,18 @@ export function StartupBuilder({
 
           <Section title="2. Founder team">
             {state.members.map((m, i) => (
-              <div key={i} className="rounded-xl border border-border/60 p-4 space-y-2">
+              <div key={i} className="rounded-xl border border-border/60 p-4 space-y-3">
+                <ImageUpload
+                  label="Profile photo"
+                  value={m.photoUrl ?? ''}
+                  onChange={(url) => {
+                    const members = [...state.members];
+                    members[i] = { ...members[i], photoUrl: url };
+                    setState((s) => ({ ...s, members }));
+                  }}
+                  folder="founder-photo"
+                  aspect="square"
+                />
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Input
                     placeholder="Email (invite) or leave if you"
@@ -440,43 +457,75 @@ export function StartupBuilder({
           </Section>
 
           <Section title="4. Visual pitch">
-            {state.media.map((m, i) => (
-              <div key={i} className="grid gap-2 sm:grid-cols-3">
-                <select
-                  className="h-11 rounded-xl border border-border bg-card px-3 text-sm"
-                  value={m.type}
-                  onChange={(e) => {
-                    const media = [...state.media];
-                    media[i] = { ...media[i], type: e.target.value };
-                    setState((s) => ({ ...s, media }));
-                  }}
+            {state.media.map((m, i) => {
+              const isImageAsset = ['screenshot', 'mockup', 'app_image'].includes(m.type);
+              return (
+              <div key={i} className="space-y-3 rounded-xl border border-border/60 p-4">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <select
+                    className="h-11 rounded-xl border border-border bg-card px-3 text-sm"
+                    value={m.type}
+                    onChange={(e) => {
+                      const media = [...state.media];
+                      media[i] = { ...media[i], type: e.target.value };
+                      setState((s) => ({ ...s, media }));
+                    }}
+                  >
+                    {MEDIA_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    placeholder="Title"
+                    value={m.title}
+                    onChange={(e) => {
+                      const media = [...state.media];
+                      media[i] = { ...media[i], title: e.target.value };
+                      setState((s) => ({ ...s, media }));
+                    }}
+                  />
+                </div>
+                {isImageAsset ? (
+                  <ImageUpload
+                    label="Upload from device"
+                    value={m.url}
+                    onChange={(url) => {
+                      const media = [...state.media];
+                      media[i] = { ...media[i], url };
+                      setState((s) => ({ ...s, media }));
+                    }}
+                    folder="startup-media"
+                    aspect={m.type === 'mockup' ? 'banner' : 'square'}
+                  />
+                ) : (
+                  <Input
+                    placeholder="Link URL (video, deck, GitHub, etc.)"
+                    value={m.url}
+                    onChange={(e) => {
+                      const media = [...state.media];
+                      media[i] = { ...media[i], url: e.target.value };
+                      setState((s) => ({ ...s, media }));
+                    }}
+                  />
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setState((s) => ({
+                      ...s,
+                      media: s.media.filter((_, j) => j !== i),
+                    }))
+                  }
                 >
-                  {MEDIA_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  placeholder="Title"
-                  value={m.title}
-                  onChange={(e) => {
-                    const media = [...state.media];
-                    media[i] = { ...media[i], title: e.target.value };
-                    setState((s) => ({ ...s, media }));
-                  }}
-                />
-                <Input
-                  placeholder="URL"
-                  value={m.url}
-                  onChange={(e) => {
-                    const media = [...state.media];
-                    media[i] = { ...media[i], url: e.target.value };
-                    setState((s) => ({ ...s, media }));
-                  }}
-                />
+                  <Trash2 className="h-4 w-4" /> Remove
+                </Button>
               </div>
-            ))}
+            );
+            })}
             <Button
               type="button"
               variant="outline"
