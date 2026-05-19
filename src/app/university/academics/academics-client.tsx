@@ -104,7 +104,9 @@ export function UniversityAcademicsClient({
   const searchParams = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') || 'courses');
   const [addCourseOpen, setAddCourseOpen] = useState(false);
+  const [addSubjectOpen, setAddSubjectOpen] = useState(false);
   const [inviteTeacherOpen, setInviteTeacherOpen] = useState(false);
+  const [inviteStudentOpen, setInviteStudentOpen] = useState(false);
   const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +136,9 @@ export function UniversityAcademicsClient({
     if (t) setTab(t);
     const action = searchParams.get('action');
     if (action === 'add' && t === 'courses') setAddCourseOpen(true);
+    if (action === 'add' && t === 'subjects') setAddSubjectOpen(true);
     if (action === 'invite' && t === 'teachers') setInviteTeacherOpen(true);
+    if (action === 'invite' && t === 'students') setInviteStudentOpen(true);
     if (action === 'add' && t === 'announcements') setAnnouncementOpen(true);
   }, [searchParams]);
 
@@ -263,10 +267,26 @@ export function UniversityAcademicsClient({
               Add course
             </Button>
           ) : null}
+          {tab === 'subjects' ? (
+            <Button
+              size="sm"
+              onClick={() => setAddSubjectOpen(true)}
+              disabled={courses.length === 0}
+            >
+              <Plus className="h-4 w-4" />
+              Add subject
+            </Button>
+          ) : null}
           {tab === 'teachers' ? (
             <Button size="sm" onClick={() => setInviteTeacherOpen(true)}>
               <UserPlus className="h-4 w-4" />
               Invite teacher
+            </Button>
+          ) : null}
+          {tab === 'students' ? (
+            <Button size="sm" onClick={() => setInviteStudentOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+              Invite student
             </Button>
           ) : null}
           {tab === 'announcements' ? (
@@ -286,6 +306,11 @@ export function UniversityAcademicsClient({
 
       {tab === 'courses' ? (
         <DataTable columns={courseColumns} data={courses} emptyMessage="No courses yet." />
+      ) : null}
+      {tab === 'subjects' && courses.length === 0 ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Create a course first, then you can add subjects to it.
+        </p>
       ) : null}
       {tab === 'subjects' ? (
         <DataTable columns={subjectColumns} data={subjects} emptyMessage="No subjects yet." />
@@ -336,6 +361,124 @@ export function UniversityAcademicsClient({
             <DialogFooter>
               <Button type="submit" disabled={submitting}>
                 {submitting ? 'Saving…' : 'Create course'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addSubjectOpen} onOpenChange={setAddSubjectOpen}>
+        <DialogContent>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const ok = await postJson('/api/university/subjects', {
+                name: fd.get('name'),
+                code: fd.get('code'),
+                courseId: fd.get('courseId'),
+                year: fd.get('year'),
+                semester: fd.get('semester'),
+                teacherId: fd.get('teacherId') || undefined,
+              });
+              if (ok) setAddSubjectOpen(false);
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Add subject</DialogTitle>
+              <DialogDescription>
+                Link a subject to a course. Students enrolled in this course will see it in
+                Academics.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 py-4">
+              <select
+                name="courseId"
+                required
+                className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Select course
+                </option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <Input name="name" placeholder="Subject name" required />
+              <Input name="code" placeholder="Subject code (optional)" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input name="year" type="number" min={1} max={6} placeholder="Year" />
+                <Input name="semester" placeholder="Semester (e.g. Fall)" />
+              </div>
+              <select
+                name="teacherId"
+                className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                defaultValue=""
+              >
+                <option value="">Assign teacher (optional)</option>
+                {teachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {error ? <p className="text-sm text-red-500">{error}</p> : null}
+            <DialogFooter>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Saving…' : 'Add subject'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={inviteStudentOpen} onOpenChange={setInviteStudentOpen}>
+        <DialogContent>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const ok = await postJson('/api/university/students/invite', {
+                email: fd.get('email'),
+                program: fd.get('program'),
+                yearOfStudy: fd.get('yearOfStudy'),
+                courseId: fd.get('courseId') || undefined,
+              });
+              if (ok) setInviteStudentOpen(false);
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Invite student</DialogTitle>
+              <DialogDescription>
+                Link an existing student account to your university. They must already be
+                registered on UniBridge.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 py-4">
+              <Input name="email" type="email" placeholder="Student email" required />
+              <Input name="program" placeholder="Program (optional)" />
+              <Input name="yearOfStudy" type="number" min={1} max={6} placeholder="Year of study" />
+              <select
+                name="courseId"
+                className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                defaultValue=""
+              >
+                <option value="">Assign to course (optional)</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {error ? <p className="text-sm text-red-500">{error}</p> : null}
+            <DialogFooter>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Linking…' : 'Invite student'}
               </Button>
             </DialogFooter>
           </form>
