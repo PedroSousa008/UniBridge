@@ -153,7 +153,7 @@ function classesToEvents(
   return events;
 }
 
-function expandRecurrence(
+export function expandEventRecurrence(
   base: UnifiedCalendarEvent,
   rangeStart: Date,
   rangeEnd: Date
@@ -577,7 +577,7 @@ export async function loadUnifiedCalendar(
       recurrence: row.recurrence,
       seriesId: null,
     };
-    return expandRecurrence(base, rangeStart, rangeEnd);
+    return expandEventRecurrence(base, rangeStart, rangeEnd);
   };
 
   for (const row of customEvents) events.push(...mapCustom(row, 'custom'));

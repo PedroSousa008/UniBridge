@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   addDays,
@@ -35,10 +35,19 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
+  createLocalCalendarId,
+  isLocalCalendarId,
+  loadLocalCalendarEvents,
+  removeLocalCalendarEvent,
+  saveLocalCalendarEvent,
+  type LocalCalendarPayload,
+} from '@/lib/student/calendar-local-storage';
+import {
   activeCountdowns,
   buildAnalytics,
   buildHeatmap,
   buildStudySuggestions,
+  expandEventRecurrence,
   filterEventsByLayers,
   LAYER_COLORS,
   LAYER_LABELS,
@@ -50,6 +59,7 @@ import {
   type StudySuggestion,
   type UnifiedCalendarEvent,
 } from '@/lib/student/unified-calendar';
+import { Loader2 } from 'lucide-react';
 
 const VIEWS: { id: CalendarViewMode; label: string }[] = [
   { id: 'month', label: 'Month' },
@@ -75,13 +85,22 @@ interface CalendarSystemClientProps {
   preferences: CalendarPreferences;
 }
 
+function mergeServerAndLocal(server: UnifiedCalendarEvent[], userId: string) {
+  const rangeStart = subMonths(startOfMonth(new Date()), 2);
+  const rangeEnd = addMonths(startOfMonth(new Date()), 6);
+  const local = loadLocalCalendarEvents(userId);
+  const expanded = local.flatMap((e) => expandEventRecurrence(e, rangeStart, rangeEnd));
+  const ids = new Set(server.map((e) => e.id));
+  return [...server, ...expanded.filter((e) => !ids.has(e.id))];
+}
+
 export function CalendarSystemClient({
   userId,
   initialEvents,
   preferences: initialPrefs,
 }: CalendarSystemClientProps) {
   const router = useRouter();
-  const [events, setEvents] = useState(initialEvents);
+  const [events, setEvents] = useState(() => mergeServerAndLocal(initialEvents, userId));
   const [view, setView] = useState<CalendarViewMode>('month');
   const [cursor, setCursor] = useState(() => new Date());
   const [layers, setLayers] = useState(initialPrefs.layersEnabled);
@@ -93,6 +112,9 @@ export function CalendarSystemClient({
   const [assistReply, setAssistReply] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const [selected, setSelected] = useState<UnifiedCalendarEvent | null>(null);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [savedLocally, setSavedLocally] = useState(false);
 
   const [form, setForm] = useState({
     quickType: 'EVENT' as CalendarQuickType,
@@ -121,6 +143,10 @@ export function CalendarSystemClient({
     [filtered, prefs.countdownMinutes]
   );
 
+  useEffect(() => {
+    setEvents(mergeServerAndLocal(initialEvents, userId));
+  }, [initialEvents, userId]);
+
   const refresh = useCallback(() => router.refresh(), [router]);
 
   async function savePreferences(patch: Partial<CalendarPreferences>) {
@@ -133,27 +159,125 @@ export function CalendarSystemClient({
     });
   }
 
-  async function createEvent(duplicate = false) {
+  function buildPayload(): LocalCalendarPayload {
     const qt = QUICK_TYPES.find((t) => t.id === form.quickType)!;
-    const res = await fetch('/api/student/calendar/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: form.title,
-        quickType: form.quickType,
-        category: qt.layer,
-        startAt: form.start,
-        endAt: form.end,
-        color: form.color,
-        location: form.location,
-        taggedEmails: form.taggedEmails.split(',').map((e) => e.trim()).filter(Boolean),
-        recurrence: form.recurrence,
-        duplicate,
-      }),
-    });
-    if (!res.ok) return;
+    const start = new Date(form.start);
+    const end = new Date(form.end);
+    const allDay =
+      start.getHours() === 0 &&
+      start.getMinutes() === 0 &&
+      end.getHours() === 23 &&
+      end.getMinutes() >= 59;
+
+    return {
+      title: form.title.trim(),
+      category: qt.layer,
+      quickType: form.quickType,
+      startAt: start.toISOString(),
+      endAt: end.toISOString(),
+      allDay,
+      color: form.color,
+      location: form.location || null,
+      recurrence: form.recurrence as LocalCalendarPayload['recurrence'],
+      taggedEmails: form.taggedEmails
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean),
+    };
+  }
+
+  function applyLocalEvent(id: string, payload: LocalCalendarPayload, duplicate: boolean) {
+    saveLocalCalendarEvent(userId, id, payload);
+    const base = {
+      id,
+      title: payload.title,
+      description: null,
+      start: payload.startAt,
+      end: payload.endAt,
+      allDay: payload.allDay,
+      layer: payload.category,
+      subType: payload.quickType.toLowerCase(),
+      color: payload.color,
+      location: payload.location ?? null,
+      source: 'custom',
+      sourceId: id.replace(/^local-/, ''),
+      editable: true,
+      href: null,
+      professor: null,
+      recurrence: payload.recurrence,
+      seriesId: null,
+    };
+    const rangeStart = subMonths(startOfMonth(new Date()), 2);
+    const rangeEnd = addMonths(startOfMonth(new Date()), 6);
+    const added = expandEventRecurrence(base, rangeStart, rangeEnd);
+    setEvents((list) => [...list, ...added]);
+
+    if (duplicate) {
+      const dupPayload = {
+        ...payload,
+        startAt: new Date(new Date(payload.startAt).getTime() + 86400000).toISOString(),
+        endAt: new Date(new Date(payload.endAt).getTime() + 86400000).toISOString(),
+      };
+      const dupId = createLocalCalendarId();
+      saveLocalCalendarEvent(userId, dupId, dupPayload);
+      const dupBase = { ...base, id: dupId, start: dupPayload.startAt, end: dupPayload.endAt };
+      setEvents((list) => [...list, ...expandEventRecurrence(dupBase, rangeStart, rangeEnd)]);
+    }
+    setSavedLocally(true);
     setQuickOpen(false);
-    refresh();
+  }
+
+  async function createEvent(duplicate = false) {
+    if (!form.title.trim()) {
+      setSaveError('Please enter a title.');
+      return;
+    }
+    if (!form.start || !form.end) {
+      setSaveError('Please set start and end times.');
+      return;
+    }
+    if (new Date(form.end) <= new Date(form.start)) {
+      setSaveError('End time must be after start time.');
+      return;
+    }
+
+    setSaving(true);
+    setSaveError('');
+    const payload = buildPayload();
+
+    try {
+      const res = await fetch('/api/student/calendar/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          startAt: payload.startAt,
+          endAt: payload.endAt,
+          duplicate,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setSavedLocally(false);
+        setQuickOpen(false);
+        refresh();
+        return;
+      }
+
+      if (res.status === 503 || data.code === 'CALENDAR_DB_NOT_READY') {
+        const id = createLocalCalendarId();
+        applyLocalEvent(id, payload, duplicate);
+        return;
+      }
+
+      setSaveError(data.error || 'Could not save. Please try again.');
+    } catch {
+      const id = createLocalCalendarId();
+      applyLocalEvent(id, payload, duplicate);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function moveEvent(ev: UnifiedCalendarEvent, newStart: Date) {
@@ -161,18 +285,41 @@ export function CalendarSystemClient({
     const duration = new Date(ev.end).getTime() - new Date(ev.start).getTime();
     const newEnd = new Date(newStart.getTime() + duration);
     const baseId = ev.id.replace(/-r\d+$/, '');
+
+    if (isLocalCalendarId(baseId)) {
+      const payload: LocalCalendarPayload = {
+        title: ev.title,
+        category: ev.layer,
+        quickType: ev.subType.toUpperCase() as CalendarQuickType,
+        startAt: newStart.toISOString(),
+        endAt: newEnd.toISOString(),
+        allDay: ev.allDay,
+        color: ev.color,
+        location: ev.location,
+        recurrence: ev.recurrence,
+        taggedEmails: [],
+      };
+      saveLocalCalendarEvent(userId, baseId, payload);
+      setEvents((list) =>
+        list.map((e) =>
+          e.seriesId === baseId || e.id === baseId || e.id.startsWith(`${baseId}-r`)
+            ? {
+                ...e,
+                start: newStart.toISOString(),
+                end: newEnd.toISOString(),
+              }
+            : e
+        )
+      );
+      return;
+    }
+
     await fetch(`/api/student/calendar/events/${baseId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ startAt: newStart.toISOString(), endAt: newEnd.toISOString() }),
     });
-    setEvents((list) =>
-      list.map((e) =>
-        e.id === ev.id
-          ? { ...e, start: newStart.toISOString(), end: newEnd.toISOString() }
-          : e
-      )
-    );
+    refresh();
   }
 
   async function hideEvent(ev: UnifiedCalendarEvent) {
@@ -201,6 +348,8 @@ export function CalendarSystemClient({
     const now = new Date();
     const end = new Date(now.getTime() + 60 * 60000);
     const qt = QUICK_TYPES.find((t) => t.id === type)!;
+    setSaveError('');
+    setSaving(false);
     setForm({
       quickType: type,
       title: '',
@@ -437,11 +586,24 @@ export function CalendarSystemClient({
         <EventDetailSheet event={selected} onClose={() => setSelected(null)} onHide={() => void hideEvent(selected)} />
       ) : null}
 
+      {savedLocally ? (
+        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Event saved on this device. It appears on your calendar and will sync when cloud storage is ready.
+        </div>
+      ) : null}
+
       {quickOpen ? (
         <QuickAddModal
           form={form}
           setForm={setForm}
-          onClose={() => setQuickOpen(false)}
+          saving={saving}
+          saveError={saveError}
+          onClose={() => {
+            if (!saving) {
+              setQuickOpen(false);
+              setSaveError('');
+            }
+          }}
           onSave={() => void createEvent(false)}
           onDuplicate={() => void createEvent(true)}
         />
@@ -770,6 +932,8 @@ function EventDetailSheet({
 function QuickAddModal({
   form,
   setForm,
+  saving,
+  saveError,
   onClose,
   onSave,
   onDuplicate,
@@ -785,13 +949,21 @@ function QuickAddModal({
     recurrence: string;
   };
   setForm: React.Dispatch<React.SetStateAction<typeof form>>;
+  saving: boolean;
+  saveError: string;
   onClose: () => void;
   onSave: () => void;
   onDuplicate: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-xl">
+      <form
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-xl"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave();
+        }}
+      >
         <h3 className="text-lg font-semibold">Quick add</h3>
         <div className="mt-3 flex flex-wrap gap-2">
           {QUICK_TYPES.map((t) => (
@@ -829,17 +1001,27 @@ function QuickAddModal({
           <option value="WEEKLY">Weekly</option>
           <option value="MONTHLY">Monthly</option>
         </select>
+        {saveError ? <p className="mt-3 text-sm text-red-600">{saveError}</p> : null}
         <div className="mt-6 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="outline" onClick={onDuplicate}>
+          <Button type="button" variant="outline" disabled={saving} onClick={onDuplicate}>
             <Copy className="mr-1 h-4 w-4" />
             Duplicate +1 day
           </Button>
-          <Button onClick={onSave}>Save</Button>
+          <Button type="submit" disabled={saving || !form.title.trim()}>
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              'Save'
+            )}
+          </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
