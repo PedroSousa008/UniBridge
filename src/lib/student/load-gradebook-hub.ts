@@ -43,7 +43,7 @@ export async function loadGradebookHub(studentId: string): Promise<GradebookHubP
     moderateMin: DEFAULT_THRESHOLDS.moderateMin,
     passMin: DEFAULT_THRESHOLDS.passMin,
     targetGpa: null as number | null,
-    creditsCompleted: active.length * 6,
+    creditsCompleted: 0,
     creditsRequired: 180,
     ectsPerSubject: 6,
   };
@@ -62,7 +62,12 @@ export async function loadGradebookHub(studentId: string): Promise<GradebookHubP
         creditsRequired: row.creditsRequired,
         ectsPerSubject: row.ectsPerSubject,
       };
+    } else {
+      // First visit: suggest ECTS from enrollments until the student saves preferences
+      prefs.creditsCompleted = active.length * prefs.ectsPerSubject;
     }
+  } else {
+    prefs.creditsCompleted = active.length * prefs.ectsPerSubject;
   }
 
   const dashboard = buildGradebookDashboard(workspaces, prefs);

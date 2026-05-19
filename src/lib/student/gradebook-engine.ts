@@ -600,6 +600,45 @@ export function buildSubjectSnapshot(
   };
 }
 
+/** Use saved credits; only auto-estimate when preference was never set (null/undefined). */
+export function resolveCreditsCompleted(
+  prefs: { creditsCompleted: number; ectsPerSubject: number },
+  enrolledSubjectCount: number
+): number {
+  if (prefs.creditsCompleted != null && !Number.isNaN(prefs.creditsCompleted)) {
+    return Math.max(0, prefs.creditsCompleted);
+  }
+  return Math.max(0, enrolledSubjectCount * prefs.ectsPerSubject);
+}
+
+export function applyPreferencesToDashboard(
+  dashboard: GradebookDashboard,
+  prefs: {
+    goodMin: number;
+    moderateMin: number;
+    passMin: number;
+    creditsCompleted: number;
+    creditsRequired: number;
+    ectsPerSubject: number;
+  }
+): GradebookDashboard {
+  const thresholds = thresholdsFromPrefs(prefs);
+  const creditsCompleted = resolveCreditsCompleted(prefs, dashboard.subjects.length);
+  const creditsRemaining = Math.max(0, prefs.creditsRequired - creditsCompleted);
+  const subjects = dashboard.subjects.map((s) => ({
+    ...s,
+    status: gradeStatus(s.currentGrade, thresholds),
+    credits: prefs.ectsPerSubject,
+  }));
+  return {
+    ...dashboard,
+    creditsCompleted,
+    creditsRemaining,
+    subjects,
+    risks: detectGradeRisks(subjects, thresholds),
+  };
+}
+
 export function buildGradebookDashboard(
   workspaces: SubjectWorkspace[],
   prefs: {
@@ -633,7 +672,7 @@ export function buildGradebookDashboard(
       : null;
 
   const sorted = [...graded].sort((a, b) => (b.currentGrade ?? 0) - (a.currentGrade ?? 0));
-  const creditsCompleted = prefs.creditsCompleted || subjects.length * prefs.ectsPerSubject;
+  const creditsCompleted = resolveCreditsCompleted(prefs, subjects.length);
   const creditsRemaining = Math.max(0, prefs.creditsRequired - creditsCompleted);
 
   const notifications = workspaces.flatMap(buildGradeNotifications).slice(0, 12);

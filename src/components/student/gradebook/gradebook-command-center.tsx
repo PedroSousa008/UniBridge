@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
@@ -41,6 +41,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { GradebookHubPayload } from '@/lib/student/load-gradebook-hub';
 import {
+  applyPreferencesToDashboard,
   requiredGradeForTarget,
   simulateWhatIf,
   statusBadgeClass,
@@ -48,7 +49,10 @@ import {
   type GradebookDashboard,
   type SubjectGradebookSnapshot,
 } from '@/lib/student/gradebook-engine';
-import { saveLocalGradebookPrefs } from '@/lib/student/gradebook-local-storage';
+import {
+  loadLocalGradebookPrefs,
+  saveLocalGradebookPrefs,
+} from '@/lib/student/gradebook-local-storage';
 
 type TabId = 'overview' | 'subjects' | 'simulator' | 'insights';
 
@@ -73,12 +77,42 @@ export function GradebookCommandCenter({ initialHub }: GradebookCommandCenterPro
 
   const dashboard = hub.dashboard;
 
+  const applyPrefsToHub = (nextPrefs: typeof prefs) => {
+    setHub((current) => ({
+      ...current,
+      preferences: nextPrefs,
+      dashboard: applyPreferencesToDashboard(current.dashboard, nextPrefs),
+    }));
+    setPrefs(nextPrefs);
+  };
+
+  useEffect(() => {
+    const local = loadLocalGradebookPrefs();
+    if (local) applyPrefsToHub(local);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
+
   const savePrefs = async () => {
-    saveLocalGradebookPrefs(prefs);
+    const nextPrefs = {
+      ...prefs,
+      creditsCompleted: Math.max(0, Number(prefs.creditsCompleted) || 0),
+      creditsRequired: Math.max(0, Number(prefs.creditsRequired) || 180),
+      ectsPerSubject: Math.max(1, Number(prefs.ectsPerSubject) || 6),
+      goodMin: Number(prefs.goodMin) || 14,
+      moderateMin: Number(prefs.moderateMin) || 10,
+      passMin: Number(prefs.passMin) || 10,
+      targetGpa:
+        prefs.targetGpa != null && !Number.isNaN(Number(prefs.targetGpa))
+          ? Number(prefs.targetGpa)
+          : null,
+    };
+    saveLocalGradebookPrefs(nextPrefs);
+    applyPrefsToHub(nextPrefs);
+
     const res = await fetch('/api/student/gradebook/preferences', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(prefs),
+      body: JSON.stringify(nextPrefs),
     });
     if (res.ok) {
       router.refresh();
