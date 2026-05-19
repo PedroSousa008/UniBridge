@@ -229,6 +229,7 @@ model User {
   assignmentProgress   StudentAssignmentProgress[]
   assignmentGroups     AssignmentGroupMember[]
   groupComments          AssignmentGroupComment[]
+  documentPreference   StudentDocumentPreference?
 }
 
 model StudentProfile {
@@ -749,6 +750,20 @@ model StudentGradebookPreference {
   ectsPerSubject    Int      @default(6)
   updatedAt         DateTime @updatedAt
   createdAt         DateTime @default(now())
+}
+
+model StudentDocumentPreference {
+  id                    String   @id @default(cuid())
+  studentId             String   @unique
+  student               User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hideCompletedSubjects Boolean  @default(false)
+  pinnedIds             String[] @default([])
+  starredIds            String[] @default([])
+  archivedSubjectIds    String[] @default([])
+  recentOpens           Json?
+  offlineSavedIds       String[] @default([])
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
 }
 
 model SubjectMessage {
