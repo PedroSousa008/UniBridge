@@ -70,7 +70,29 @@ export async function POST(request: Request) {
       } else if (role === 'TEACHER') {
         await tx.teacherProfile.create({ data: { userId: created.id } });
       } else if (role === 'UNIVERSITY') {
-        await tx.universityProfile.create({ data: { userId: created.id } });
+        const institution = String(body.institution || name).trim() || 'University';
+        const slug =
+          institution
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 40) + `-${Date.now().toString(36)}`;
+        const uni = await tx.university.create({
+          data: {
+            name: institution,
+            slug,
+            contactEmail: email,
+            departments: [],
+          },
+        });
+        await tx.universityProfile.create({
+          data: {
+            userId: created.id,
+            institution,
+            universityId: uni.id,
+            position: body.position || null,
+          },
+        });
       } else if (role === 'COMPANY') {
         await tx.companyProfile.create({ data: { userId: created.id } });
       } else if (role === 'OWNER') {

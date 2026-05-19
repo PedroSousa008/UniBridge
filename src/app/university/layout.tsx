@@ -1,11 +1,18 @@
 import { requireSession } from '@/lib/session';
-import { RoleLayout } from '@/components/layout/role-layout';
+import { getUniversityContext } from '@/lib/university/context';
+import { UniversityShell } from '@/components/university/university-shell';
 
 export default async function UniversityLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireSession('UNIVERSITY');
-  return <RoleLayout role="UNIVERSITY">{children}</RoleLayout>;
+  const session = await requireSession('UNIVERSITY');
+  const ctx = await getUniversityContext(session.user.id);
+
+  return (
+    <UniversityShell universityName={ctx?.university.name ?? 'University'}>
+      {children}
+    </UniversityShell>
+  );
 }

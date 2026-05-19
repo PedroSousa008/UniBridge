@@ -28,12 +28,73 @@ enum NotificationType {
   ANNOUNCEMENT
   SYSTEM
   ACHIEVEMENT
+  PARTNERSHIP
+  ENGAGEMENT
+}
+
+enum RecordStatus {
+  ACTIVE
+  ARCHIVED
+  DRAFT
+  PENDING
+  PUBLISHED
+  CLOSED
+}
+
+enum CareerPathStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PUBLISHED
+  REJECTED
+}
+
+enum PartnershipStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  SCHEDULED
+  SENT
 }
 
 model PlatformConfig {
   id             String   @id @default("platform")
   ownerSlotTaken Boolean  @default(false)
   updatedAt      DateTime @updatedAt
+}
+
+model University {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  coverUrl     String?
+  location     String?
+  website      String?
+  description  String?  @db.Text
+  accentColor  String?  @default("230 85% 56%")
+  contactEmail String?
+  departments  String[]
+  plan         String   @default("standard")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  admins           UniversityProfile[]
+  students         StudentProfile[]
+  teachers         TeacherProfile[]
+  courses          Course[]
+  partnerships     CompanyPartnership[]
+  announcements    UniversityAnnouncement[]
+  calendarEvents   CalendarEvent[]
+  incubatorPrograms IncubatorProgram[]
+  careerPaths      CareerPath[]
+  activityItems    ActivityItem[]
+  internships      Internship[]
+  challenges       CompanyChallenge[]
 }
 
 model User {
@@ -59,44 +120,63 @@ model User {
   accounts      Account[]
   sessions      Session[]
 
-  startupsFounded Startup[]        @relation("StartupFounder")
-  startupMembers  StartupMember[]
-  careerTargets   CareerTarget[]
-  subjects        SubjectEnrollment[]
-  assignments     AssignmentSubmission[]
-  analyticsEvents AnalyticsEvent[]
+  startupsFounded     Startup[]              @relation("StartupFounder")
+  startupMembers      StartupMember[]
+  careerTargets       CareerTarget[]
+  subjects            SubjectEnrollment[]
+  assignments         AssignmentSubmission[]
+  analyticsEvents     AnalyticsEvent[]
+  companyPartnerships CompanyPartnership[]   @relation("CompanyUser")
+  careerPathsCreated  CareerPath[]           @relation("CareerPathCompany")
+  challengesCreated   CompanyChallenge[]     @relation("ChallengeCompany")
+  internshipsCreated  Internship[]           @relation("InternshipCompany")
 }
 
 model StudentProfile {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  universityName   String?
-  program          String?
-  yearOfStudy      Int?
-  profileStrength  Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId      String?
+  university        University? @relation(fields: [universityId], references: [id])
+  courseId          String?
+  course            Course?  @relation(fields: [courseId], references: [id])
+  universityName    String?
+  program           String?
+  yearOfStudy       Int?
+  profileStrength   Int      @default(0)
+  engagementScore   Float    @default(0)
+  employabilityScore Float   @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  internshipApplications InternshipApplication[]
 }
 
 model TeacherProfile {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  department     String?
-  title          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id])
+  department   String?
+  title        String?
+  status       RecordStatus @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  subjects Subject[]
+  subjects          Subject[]
+  coursesCoordinated Course[] @relation("CourseCoordinator")
 }
 
 model UniversityProfile {
   id           String   @id @default(cuid())
   userId       String   @unique
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id])
   institution  String?
   position     String?
+  subRole      String?  @default("admin")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -108,8 +188,32 @@ model CompanyProfile {
   companyName String?
   industry    String?
   website     String?
+  logoUrl     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Course {
+  id                 String       @id @default(cuid())
+  universityId       String
+  university         University   @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  name               String
+  department         String?
+  duration           String?
+  degreeType         String?
+  coordinatorId      String?
+  coordinator        TeacherProfile? @relation("CourseCoordinator", fields: [coordinatorId], references: [id])
+  description        String?      @db.Text
+  status             RecordStatus @default(ACTIVE)
+  engagementScore    Float        @default(0)
+  employabilityScore Float        @default(0)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  subjects Subject[]
+  students StudentProfile[]
+
+  @@index([universityId])
 }
 
 model Notification {
@@ -127,29 +231,37 @@ model Notification {
 }
 
 model Subject {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
+  universityId String?
+  courseId    String?
+  course      Course?      @relation(fields: [courseId], references: [id])
   name        String
   code        String?
-  description String?  @db.Text
+  description String?      @db.Text
+  year        Int?
+  semester    String?
   teacherId   String?
   teacher     TeacherProfile? @relation(fields: [teacherId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   enrollments SubjectEnrollment[]
   assignments Assignment[]
   exams       Exam[]
+
+  @@index([courseId])
 }
 
 model SubjectEnrollment {
-  id        String   @id @default(cuid())
-  subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  studentId String
-  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  grade     Float?
+  id         String   @id @default(cuid())
+  subjectId  String
+  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grade      Float?
   attendance Float?
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   @@unique([subjectId, studentId])
 }
@@ -193,18 +305,177 @@ model Exam {
   createdAt DateTime @default(now())
 }
 
+model CompanyPartnership {
+  id              String            @id @default(cuid())
+  universityId    String
+  university      University        @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  companyUserId   String
+  companyUser     User              @relation("CompanyUser", fields: [companyUserId], references: [id], onDelete: Cascade)
+  status          PartnershipStatus @default(PENDING)
+  partnershipType String?
+  contactName     String?
+  contactEmail    String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  careerPaths CareerPath[]
+
+  @@unique([universityId, companyUserId])
+  @@index([universityId])
+}
+
+model CareerPath {
+  id                    String           @id @default(cuid())
+  companyUserId         String
+  companyUser           User             @relation("CareerPathCompany", fields: [companyUserId], references: [id], onDelete: Cascade)
+  universityId          String?
+  university            University?      @relation(fields: [universityId], references: [id])
+  partnershipId         String?
+  partnership           CompanyPartnership? @relation(fields: [partnershipId], references: [id])
+  roleTitle             String
+  companyName           String
+  industry              String?
+  description           String?          @db.Text
+  requiredSubjects      String[]
+  gradeRequirements     String?          @db.Text
+  recommendedSkills     String[]
+  recommendedInternships String[]
+  salaryMin             Int?
+  salaryMax             Int?
+  compatibilityCriteria String?          @db.Text
+  status                CareerPathStatus @default(PENDING_APPROVAL)
+  publishedAt           DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  targets CareerTarget[]
+
+  @@index([universityId, status])
+  @@index([companyUserId])
+}
+
 model CareerTarget {
-  id             String   @id @default(cuid())
+  id             String      @id @default(cuid())
   userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  careerPathId   String?
+  careerPath     CareerPath? @relation(fields: [careerPathId], references: [id])
   roleTitle      String
   companyName    String?
-  compatibility  Float    @default(0)
-  isPrimary      Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  compatibility  Float       @default(0)
+  isPrimary      Boolean     @default(false)
+  missingRequirements String? @db.Text
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   @@index([userId])
+  @@index([careerPathId])
+}
+
+model Internship {
+  id            String       @id @default(cuid())
+  universityId  String?
+  university    University?  @relation(fields: [universityId], references: [id])
+  companyUserId String
+  companyUser   User         @relation("InternshipCompany", fields: [companyUserId], references: [id], onDelete: Cascade)
+  careerPathId  String?
+  title         String
+  description   String?      @db.Text
+  duration      String?
+  location      String?
+  status        RecordStatus @default(DRAFT)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  applications InternshipApplication[]
+}
+
+model InternshipApplication {
+  id           String   @id @default(cuid())
+  internshipId String
+  internship   Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+
+  @@unique([internshipId, studentId])
+}
+
+model CompanyChallenge {
+  id            String       @id @default(cuid())
+  universityId  String?
+  university    University?  @relation(fields: [universityId], references: [id])
+  companyUserId String
+  companyUser   User         @relation("ChallengeCompany", fields: [companyUserId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?      @db.Text
+  deadline      DateTime?
+  status        RecordStatus @default(PENDING)
+  featured      Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model UniversityAnnouncement {
+  id           String             @id @default(cuid())
+  universityId String
+  university   University         @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  title        String
+  message      String             @db.Text
+  audience     String
+  priority     String             @default("normal")
+  status       AnnouncementStatus @default(DRAFT)
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  createdById  String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([universityId])
+}
+
+model CalendarEvent {
+  id           String   @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  title        String
+  eventType    String
+  startDate    DateTime
+  endDate      DateTime?
+  description  String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([universityId, startDate])
+}
+
+model IncubatorProgram {
+  id           String       @id @default(cuid())
+  universityId String
+  university   University   @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?      @db.Text
+  eligibility  String?      @db.Text
+  deadline     DateTime?
+  location     String?
+  mentors      String[]
+  companies    String[]
+  status       RecordStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model ActivityItem {
+  id           String   @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  type         String
+  title        String
+  message      String?  @db.Text
+  link         String?
+  createdAt    DateTime @default(now())
+
+  @@index([universityId, createdAt])
 }
 
 model Startup {
@@ -218,6 +489,10 @@ model Startup {
   stage       String?
   logoUrl     String?
   coverUrl    String?
+  lookingFor  String[]
+  traction    String?  @db.Text
+  featured    Boolean  @default(false)
+  watchlisted Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -245,6 +520,7 @@ model AnalyticsEvent {
   createdAt DateTime @default(now())
 
   @@index([event, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Account {

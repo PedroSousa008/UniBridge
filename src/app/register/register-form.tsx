@@ -18,6 +18,7 @@ export function RegisterForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('STUDENT');
+  const [institution, setInstitution] = useState('');
   const [ownerAvailable, setOwnerAvailable] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,6 +48,7 @@ export function RegisterForm() {
         password,
         role,
         locale: locale === 'pt' ? 'PT' : 'EN',
+        institution: role === 'UNIVERSITY' ? institution : undefined,
       }),
     });
 
@@ -103,6 +105,21 @@ export function RegisterForm() {
           </p>
         ) : null}
       </div>
+
+      {role === 'UNIVERSITY' ? (
+        <div>
+          <label htmlFor="institution" className="mb-1.5 block text-sm font-medium">
+            University / institution name
+          </label>
+          <Input
+            id="institution"
+            value={institution}
+            onChange={(e) => setInstitution(e.target.value)}
+            placeholder="e.g. University of Lisbon"
+            required
+          />
+        </div>
+      ) : null}
 
       <div>
         <label htmlFor="name" className="mb-1.5 block text-sm font-medium">
