@@ -131,6 +131,12 @@ enum AttendanceStatus {
   LATE
 }
 
+enum AttendanceJustificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum PartnershipStatus {
   PENDING
   ACTIVE
@@ -230,6 +236,8 @@ model User {
   assignmentGroups     AssignmentGroupMember[]
   groupComments          AssignmentGroupComment[]
   documentPreference   StudentDocumentPreference?
+  attendanceJustifications AttendanceJustification[]
+  teacherAttendanceNotes   TeacherAttendanceNote[] @relation("TeacherAttendanceNoteStudent")
 }
 
 model StudentProfile {
@@ -343,10 +351,14 @@ model Subject {
   teacherId   String?
   teacher     TeacherProfile? @relation(fields: [teacherId], references: [id])
   status      RecordStatus @default(ACTIVE)
+  absenceLimit Int?
+  minAttendancePercent Float @default(75)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   enrollments     SubjectEnrollment[]
+  attendanceJustifications AttendanceJustification[]
+  teacherAttendanceNotes   TeacherAttendanceNote[]
   assignments     Assignment[]
   exams           Exam[]
   contentWeeks    SubjectContentWeek[]
@@ -698,12 +710,17 @@ model SubjectOfficeHours {
 }
 
 model SubjectAttendanceSession {
-  id        String   @id @default(cuid())
-  subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  date      DateTime
-  label     String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  subjectId      String
+  subject        Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  date           DateTime
+  label          String?
+  canceled       Boolean  @default(false)
+  isOnline       Boolean  @default(false)
+  movedTo        DateTime?
+  scheduleSlotId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   records SubjectAttendanceRecord[]
 
@@ -717,8 +734,44 @@ model SubjectAttendanceRecord {
   studentId String
   student   User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   status    AttendanceStatus @default(ABSENT)
+  updatedAt DateTime         @updatedAt
 
   @@unique([sessionId, studentId])
+}
+
+model AttendanceJustification {
+  id           String                      @id @default(cuid())
+  studentId    String
+  student      User                        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject                     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  reason       String                      @db.Text
+  fileUrl      String?
+  documentUrl  String?
+  status       AttendanceJustificationStatus @default(PENDING)
+  teacherNote  String?                     @db.Text
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
+
+  @@index([studentId, subjectId])
+  @@index([status])
+}
+
+model TeacherAttendanceNote {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation("TeacherAttendanceNoteStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId String
+  note      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subjectId, studentId])
 }
 
 model GradeCategory {
