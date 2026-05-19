@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { ClassSessionType } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
 import { DEFAULT_CLASS_COLORS, durationMinutes } from '@/lib/student/weekly-schedule';
 
 const TYPES = new Set<string>(Object.values(ClassSessionType));
@@ -13,12 +14,18 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const classes = await prisma.studentWeeklyClass.findMany({
-    where: { studentId: session.user.id },
-    orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
-  });
-
-  return NextResponse.json({ classes });
+  try {
+    const classes = await prisma.studentWeeklyClass.findMany({
+      where: { studentId: session.user.id },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    });
+    return NextResponse.json({ classes });
+  } catch (error) {
+    if (isPrismaSchemaMismatchError(error)) {
+      return NextResponse.json({ classes: [] });
+    }
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
@@ -64,23 +71,35 @@ export async function POST(request: Request) {
     }
   }
 
-  const created = await prisma.studentWeeklyClass.create({
-    data: {
-      studentId: session.user.id,
-      subjectName: String(subjectName),
-      subjectId: subjectId || null,
-      classType: type,
-      professor: professor || null,
-      dayOfWeek: Number(dayOfWeek),
-      startTime: String(startTime),
-      endTime: String(endTime),
-      repeatWeekly: repeatWeekly !== false,
-      building: building || null,
-      room: room || null,
-      isOnline: !!isOnline,
-      color: color || DEFAULT_CLASS_COLORS[type],
-    },
-  });
-
-  return NextResponse.json({ class: created });
+  try {
+    const created = await prisma.studentWeeklyClass.create({
+      data: {
+        studentId: session.user.id,
+        subjectName: String(subjectName),
+        subjectId: subjectId || null,
+        classType: type,
+        professor: professor || null,
+        dayOfWeek: Number(dayOfWeek),
+        startTime: String(startTime),
+        endTime: String(endTime),
+        repeatWeekly: repeatWeekly !== false,
+        building: building || null,
+        room: room || null,
+        isOnline: !!isOnline,
+        color: color || DEFAULT_CLASS_COLORS[type],
+      },
+    });
+    return NextResponse.json({ class: created });
+  } catch (error) {
+    if (isPrismaSchemaMismatchError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            'Schedule storage is not ready. Ask your admin to run the database migration (npm run db:push).',
+        },
+        { status: 503 }
+      );
+    }
+    throw error;
+  }
 }

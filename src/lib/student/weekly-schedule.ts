@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
 import type { ClassSessionType } from '@prisma/client';
 
 export type { ClassSessionType };
@@ -147,23 +148,53 @@ export function minutesUntilClass(cls: CalendarClass, now = new Date()): number 
   return Math.max(0, start - nowMins);
 }
 
-export async function loadStudentWeeklySchedule(userId: string) {
-  const enrollments = await prisma.subjectEnrollment.findMany({
-    where: { studentId: userId },
-    include: {
-      subject: {
-        include: {
-          scheduleSlots: { orderBy: { dayOfWeek: 'asc' } },
-          teacher: { include: { user: { select: { name: true } } } },
+async function loadEnrollmentsForSchedule(userId: string) {
+  try {
+    return await prisma.subjectEnrollment.findMany({
+      where: { studentId: userId },
+      include: {
+        subject: {
+          include: {
+            scheduleSlots: { orderBy: { dayOfWeek: 'asc' } },
+            teacher: { include: { user: { select: { name: true } } } },
+          },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (!isPrismaSchemaMismatchError(error)) throw error;
+    const rows = await prisma.subjectEnrollment.findMany({
+      where: { studentId: userId },
+      include: {
+        subject: {
+          include: {
+            teacher: { include: { user: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      ...row,
+      subject: { ...row.subject, scheduleSlots: [] },
+    }));
+  }
+}
 
-  const studentClasses = await prisma.studentWeeklyClass.findMany({
-    where: { studentId: userId },
-    orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
-  });
+async function loadStudentCustomClasses(userId: string) {
+  try {
+    return await prisma.studentWeeklyClass.findMany({
+      where: { studentId: userId },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    });
+  } catch (error) {
+    if (isPrismaSchemaMismatchError(error)) return [];
+    throw error;
+  }
+}
+
+export async function loadStudentWeeklySchedule(userId: string) {
+  const enrollments = await loadEnrollmentsForSchedule(userId);
+  const studentClasses = await loadStudentCustomClasses(userId);
 
   const subjects: EnrolledSubjectOption[] = [];
   const classes: CalendarClass[] = [];

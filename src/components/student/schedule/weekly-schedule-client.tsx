@@ -30,11 +30,13 @@ type ViewMode = 'week' | 'day' | 'agenda';
 interface WeeklyScheduleClientProps {
   initialClasses: CalendarClass[];
   subjects: EnrolledSubjectOption[];
+  dbSyncNeeded?: boolean;
 }
 
 export function WeeklyScheduleClient({
   initialClasses,
   subjects,
+  dbSyncNeeded = false,
 }: WeeklyScheduleClientProps) {
   const router = useRouter();
   const [classes, setClasses] = useState(initialClasses);
@@ -146,6 +148,14 @@ export function WeeklyScheduleClient({
 
   return (
     <div>
+      {dbSyncNeeded ? (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Custom classes need a database update. The calendar still works — run{' '}
+          <code className="rounded bg-amber-100 px-1">npm run db:push</code> against your Neon database
+          to enable saving new classes.
+        </div>
+      ) : null}
+
       <PageHeader
         title="Weekly Schedule"
         subtitle="Your classes, workshops, labs and seminars — all in one calendar."

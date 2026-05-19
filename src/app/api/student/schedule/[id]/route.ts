@@ -3,7 +3,12 @@ import { getServerSession } from 'next-auth';
 import { ClassSessionType } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
 import { DEFAULT_CLASS_COLORS, durationMinutes } from '@/lib/student/weekly-schedule';
+
+const DB_NOT_READY = {
+  error: 'Schedule storage is not ready. Database migration required (npm run db:push).',
+};
 
 const TYPES = new Set<string>(Object.values(ClassSessionType));
 
@@ -17,9 +22,17 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const existing = await prisma.studentWeeklyClass.findFirst({
-    where: { id, studentId: session.user.id },
-  });
+  let existing;
+  try {
+    existing = await prisma.studentWeeklyClass.findFirst({
+      where: { id, studentId: session.user.id },
+    });
+  } catch (error) {
+    if (isPrismaSchemaMismatchError(error)) {
+      return NextResponse.json(DB_NOT_READY, { status: 503 });
+    }
+    throw error;
+  }
   if (!existing) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -34,25 +47,31 @@ export async function PATCH(
   const type: ClassSessionType =
     body.classType && TYPES.has(body.classType) ? body.classType : existing.classType;
 
-  const updated = await prisma.studentWeeklyClass.update({
-    where: { id },
-    data: {
-      subjectName: body.subjectName ?? existing.subjectName,
-      subjectId: body.subjectId !== undefined ? body.subjectId || null : existing.subjectId,
-      classType: type,
-      professor: body.professor !== undefined ? body.professor || null : existing.professor,
-      dayOfWeek: body.dayOfWeek != null ? Number(body.dayOfWeek) : existing.dayOfWeek,
-      startTime: String(startTime),
-      endTime: String(endTime),
-      repeatWeekly: body.repeatWeekly !== undefined ? !!body.repeatWeekly : existing.repeatWeekly,
-      building: body.building !== undefined ? body.building || null : existing.building,
-      room: body.room !== undefined ? body.room || null : existing.room,
-      isOnline: body.isOnline !== undefined ? !!body.isOnline : existing.isOnline,
-      color: body.color ?? DEFAULT_CLASS_COLORS[type],
-    },
-  });
-
-  return NextResponse.json({ class: updated });
+  try {
+    const updated = await prisma.studentWeeklyClass.update({
+      where: { id },
+      data: {
+        subjectName: body.subjectName ?? existing.subjectName,
+        subjectId: body.subjectId !== undefined ? body.subjectId || null : existing.subjectId,
+        classType: type,
+        professor: body.professor !== undefined ? body.professor || null : existing.professor,
+        dayOfWeek: body.dayOfWeek != null ? Number(body.dayOfWeek) : existing.dayOfWeek,
+        startTime: String(startTime),
+        endTime: String(endTime),
+        repeatWeekly: body.repeatWeekly !== undefined ? !!body.repeatWeekly : existing.repeatWeekly,
+        building: body.building !== undefined ? body.building || null : existing.building,
+        room: body.room !== undefined ? body.room || null : existing.room,
+        isOnline: body.isOnline !== undefined ? !!body.isOnline : existing.isOnline,
+        color: body.color ?? DEFAULT_CLASS_COLORS[type],
+      },
+    });
+    return NextResponse.json({ class: updated });
+  } catch (error) {
+    if (isPrismaSchemaMismatchError(error)) {
+      return NextResponse.json(DB_NOT_READY, { status: 503 });
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(
@@ -65,13 +84,19 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const existing = await prisma.studentWeeklyClass.findFirst({
-    where: { id, studentId: session.user.id },
-  });
-  if (!existing) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  try {
+    const existing = await prisma.studentWeeklyClass.findFirst({
+      where: { id, studentId: session.user.id },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    await prisma.studentWeeklyClass.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (isPrismaSchemaMismatchError(error)) {
+      return NextResponse.json(DB_NOT_READY, { status: 503 });
+    }
+    throw error;
   }
-
-  await prisma.studentWeeklyClass.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
 }
