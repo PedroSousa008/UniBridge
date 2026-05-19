@@ -41,6 +41,13 @@ enum RecordStatus {
   CLOSED
 }
 
+enum ClassSessionType {
+  LECTURE
+  WORKSHOP
+  LAB
+  SEMINAR
+}
+
 enum CareerPathStatus {
   DRAFT
   PENDING_APPROVAL
@@ -158,6 +165,7 @@ model User {
   careerPathsCreated  CareerPath[]           @relation("CareerPathCompany")
   challengesCreated   CompanyChallenge[]     @relation("ChallengeCompany")
   internshipsCreated  Internship[]           @relation("InternshipCompany")
+  studentWeeklyClasses StudentWeeklyClass[]
 }
 
 model StudentProfile {
@@ -286,6 +294,7 @@ model Subject {
   messages        SubjectMessage[]
   internships     Internship[]
   challenges      CompanyChallenge[]
+  studentWeeklyClasses StudentWeeklyClass[]
 
   @@index([courseId])
 }
@@ -871,6 +880,29 @@ model Session {
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expires      DateTime
+}
+
+model StudentWeeklyClass {
+  id           String           @id @default(cuid())
+  studentId    String
+  student      User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId    String?
+  subject      Subject?         @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  subjectName  String
+  classType    ClassSessionType @default(LECTURE)
+  professor    String?
+  dayOfWeek    Int
+  startTime    String
+  endTime      String
+  repeatWeekly Boolean          @default(true)
+  building     String?
+  room         String?
+  isOnline     Boolean          @default(false)
+  color        String           @default("#3b82f6")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([studentId, dayOfWeek])
 }
 
 model VerificationToken {
