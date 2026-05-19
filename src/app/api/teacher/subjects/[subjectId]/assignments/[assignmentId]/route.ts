@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
+import { syncAssignmentAnnouncement } from '@/lib/student/announcement-sync';
 import { syncAssignmentToCalendars } from '@/lib/student/assignment-sync';
 import { requireTeacherSubject } from '@/lib/teacher/subject-auth';
 
@@ -56,6 +57,7 @@ export async function PATCH(
   }
 
   await syncAssignmentToCalendars(assignmentId);
+  await syncAssignmentAnnouncement(assignmentId);
   const updated = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     include: { attachments: true },

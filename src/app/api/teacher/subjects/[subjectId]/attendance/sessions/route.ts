@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ensureAttendanceTables } from '@/lib/db/ensure-attendance-schema';
+import { syncAttendanceAnnouncement } from '@/lib/student/announcement-sync';
 import {
   recalculateSubjectAttendanceForAllStudents,
   syncAttendanceSessionToCalendars,
@@ -88,6 +89,7 @@ export async function POST(
 
   await recalculateSubjectAttendanceForAllStudents(subjectId);
   await syncAttendanceSessionToCalendars(session.id);
+  await syncAttendanceAnnouncement(session.id);
 
   const full = await prisma.subjectAttendanceSession.findUnique({
     where: { id: session.id },

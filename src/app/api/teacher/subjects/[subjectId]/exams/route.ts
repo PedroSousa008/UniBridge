@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ensureExamTables } from '@/lib/db/ensure-exam-schema';
+import { syncExamAnnouncement } from '@/lib/student/announcement-sync';
 import { syncExamToCalendars } from '@/lib/student/exam-sync';
 import { requireTeacherSubject } from '@/lib/teacher/subject-auth';
 
@@ -51,5 +52,6 @@ export async function POST(
   });
 
   await syncExamToCalendars(exam.id);
+  await syncExamAnnouncement(exam.id);
   return NextResponse.json({ exam }, { status: 201 });
 }

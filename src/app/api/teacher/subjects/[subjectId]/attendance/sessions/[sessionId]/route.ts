@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ensureAttendanceTables } from '@/lib/db/ensure-attendance-schema';
+import { syncAttendanceAnnouncement } from '@/lib/student/announcement-sync';
 import {
   recalculateSubjectAttendanceForAllStudents,
   removeAttendanceSessionFromCalendars,
@@ -69,6 +70,7 @@ export async function PATCH(
   } else {
     await syncAttendanceSessionToCalendars(sessionId);
   }
+  await syncAttendanceAnnouncement(sessionId);
 
   const full = await prisma.subjectAttendanceSession.findUnique({
     where: { id: sessionId },

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { ensureExamTables } from '@/lib/db/ensure-exam-schema';
+import { syncExamAnnouncement } from '@/lib/student/announcement-sync';
 import { syncExamToCalendars } from '@/lib/student/exam-sync';
 import { loadStudentExamsHub } from '@/lib/student/student-exams';
 import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
     });
 
     await syncExamToCalendars(exam.id);
+    await syncExamAnnouncement(exam.id);
     const exams = await loadStudentExamsHub(session.user.id);
     const card = exams.find((e) => e.id === exam.id);
     return NextResponse.json({ exam: card }, { status: 201 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { syncDocumentAnnouncement } from '@/lib/student/announcement-sync';
 import { requireTeacherSubject } from '@/lib/teacher/subject-auth';
 
 export async function POST(
@@ -36,6 +37,8 @@ export async function POST(
       examPriority: !!body.examPriority,
     },
   });
+
+  await syncDocumentAnnouncement(item.id);
 
   return NextResponse.json({ week, item }, { status: 201 });
 }

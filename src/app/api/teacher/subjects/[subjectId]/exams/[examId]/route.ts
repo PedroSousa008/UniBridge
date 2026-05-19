@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { ExamContentKind } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { ensureExamTables } from '@/lib/db/ensure-exam-schema';
+import { syncExamAnnouncement } from '@/lib/student/announcement-sync';
 import { syncExamToCalendars } from '@/lib/student/exam-sync';
 import { requireTeacherSubject } from '@/lib/teacher/subject-auth';
 
@@ -81,6 +82,7 @@ export async function PATCH(
   }
 
   await syncExamToCalendars(examId);
+  await syncExamAnnouncement(examId);
   const updated = await prisma.exam.findUnique({
     where: { id: examId },
     include: { includedContent: true, attachments: true },
