@@ -1,11 +1,13 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { upload } from '@vercel/blob/client';
-import { ImagePlus, Loader2, X } from 'lucide-react';
+import { Crop, ImagePlus, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
+import { blobToFile, CROP_ASPECT } from '@/lib/uploads/crop-image';
 import {
   isLocalDev,
   isVercelProduction,
@@ -23,6 +25,8 @@ interface ImageUploadProps {
   className?: string;
   aspect?: 'square' | 'banner';
   hint?: string;
+  /** Set false to upload without cropping (e.g. SVG). */
+  enableCrop?: boolean;
 }
 
 export function ImageUpload({
@@ -32,11 +36,38 @@ export function ImageUpload({
   folder = 'startup',
   className,
   aspect = 'square',
-  hint = 'JPEG, PNG or WebP · up to 15 MB',
+  hint = 'JPEG, PNG or WebP · up to 15 MB · crop after upload',
+  enableCrop = true,
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropSource, setCropSource] = useState('');
+  const [pendingName, setPendingName] = useState('image.jpg');
+  const objectUrlRef = useRef<string | null>(null);
+
+  const cropAspect = CROP_ASPECT[aspect];
+  const maxOutputWidth = aspect === 'banner' ? 1920 : 1200;
+
+  function revokeObjectUrl() {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }
+
+  useEffect(() => () => revokeObjectUrl(), []);
+
+  function openCropper(src: string, fileName: string) {
+    revokeObjectUrl();
+    if (src.startsWith('blob:')) {
+      objectUrlRef.current = src;
+    }
+    setPendingName(fileName);
+    setCropSource(src);
+    setCropOpen(true);
+  }
 
   async function uploadViaBlob(file: File) {
     const blob = await upload(file.name, file, {
@@ -57,7 +88,7 @@ export function ImageUpload({
     return data.url as string;
   }
 
-  async function handleFile(file: File) {
+  async function uploadFile(file: File) {
     setUploading(true);
     setError('');
 
@@ -65,7 +96,6 @@ export function ImageUpload({
     if (err) {
       setError(err);
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = '';
       return;
     }
 
@@ -106,6 +136,33 @@ export function ImageUpload({
     }
   }
 
+  function handleRawFile(file: File) {
+    const err = validateImageFile(file, MAX_IMAGE_BYTES);
+    if (err) {
+      setError(err);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
+
+    const skipCrop = !enableCrop || file.type === 'image/svg+xml';
+    if (skipCrop) {
+      void uploadFile(file);
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    openCropper(url, file.name);
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  async function handleCroppedBlob(blob: Blob) {
+    const file = blobToFile(blob, pendingName);
+    revokeObjectUrl();
+    setCropSource('');
+    await uploadFile(file);
+  }
+
   return (
     <div className={cn('space-y-2', className)}>
       <span className="text-sm font-medium">{label}</span>
@@ -132,7 +189,7 @@ export function ImageUpload({
         ) : (
           <button
             type="button"
-            disabled={uploading}
+            disabled={uploading || cropOpen}
             onClick={() => inputRef.current?.click()}
             className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
           >
@@ -154,22 +211,52 @@ export function ImageUpload({
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void handleFile(file);
+          if (file) handleRawFile(file);
         }}
       />
       {value ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={uploading}
-          onClick={() => inputRef.current?.click()}
-        >
-          Replace image
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={uploading || cropOpen}
+            onClick={() => inputRef.current?.click()}
+          >
+            Replace image
+          </Button>
+          {enableCrop && !value.startsWith('data:image/svg') ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploading || cropOpen}
+              onClick={() => openCropper(value, 'image.jpg')}
+            >
+              <Crop className="mr-1.5 h-3.5 w-3.5" />
+              Adjust crop
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       <p className="text-xs text-muted-foreground">{hint}</p>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
+
+      <ImageCropDialog
+        open={cropOpen}
+        onOpenChange={(open) => {
+          setCropOpen(open);
+          if (!open) {
+            revokeObjectUrl();
+            setCropSource('');
+          }
+        }}
+        imageSrc={cropSource}
+        aspect={cropAspect}
+        title={aspect === 'banner' ? 'Crop cover image' : 'Crop image'}
+        maxOutputWidth={maxOutputWidth}
+        onConfirm={handleCroppedBlob}
+      />
     </div>
   );
 }
