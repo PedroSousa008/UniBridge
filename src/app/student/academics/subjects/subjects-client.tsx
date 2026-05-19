@@ -83,7 +83,8 @@ export function StudentSubjectsClient({
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-4">
             {subjects.map((s) => (
-              <Card key={s.id}>
+              <Link key={s.id} href={`/student/academics/subjects/${s.id}/home`}>
+              <Card className="transition-shadow hover:shadow-md cursor-pointer">
                 <CardHeader className="pb-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <CardTitle className="text-base font-semibold">{s.name}</CardTitle>
@@ -112,6 +113,7 @@ export function StudentSubjectsClient({
                   )}
                 </CardContent>
               </Card>
+              </Link>
             ))}
           </div>
 

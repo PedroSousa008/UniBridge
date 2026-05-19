@@ -49,6 +49,27 @@ enum CareerPathStatus {
   REJECTED
 }
 
+enum ContentItemType {
+  SLIDES
+  PDF
+  VIDEO
+  LINK
+  EXERCISE
+  LAB
+  TEMPLATE
+  DATASET
+  CODE
+  NOTES
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  LATE
+}
+
 enum PartnershipStatus {
   PENDING
   ACTIVE
@@ -125,6 +146,10 @@ model User {
   careerTargets       CareerTarget[]
   subjects            SubjectEnrollment[]
   assignments         AssignmentSubmission[]
+  subjectAnnouncements SubjectAnnouncement[] @relation("SubjectAnnouncementAuthor")
+  subjectMessages     SubjectMessage[]      @relation("SubjectMessageAuthor")
+  subjectContentNotes SubjectContentNote[]
+  attendanceRecords   SubjectAttendanceRecord[]
   analyticsEvents     AnalyticsEvent[]
   companyPartnerships CompanyPartnership[]   @relation("CompanyUser")
   careerPathsCreated  CareerPath[]           @relation("CareerPathCompany")
@@ -246,9 +271,18 @@ model Subject {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  enrollments SubjectEnrollment[]
-  assignments Assignment[]
-  exams       Exam[]
+  enrollments     SubjectEnrollment[]
+  assignments     Assignment[]
+  exams           Exam[]
+  contentWeeks    SubjectContentWeek[]
+  announcements   SubjectAnnouncement[]
+  scheduleSlots   SubjectScheduleSlot[]
+  officeHours     SubjectOfficeHours[]
+  attendanceSessions SubjectAttendanceSession[]
+  gradeCategories GradeCategory[]
+  messages        SubjectMessage[]
+  internships     Internship[]
+  challenges      CompanyChallenge[]
 
   @@index([courseId])
 }
@@ -267,15 +301,17 @@ model SubjectEnrollment {
 }
 
 model Assignment {
-  id          String   @id @default(cuid())
-  subjectId   String
-  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  title       String
-  description String?  @db.Text
-  dueDate     DateTime
-  maxScore    Float    @default(100)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String         @id @default(cuid())
+  subjectId       String
+  subject         Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  gradeCategoryId String?
+  gradeCategory   GradeCategory? @relation(fields: [gradeCategoryId], references: [id])
+  title           String
+  description     String?        @db.Text
+  dueDate         DateTime
+  maxScore        Float          @default(100)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   submissions AssignmentSubmission[]
 }
@@ -303,6 +339,146 @@ model Exam {
   location  String?
   maxScore  Float    @default(100)
   createdAt DateTime @default(now())
+}
+
+model SubjectContentWeek {
+  id         String   @id @default(cuid())
+  subjectId  String
+  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  weekNumber Int
+  title      String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  items SubjectContentItem[]
+
+  @@unique([subjectId, weekNumber])
+  @@index([subjectId])
+}
+
+model SubjectContentItem {
+  id           String          @id @default(cuid())
+  weekId       String
+  week         SubjectContentWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  title        String
+  type         ContentItemType @default(PDF)
+  url          String?
+  fileUrl      String?
+  description  String?         @db.Text
+  examPriority Boolean         @default(false)
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+
+  notes SubjectContentNote[]
+
+  @@index([weekId])
+}
+
+model SubjectContentNote {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      SubjectContentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  note      String?  @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@unique([itemId, studentId])
+}
+
+model SubjectAnnouncement {
+  id          String    @id @default(cuid())
+  subjectId   String
+  subject     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation("SubjectAnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title       String
+  body        String    @db.Text
+  priority    String    @default("normal")
+  pinned      Boolean   @default(false)
+  attachments Json?
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([subjectId, publishedAt])
+}
+
+model SubjectScheduleSlot {
+  id        String  @id @default(cuid())
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  room      String?
+  label     String?
+
+  @@index([subjectId])
+}
+
+model SubjectOfficeHours {
+  id        String  @id @default(cuid())
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  location  String?
+
+  @@index([subjectId])
+}
+
+model SubjectAttendanceSession {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  date      DateTime
+  label     String?
+  createdAt DateTime @default(now())
+
+  records SubjectAttendanceRecord[]
+
+  @@index([subjectId, date])
+}
+
+model SubjectAttendanceRecord {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   SubjectAttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status    AttendanceStatus @default(ABSENT)
+
+  @@unique([sessionId, studentId])
+}
+
+model GradeCategory {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name      String
+  weight    Float
+  sortOrder Int      @default(0)
+
+  assignments Assignment[]
+
+  @@index([subjectId])
+}
+
+model SubjectMessage {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("SubjectMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  channel   String   @default("class")
+  body      String   @db.Text
+  threadId  String?
+  createdAt DateTime @default(now())
+
+  @@index([subjectId, createdAt])
 }
 
 model CompanyPartnership {
@@ -376,6 +552,8 @@ model Internship {
   id            String       @id @default(cuid())
   universityId  String?
   university    University?  @relation(fields: [universityId], references: [id])
+  subjectId     String?
+  subject       Subject?     @relation(fields: [subjectId], references: [id])
   companyUserId String
   companyUser   User         @relation("InternshipCompany", fields: [companyUserId], references: [id], onDelete: Cascade)
   careerPathId  String?
@@ -406,6 +584,8 @@ model CompanyChallenge {
   id            String       @id @default(cuid())
   universityId  String?
   university    University?  @relation(fields: [universityId], references: [id])
+  subjectId     String?
+  subject       Subject?     @relation(fields: [subjectId], references: [id])
   companyUserId String
   companyUser   User         @relation("ChallengeCompany", fields: [companyUserId], references: [id], onDelete: Cascade)
   title         String
