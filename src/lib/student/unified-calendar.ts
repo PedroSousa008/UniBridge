@@ -482,8 +482,8 @@ export async function loadUnifiedCalendar(
       source: 'assignment',
       sourceId: a.id,
       editable: false,
-      href: `/student/academics/subjects/${a.subjectId}/content`,
-      professor: null,
+      href: `/student/academics/assignments?assignment=${a.id}`,
+      professor: a.professor ?? null,
       recurrence: 'NONE',
       seriesId: null,
     });

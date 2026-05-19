@@ -95,6 +95,21 @@ enum ExamContentKind {
   TOPIC
 }
 
+enum AssignmentWorkflowStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  LATE
+  GRADED
+}
+
+enum AssignmentPriorityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 enum ContentItemType {
   SLIDES
   PDF
@@ -211,6 +226,9 @@ model User {
   examsCreated         Exam[]                   @relation("ExamsCreated")
   examPreparations     StudentExamPreparation[]
   gradebookPreference  StudentGradebookPreference?
+  assignmentProgress   StudentAssignmentProgress[]
+  assignmentGroups     AssignmentGroupMember[]
+  groupComments          AssignmentGroupComment[]
 }
 
 model StudentProfile {
@@ -361,16 +379,60 @@ model Assignment {
   id              String         @id @default(cuid())
   subjectId       String
   subject         Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdById     String?
   gradeCategoryId String?
   gradeCategory   GradeCategory? @relation(fields: [gradeCategoryId], references: [id])
   title           String
   description     String?        @db.Text
+  instructions    String?        @db.Text
+  rubric          String?        @db.Text
   dueDate         DateTime
   maxScore        Float          @default(100)
+  weightPercent   Float?
+  isGroup         Boolean        @default(false)
+  allowedFormats  String[]       @default([])
+  linksJson       Json?
+  professor       String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  submissions AssignmentSubmission[]
+  submissions  AssignmentSubmission[]
+  attachments  AssignmentAttachment[]
+  progress     StudentAssignmentProgress[]
+  groups       AssignmentGroup[]
+
+  @@index([subjectId, dueDate])
+}
+
+model AssignmentAttachment {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  title        String
+  url          String?
+  fileUrl      String?
+  kind         String     @default("file")
+  createdById  String
+  createdAt    DateTime   @default(now())
+
+  @@index([assignmentId])
+}
+
+model StudentAssignmentProgress {
+  id              String                   @id @default(cuid())
+  assignmentId    String
+  assignment      Assignment               @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         User                     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status          AssignmentWorkflowStatus @default(NOT_STARTED)
+  progressPercent Int                      @default(0)
+  studentWeight   Float?
+  notes           String?                  @db.Text
+  startedAt       DateTime?
+  updatedAt       DateTime                 @updatedAt
+  createdAt       DateTime                 @default(now())
+
+  @@unique([assignmentId, studentId])
 }
 
 model AssignmentSubmission {
@@ -380,11 +442,71 @@ model AssignmentSubmission {
   studentId    String
   student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   content      String?    @db.Text
+  comment      String?    @db.Text
+  linkUrl      String?
+  fileUrls     String[]   @default([])
   score        Float?
   submittedAt  DateTime?
   createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@unique([assignmentId, studentId])
+}
+
+model AssignmentGroup {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  name         String
+  createdAt    DateTime   @default(now())
+
+  members  AssignmentGroupMember[]
+  tasks    AssignmentGroupTask[]
+  files    AssignmentGroupFile[]
+  comments AssignmentGroupComment[]
+
+  @@index([assignmentId])
+}
+
+model AssignmentGroupMember {
+  id        String          @id @default(cuid())
+  groupId   String
+  group     AssignmentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  role      String          @default("member")
+
+  @@unique([groupId, studentId])
+}
+
+model AssignmentGroupTask {
+  id         String          @id @default(cuid())
+  groupId    String
+  group      AssignmentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  title      String
+  assigneeId String?
+  done       Boolean         @default(false)
+  sortOrder  Int             @default(0)
+}
+
+model AssignmentGroupFile {
+  id        String          @id @default(cuid())
+  groupId   String
+  group     AssignmentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  studentId String
+  title     String
+  url       String?
+  createdAt DateTime        @default(now())
+}
+
+model AssignmentGroupComment {
+  id        String          @id @default(cuid())
+  groupId   String
+  group     AssignmentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  body      String          @db.Text
+  createdAt DateTime        @default(now())
 }
 
 model Exam {

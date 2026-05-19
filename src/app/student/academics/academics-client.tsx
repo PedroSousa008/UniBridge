@@ -21,7 +21,7 @@ export function StudentAcademicsClient() {
   const modules = [
     { href: '/student/academics/subjects', label: tr('student.academics.subjects'), description: 'Your enrolled subjects and teachers', icon: BookOpen },
     { href: '/student/academics/gradebook', label: tr('student.academics.gradebook'), description: 'Academic performance dashboard', icon: GraduationCap },
-    { href: '/student/academics/assignments', label: tr('student.academics.assignments'), description: 'All assignments across subjects', icon: ClipboardList },
+    { href: '/student/academics/assignments', label: tr('student.academics.assignments'), description: 'Work execution workspace', icon: ClipboardList },
     { href: '/student/academics/exams', label: tr('student.academics.exams'), description: 'Exam prep command center', icon: Notebook },
     { href: '/student/academics/calendar', label: tr('student.academics.calendar'), description: 'Your unified life calendar', icon: Calendar },
     { href: '/student/academics/schedule', label: tr('student.academics.schedule'), description: 'Weekly class calendar', icon: Calendar },
