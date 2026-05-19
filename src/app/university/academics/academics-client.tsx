@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, UserPlus } from 'lucide-react';
+import { Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { SectionTabs } from '@/components/university/section-tabs';
 import { DataTable, type Column } from '@/components/university/data-table';
@@ -31,6 +31,8 @@ export interface AcademicsCourse {
   id: string;
   name: string;
   department: string | null;
+  duration: string | null;
+  degreeType: string | null;
   status: string;
   studentCount: number;
   subjectCount: number;
@@ -41,8 +43,12 @@ export interface AcademicsSubject {
   id: string;
   name: string;
   code: string | null;
+  courseId: string | null;
   courseName: string | null;
+  teacherId: string | null;
   teacherName: string | null;
+  year: number | null;
+  semester: string | null;
   status: string;
 }
 
@@ -61,9 +67,37 @@ export interface AcademicsStudent {
   email: string;
   program: string | null;
   yearOfStudy: number | null;
+  courseId: string | null;
   engagementScore: number;
   employabilityScore: number;
   courseName: string | null;
+}
+
+type DeleteTarget = {
+  kind: 'course' | 'subject' | 'student';
+  id: string;
+  label: string;
+  detail?: string;
+};
+
+function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+      <Button type="button" variant="ghost" size="sm" onClick={onEdit} aria-label="Edit">
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+        onClick={onDelete}
+        aria-label="Delete"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
 }
 
 export interface AcademicsCalendarEvent {
@@ -108,6 +142,10 @@ export function UniversityAcademicsClient({
   const [inviteTeacherOpen, setInviteTeacherOpen] = useState(false);
   const [inviteStudentOpen, setInviteStudentOpen] = useState(false);
   const [announcementOpen, setAnnouncementOpen] = useState(false);
+  const [editCourse, setEditCourse] = useState<AcademicsCourse | null>(null);
+  const [editSubject, setEditSubject] = useState<AcademicsSubject | null>(null);
+  const [editStudent, setEditStudent] = useState<AcademicsStudent | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,16 +180,20 @@ export function UniversityAcademicsClient({
     if (action === 'add' && t === 'announcements') setAnnouncementOpen(true);
   }, [searchParams]);
 
-  async function postJson(url: string, body: Record<string, unknown>) {
+  async function requestJson(
+    method: 'POST' | 'PATCH' | 'DELETE',
+    url: string,
+    body?: Record<string, unknown>
+  ) {
     setSubmitting(true);
     setError(null);
     try {
       const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Request failed');
       router.refresh();
       return true;
@@ -161,6 +203,25 @@ export function UniversityAcademicsClient({
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function postJson(url: string, body: Record<string, unknown>) {
+    return requestJson('POST', url, body);
+  }
+
+  function courseDeleteTarget(c: AcademicsCourse): DeleteTarget {
+    const parts: string[] = [];
+    if (c.subjectCount > 0) parts.push(`${c.subjectCount} subject(s)`);
+    if (c.studentCount > 0) parts.push(`${c.studentCount} student(s) will be unassigned`);
+    return {
+      kind: 'course',
+      id: c.id,
+      label: c.name,
+      detail:
+        parts.length > 0
+          ? `This will permanently delete the course and its subjects. ${parts.join('. ')}.`
+          : 'This will permanently delete the course.',
+    };
   }
 
   const courseColumns: Column<AcademicsCourse>[] = [
@@ -177,6 +238,23 @@ export function UniversityAcademicsClient({
       header: 'Status',
       cell: (r) => <Badge variant="secondary">{r.status}</Badge>,
     },
+    {
+      key: 'actions',
+      header: '',
+      className: 'w-[100px]',
+      cell: (r) => (
+        <RowActions
+          onEdit={() => {
+            setError(null);
+            setEditCourse(r);
+          }}
+          onDelete={() => {
+            setError(null);
+            setDeleteTarget(courseDeleteTarget(r));
+          }}
+        />
+      ),
+    },
   ];
 
   const subjectColumns: Column<AcademicsSubject>[] = [
@@ -188,6 +266,28 @@ export function UniversityAcademicsClient({
       key: 'status',
       header: 'Status',
       cell: (r) => <Badge variant="secondary">{r.status}</Badge>,
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'w-[100px]',
+      cell: (r) => (
+        <RowActions
+          onEdit={() => {
+            setError(null);
+            setEditSubject(r);
+          }}
+          onDelete={() => {
+            setError(null);
+            setDeleteTarget({
+              kind: 'subject',
+              id: r.id,
+              label: r.name,
+              detail: 'This will permanently delete the subject and related enrollments.',
+            });
+          }}
+        />
+      ),
     },
   ];
 
@@ -217,6 +317,29 @@ export function UniversityAcademicsClient({
       key: 'employability',
       header: 'Employability',
       cell: (r) => `${Math.round(r.employabilityScore)}%`,
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'w-[100px]',
+      cell: (r) => (
+        <RowActions
+          onEdit={() => {
+            setError(null);
+            setEditStudent(r);
+          }}
+          onDelete={() => {
+            setError(null);
+            setDeleteTarget({
+              kind: 'student',
+              id: r.id,
+              label: r.name,
+              detail:
+                'This removes the student from your university. Their UniBridge account is not deleted.',
+            });
+          }}
+        />
+      ),
     },
   ];
 
@@ -555,6 +678,256 @@ export function UniversityAcademicsClient({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editCourse} onOpenChange={(open) => !open && setEditCourse(null)}>
+        <DialogContent>
+          {editCourse ? (
+            <form
+              key={editCourse.id}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const ok = await requestJson('PATCH', `/api/university/courses/${editCourse.id}`, {
+                  name: fd.get('name'),
+                  department: fd.get('department'),
+                  duration: fd.get('duration'),
+                  degreeType: fd.get('degreeType'),
+                });
+                if (ok) setEditCourse(null);
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>Edit course</DialogTitle>
+                <DialogDescription>Update course details.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-4">
+                <Input name="name" placeholder="Course name" required defaultValue={editCourse.name} />
+                <Input
+                  name="department"
+                  placeholder="Department"
+                  defaultValue={editCourse.department ?? ''}
+                />
+                <Input
+                  name="duration"
+                  placeholder="Duration (e.g. 3 years)"
+                  defaultValue={editCourse.duration ?? ''}
+                />
+                <Input
+                  name="degreeType"
+                  placeholder="Degree type"
+                  defaultValue={editCourse.degreeType ?? ''}
+                />
+              </div>
+              {error ? <p className="text-sm text-red-500">{error}</p> : null}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditCourse(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving…' : 'Save changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editSubject} onOpenChange={(open) => !open && setEditSubject(null)}>
+        <DialogContent>
+          {editSubject ? (
+            <form
+              key={editSubject.id}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const ok = await requestJson('PATCH', `/api/university/subjects/${editSubject.id}`, {
+                  name: fd.get('name'),
+                  code: fd.get('code'),
+                  courseId: fd.get('courseId'),
+                  year: fd.get('year'),
+                  semester: fd.get('semester'),
+                  teacherId: fd.get('teacherId') || null,
+                });
+                if (ok) setEditSubject(null);
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>Edit subject</DialogTitle>
+                <DialogDescription>Update subject details and assignments.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-4">
+                <select
+                  name="courseId"
+                  required
+                  className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                  defaultValue={editSubject.courseId ?? ''}
+                >
+                  <option value="" disabled>
+                    Select course
+                  </option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <Input name="name" placeholder="Subject name" required defaultValue={editSubject.name} />
+                <Input name="code" placeholder="Subject code" defaultValue={editSubject.code ?? ''} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    name="year"
+                    type="number"
+                    min={1}
+                    max={6}
+                    placeholder="Year"
+                    defaultValue={editSubject.year ?? ''}
+                  />
+                  <Input
+                    name="semester"
+                    placeholder="Semester"
+                    defaultValue={editSubject.semester ?? ''}
+                  />
+                </div>
+                <select
+                  name="teacherId"
+                  className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                  defaultValue={editSubject.teacherId ?? ''}
+                >
+                  <option value="">No teacher assigned</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {error ? <p className="text-sm text-red-500">{error}</p> : null}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditSubject(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving…' : 'Save changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editStudent} onOpenChange={(open) => !open && setEditStudent(null)}>
+        <DialogContent>
+          {editStudent ? (
+            <form
+              key={editStudent.id}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const ok = await requestJson('PATCH', `/api/university/students/${editStudent.id}`, {
+                  program: fd.get('program'),
+                  yearOfStudy: fd.get('yearOfStudy'),
+                  courseId: fd.get('courseId') || null,
+                });
+                if (ok) setEditStudent(null);
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>Edit student</DialogTitle>
+                <DialogDescription>
+                  Update enrollment details for {editStudent.name}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-4">
+                <Input value={editStudent.email} disabled className="opacity-70" />
+                <Input
+                  name="program"
+                  placeholder="Program"
+                  defaultValue={editStudent.program ?? ''}
+                />
+                <Input
+                  name="yearOfStudy"
+                  type="number"
+                  min={1}
+                  max={6}
+                  placeholder="Year of study"
+                  defaultValue={editStudent.yearOfStudy ?? ''}
+                />
+                <select
+                  name="courseId"
+                  className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                  defaultValue={editStudent.courseId ?? ''}
+                >
+                  <option value="">No course assigned</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {error ? <p className="text-sm text-red-500">{error}</p> : null}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditStudent(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving…' : 'Save changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          {deleteTarget ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {deleteTarget.kind === 'student' ? 'Remove student?' : 'Delete permanently?'}
+                </DialogTitle>
+                <DialogDescription>
+                  <span className="font-medium text-foreground">{deleteTarget.label}</span>
+                  {deleteTarget.detail ? (
+                    <>
+                      <br />
+                      <span className="mt-2 inline-block">{deleteTarget.detail}</span>
+                    </>
+                  ) : null}
+                </DialogDescription>
+              </DialogHeader>
+              {error ? <p className="text-sm text-red-500">{error}</p> : null}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={submitting}
+                  className="bg-red-600 text-white hover:bg-red-700"
+                  onClick={async () => {
+                    const path =
+                      deleteTarget.kind === 'course'
+                        ? `/api/university/courses/${deleteTarget.id}`
+                        : deleteTarget.kind === 'subject'
+                          ? `/api/university/subjects/${deleteTarget.id}`
+                          : `/api/university/students/${deleteTarget.id}`;
+                    const ok = await requestJson('DELETE', path);
+                    if (ok) setDeleteTarget(null);
+                  }}
+                >
+                  {submitting
+                    ? 'Removing…'
+                    : deleteTarget.kind === 'student'
+                      ? 'Remove from university'
+                      : 'Delete'}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
