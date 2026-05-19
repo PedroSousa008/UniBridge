@@ -16,6 +16,9 @@ build/
 # Vercel
 .vercel
 
+# Local CLI tools (Node/Vercel installed for automation)
+.tools/
+
 # Debug
 npm-debug.log*
 yarn-debug.log*
