@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
+import { enrollCourseStudentsInSubject } from '@/lib/academics/enrollments';
 
 export async function POST(request: Request) {
   const auth = await requireUniversityApi();
@@ -55,6 +56,8 @@ export async function POST(request: Request) {
       status: 'ACTIVE',
     },
   });
+
+  await enrollCourseStudentsInSubject(subject.id, courseId, subject.year);
 
   await logUniversityActivity(
     auth.ctx.university.id,

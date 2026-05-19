@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
+import { syncStudentEnrollments } from '@/lib/academics/enrollments';
 
 export async function POST(request: Request) {
   const auth = await requireUniversityApi();
@@ -28,24 +29,32 @@ export async function POST(request: Request) {
     );
   }
 
-  let courseId: string | null = null;
-  if (body.courseId) {
-    const course = await prisma.course.findFirst({
-      where: {
-        id: String(body.courseId),
-        universityId: auth.ctx.university.id,
-      },
-    });
-    if (!course) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-    }
-    courseId = course.id;
+  const courseIdRaw = String(body.courseId || '').trim();
+  if (!courseIdRaw) {
+    return NextResponse.json(
+      { error: 'Course is required so the student is enrolled in course subjects.' },
+      { status: 400 }
+    );
   }
+
+  const course = await prisma.course.findFirst({
+    where: {
+      id: courseIdRaw,
+      universityId: auth.ctx.university.id,
+    },
+  });
+  if (!course) {
+    return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+  }
+  const courseId = course.id;
 
   const yearOfStudy = body.yearOfStudy
     ? parseInt(String(body.yearOfStudy), 10)
     : undefined;
   const program = body.program ? String(body.program).trim() : undefined;
+
+  const resolvedYear =
+    yearOfStudy && !Number.isNaN(yearOfStudy) ? yearOfStudy : user.studentProfile?.yearOfStudy ?? null;
 
   const student = await prisma.studentProfile.upsert({
     where: { userId: user.id },
@@ -62,8 +71,14 @@ export async function POST(request: Request) {
       universityName: auth.ctx.university.name,
       courseId,
       program: program ?? null,
-      yearOfStudy: yearOfStudy && !Number.isNaN(yearOfStudy) ? yearOfStudy : null,
+      yearOfStudy: resolvedYear,
     },
+  });
+
+  await syncStudentEnrollments(user.id, {
+    universityId: auth.ctx.university.id,
+    courseId: student.courseId,
+    yearOfStudy: student.yearOfStudy,
   });
 
   await logUniversityActivity(

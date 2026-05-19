@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
+import {
+  clearStudentEnrollmentsForUniversity,
+  syncStudentEnrollments,
+} from '@/lib/academics/enrollments';
 
 async function getOwnedStudent(universityId: string, id: string) {
   return prisma.studentProfile.findFirst({
@@ -67,6 +71,12 @@ export async function PATCH(
     },
   });
 
+  await syncStudentEnrollments(student.userId, {
+    universityId: auth.ctx.university.id,
+    courseId: updated.courseId,
+    yearOfStudy: updated.yearOfStudy,
+  });
+
   await logUniversityActivity(
     auth.ctx.university.id,
     'student',
@@ -90,6 +100,8 @@ export async function DELETE(
   if (!student) {
     return NextResponse.json({ error: 'Student not found' }, { status: 404 });
   }
+
+  await clearStudentEnrollmentsForUniversity(student.userId, auth.ctx.university.id);
 
   await prisma.studentProfile.update({
     where: { id },

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
+import {
+  enrollCourseStudentsInSubject,
+  syncAllStudentsInCourse,
+} from '@/lib/academics/enrollments';
 
 async function getOwnedSubject(universityId: string, id: string) {
   return prisma.subject.findFirst({
@@ -76,6 +80,9 @@ export async function PATCH(
         : null
       : undefined;
 
+  const courseChanged = courseId !== subject.courseId;
+  const yearChanged = year !== undefined && year !== subject.year;
+
   const updated = await prisma.subject.update({
     where: { id },
     data: {
@@ -88,6 +95,14 @@ export async function PATCH(
       status: body.status !== undefined ? body.status : undefined,
     },
   });
+
+  if (updated.courseId && (courseChanged || yearChanged)) {
+    if (subject.courseId && subject.courseId !== updated.courseId) {
+      await syncAllStudentsInCourse(subject.courseId);
+    }
+    await enrollCourseStudentsInSubject(updated.id, updated.courseId, updated.year);
+    await syncAllStudentsInCourse(updated.courseId);
+  }
 
   await logUniversityActivity(
     auth.ctx.university.id,

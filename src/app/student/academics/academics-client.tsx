@@ -19,7 +19,7 @@ export function StudentAcademicsClient() {
   const { tr } = useI18n();
 
   const modules = [
-    { href: '/student/academics/subjects', label: tr('student.academics.subjects'), description: tr('common.comingSoon'), icon: BookOpen },
+    { href: '/student/academics/subjects', label: tr('student.academics.subjects'), description: 'Your enrolled subjects and teachers', icon: BookOpen },
     { href: '/student/academics/gradebook', label: tr('student.academics.gradebook'), description: tr('common.comingSoon'), icon: GraduationCap },
     { href: '/student/academics/assignments', label: tr('student.academics.assignments'), description: tr('common.comingSoon'), icon: ClipboardList },
     { href: '/student/academics/exams', label: tr('student.academics.exams'), description: tr('common.comingSoon'), icon: Notebook },
