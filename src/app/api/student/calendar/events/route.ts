@@ -71,6 +71,29 @@ export async function POST(request: Request) {
 
     const created = await prisma.studentCalendarEvent.create({ data });
 
+    if (qt === 'EXAM') {
+      const { createExamFromCalendarEvent } = await import('@/lib/student/exam-sync');
+      const { ensureExamTables } = await import('@/lib/db/ensure-exam-schema');
+      if (await ensureExamTables()) {
+        const examId = await createExamFromCalendarEvent({
+          studentId: session.user.id,
+          title: String(title),
+          startAt: new Date(startAt),
+          endAt: new Date(endAt),
+          subjectId: body.subjectId || null,
+          location: location || null,
+          room: room || null,
+          professor: professor || null,
+        });
+        if (examId) {
+          await prisma.studentCalendarEvent.update({
+            where: { id: created.id },
+            data: { sourceRef: `exam:${examId}` },
+          });
+        }
+      }
+    }
+
     if (duplicate) {
       const dupStart = new Date(startAt);
       const dupEnd = new Date(endAt);

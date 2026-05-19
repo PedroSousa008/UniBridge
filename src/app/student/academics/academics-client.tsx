@@ -22,7 +22,7 @@ export function StudentAcademicsClient() {
     { href: '/student/academics/subjects', label: tr('student.academics.subjects'), description: 'Your enrolled subjects and teachers', icon: BookOpen },
     { href: '/student/academics/gradebook', label: tr('student.academics.gradebook'), description: 'All subject grades in one place', icon: GraduationCap },
     { href: '/student/academics/assignments', label: tr('student.academics.assignments'), description: 'All assignments across subjects', icon: ClipboardList },
-    { href: '/student/academics/exams', label: tr('student.academics.exams'), description: 'Upcoming and past exams', icon: Notebook },
+    { href: '/student/academics/exams', label: tr('student.academics.exams'), description: 'Exam prep command center', icon: Notebook },
     { href: '/student/academics/calendar', label: tr('student.academics.calendar'), description: 'Your unified life calendar', icon: Calendar },
     { href: '/student/academics/schedule', label: tr('student.academics.schedule'), description: 'Weekly class calendar', icon: Calendar },
     { href: '/student/academics/documents', label: tr('student.academics.documents'), description: tr('common.comingSoon'), icon: FileText },

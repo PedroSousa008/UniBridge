@@ -81,6 +81,20 @@ enum CareerPathStatus {
   REJECTED
 }
 
+enum ExamPriorityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ExamContentKind {
+  LECTURE
+  WORKSHOP
+  DOCUMENT
+  TOPIC
+}
+
 enum ContentItemType {
   SLIDES
   PDF
@@ -194,6 +208,8 @@ model User {
   calendarEvents       StudentCalendarEvent[]
   calendarPreferences  StudentCalendarPreference?
   hiddenCalendarItems  StudentCalendarHidden[]
+  examsCreated         Exam[]                   @relation("ExamsCreated")
+  examPreparations     StudentExamPreparation[]
 }
 
 model StudentProfile {
@@ -371,14 +387,101 @@ model AssignmentSubmission {
 }
 
 model Exam {
+  id              String    @id @default(cuid())
+  subjectId       String?
+  subject         Subject?  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdBy       User      @relation("ExamsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  ownerStudentId  String?
+  title           String
+  date            DateTime
+  endAt           DateTime?
+  location        String?
+  building        String?
+  room            String?
+  seatNumber      String?
+  onlineUrl       String?
+  professor       String?
+  description     String?   @db.Text
+  difficulty      Int       @default(3)
+  weight          Float     @default(1)
+  contentVolume   Int       @default(5)
+  maxScore        Float     @default(100)
+  classAverage    Float?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  includedContent   ExamIncludedContent[]
+  attachments       ExamAttachment[]
+  preparations      StudentExamPreparation[]
+  personalResources StudentExamPersonalResource[]
+
+  @@index([subjectId, date])
+  @@index([createdById])
+  @@index([ownerStudentId])
+}
+
+model ExamIncludedContent {
+  id            String          @id @default(cuid())
+  examId        String
+  exam          Exam            @relation(fields: [examId], references: [id], onDelete: Cascade)
+  kind          ExamContentKind
+  label         String
+  contentItemId String?
+  sortOrder     Int             @default(0)
+  isOfficial    Boolean         @default(true)
+  createdById   String
+  createdAt     DateTime        @default(now())
+
+  @@index([examId])
+}
+
+model ExamAttachment {
+  id          String   @id @default(cuid())
+  examId      String
+  exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId   String?
+  title       String
+  url         String?
+  fileUrl     String?
+  isOfficial  Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([examId])
+}
+
+model StudentExamPreparation {
+  id            String   @id @default(cuid())
+  examId        String
+  exam          Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  prepPercent   Float    @default(0)
+  lecturesDone  Int      @default(0)
+  workshopsDone Int      @default(0)
+  documentsDone Int      @default(0)
+  revisionsDone Int      @default(0)
+  checklist     Json?
+  personalNotes String?  @db.Text
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([examId, studentId])
+}
+
+model StudentExamPersonalResource {
   id        String   @id @default(cuid())
-  subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  examId    String
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId String
   title     String
-  date      DateTime
-  location  String?
-  maxScore  Float    @default(100)
+  kind      String
+  url       String?
+  content   String?  @db.Text
   createdAt DateTime @default(now())
+
+  @@index([examId, studentId])
 }
 
 model SubjectContentWeek {

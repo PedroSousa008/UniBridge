@@ -414,7 +414,13 @@ export async function loadUnifiedCalendar(
         include: { subject: { select: { name: true } } },
       }),
       prisma.exam.findMany({
-        where: { subjectId: { in: subjectIds }, date: { gte: rangeStart, lte: rangeEnd } },
+        where: {
+          date: { gte: rangeStart, lte: rangeEnd },
+          OR: [
+            { subjectId: { in: subjectIds } },
+            { ownerStudentId: userId },
+          ],
+        },
         include: { subject: { select: { name: true } } },
       }),
       profile?.universityId
@@ -486,23 +492,24 @@ export async function loadUnifiedCalendar(
   for (const e of exams) {
     const id = `exam-${e.id}`;
     if (hiddenSet.has(`exam:${e.id}`)) continue;
-    const end = new Date(e.date.getTime() + 2 * 3600000);
+    const end = e.endAt ?? new Date(e.date.getTime() + 2 * 3600000);
+    const location = [e.building, e.location].filter(Boolean).join(' · ') || null;
     events.push({
       id,
       title: e.title,
-      description: e.subject.name,
+      description: e.subject?.name ?? null,
       start: e.date.toISOString(),
       end: end.toISOString(),
       allDay: false,
       layer: 'ACADEMIC',
       subType: 'exam',
       color: '#dc2626',
-      location: e.location,
+      location,
       source: 'exam',
       sourceId: e.id,
       editable: false,
-      href: `/student/academics/subjects/${e.subjectId}/calendar`,
-      professor: null,
+      href: `/student/academics/exams?exam=${e.id}`,
+      professor: e.professor ?? null,
       recurrence: 'NONE',
       seriesId: null,
     });

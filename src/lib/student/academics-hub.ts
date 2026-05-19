@@ -46,7 +46,7 @@ export async function loadStudentExams(studentId: string) {
     id: e.id,
     title: e.title,
     date: e.date.toISOString(),
-    subject: e.subject,
+    subject: e.subject!,
     location: e.location,
     maxScore: e.maxScore,
   }));
