@@ -1,6 +1,5 @@
 import { requireSession } from '@/lib/session';
-import { RoleShell } from '@/components/layout/role-shell';
-import { universityNav } from '@/lib/navigation/roles';
+import { RoleLayout } from '@/components/layout/role-layout';
 
 export default async function UniversityLayout({
   children,
@@ -8,5 +7,5 @@ export default async function UniversityLayout({
   children: React.ReactNode;
 }) {
   await requireSession('UNIVERSITY');
-  return <RoleShell nav={universityNav}>{children}</RoleShell>;
+  return <RoleLayout role="UNIVERSITY">{children}</RoleLayout>;
 }

@@ -1,6 +1,5 @@
 import { requireSession } from '@/lib/session';
-import { RoleShell } from '@/components/layout/role-shell';
-import { companyNav } from '@/lib/navigation/roles';
+import { RoleLayout } from '@/components/layout/role-layout';
 
 export default async function CompanyLayout({
   children,
@@ -8,5 +7,5 @@ export default async function CompanyLayout({
   children: React.ReactNode;
 }) {
   await requireSession('COMPANY');
-  return <RoleShell nav={companyNav}>{children}</RoleShell>;
+  return <RoleLayout role="COMPANY">{children}</RoleLayout>;
 }

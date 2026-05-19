@@ -1,6 +1,5 @@
 import { requireSession } from '@/lib/session';
-import { RoleShell } from '@/components/layout/role-shell';
-import { ownerNav } from '@/lib/navigation/roles';
+import { RoleLayout } from '@/components/layout/role-layout';
 
 export default async function OwnerLayout({
   children,
@@ -8,5 +7,5 @@ export default async function OwnerLayout({
   children: React.ReactNode;
 }) {
   await requireSession('OWNER');
-  return <RoleShell nav={ownerNav}>{children}</RoleShell>;
+  return <RoleLayout role="OWNER">{children}</RoleLayout>;
 }
