@@ -22,7 +22,7 @@ export function StudentCareerClient() {
   const modules = [
     { href: '/student/career/paths', label: tr('student.career.paths'), description: 'Personalized roadmap with compatibility scores', icon: TrendingUp },
     { href: '/student/career/compatibility', label: tr('student.career.compatibility'), description: 'AI-powered career intelligence & live scores', icon: Target },
-    { href: '/student/career/mentor', label: tr('student.career.mentor'), description: tr('common.comingSoon'), icon: Sparkles },
+    { href: '/student/career/mentor', label: tr('student.career.mentor'), description: 'AI-powered strategic guidance toward your goals', icon: Sparkles },
     { href: '/student/career/salary', label: tr('student.career.salary'), description: tr('common.comingSoon'), icon: Wallet },
     { href: '/student/career/partnerships', label: tr('student.career.partnerships'), description: tr('common.comingSoon'), icon: Building2 },
     { href: '/student/career/internships', label: tr('student.career.internships'), description: tr('common.comingSoon'), icon: Briefcase },
