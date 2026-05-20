@@ -38,6 +38,7 @@ export function LoginForm({ initialAudience = 'student' }: { initialAudience?: C
         email: email.toLowerCase().trim(),
         password,
         redirect: false,
+        callbackUrl: '/login/redirect',
       });
     } catch {
       setLoading(false);

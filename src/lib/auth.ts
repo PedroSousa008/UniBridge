@@ -5,7 +5,13 @@ import { prisma } from './db';
 
 /** Credentials + JWT only — do not use PrismaAdapter (breaks credential sign-in on Vercel). */
 function getAuthSecret(): string | undefined {
-  return process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+  return (
+    process.env.NEXTAUTH_SECRET ??
+    process.env.AUTH_SECRET ??
+    (process.env.NODE_ENV === 'development'
+      ? 'dev-only-insecure-secret-change-in-production'
+      : undefined)
+  );
 }
 
 export const authOptions: NextAuthOptions = {
@@ -22,22 +28,34 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        if (!getAuthSecret()) {
-          console.error('[auth] Missing NEXTAUTH_SECRET (or AUTH_SECRET) — cannot sign in');
-          return null;
-        }
         try {
           const user = await prisma.user.findUnique({
             where: { email: credentials.email.toLowerCase().trim() },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              passwordHash: true,
+              role: true,
+              locale: true,
+              image: true,
+            },
           });
           if (!user?.passwordHash) return null;
           const ok = await bcrypt.compare(credentials.password, user.passwordHash);
           if (!ok) return null;
+          if (
+            user.image &&
+            (user.image.startsWith('data:') || user.image.length > 2048)
+          ) {
+            await prisma.user
+              .update({ where: { id: user.id }, data: { image: null } })
+              .catch(() => undefined);
+          }
           return {
             id: user.id,
             email: user.email,
             name: user.name,
-            image: user.image ?? null,
             role: user.role,
             locale: user.locale,
           };
@@ -55,18 +73,15 @@ export const authOptions: NextAuthOptions = {
           token.id = user.id;
           token.role = user.role;
           token.locale = user.locale;
-          token.picture = user.image ?? null;
           token.name = user.name ?? undefined;
+          delete token.picture;
         }
         if (trigger === 'update' && token.id) {
           const row = await prisma.user.findUnique({
             where: { id: token.id as string },
-            select: { image: true, name: true },
+            select: { name: true },
           });
-          if (row) {
-            token.picture = row.image;
-            token.name = row.name ?? undefined;
-          }
+          if (row?.name) token.name = row.name;
         }
       } catch (error) {
         console.error('[auth] jwt callback error:', error);
@@ -74,12 +89,29 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token.id) {
         session.user.id = token.id as string;
         session.user.role = token.role;
         session.user.locale = token.locale;
-        session.user.image = (token.picture as string | null) ?? null;
-        session.user.name = (token.name as string) ?? session.user.name;
+        try {
+          const row = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { name: true, image: true },
+          });
+          session.user.name = row?.name ?? (token.name as string) ?? session.user.name;
+          let img = row?.image ?? null;
+          if (img && (img.startsWith('data:') || img.length > 2048)) {
+            await prisma.user
+              .update({ where: { id: token.id as string }, data: { image: null } })
+              .catch(() => undefined);
+            img = null;
+          }
+          session.user.image = img;
+        } catch (error) {
+          console.error('[auth] session callback error:', error);
+          session.user.name = (token.name as string) ?? session.user.name;
+          session.user.image = null;
+        }
       }
       return session;
     },

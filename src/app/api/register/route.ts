@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
+import { sanitizeProfileImageUrl } from '@/lib/auth-image';
 import type { UserRole, Locale } from '@prisma/client';
 
 const VALID_ROLES: UserRole[] = [
@@ -54,9 +55,7 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const imageUrl =
-      typeof body.image === 'string' && body.image.trim().length > 0
-        ? body.image.trim()
-        : null;
+      typeof body.image === 'string' ? sanitizeProfileImageUrl(body.image) : null;
 
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({

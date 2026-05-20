@@ -1,5 +1,5 @@
 import { upload } from '@vercel/blob/client';
-import { isLocalDev, readFileAsDataUrl, validateImageFile, MAX_IMAGE_BYTES } from '@/lib/uploads/validate-image';
+import { isLocalDev, validateImageFile, MAX_IMAGE_BYTES } from '@/lib/uploads/validate-image';
 
 /** Upload a profile photo file while authenticated. Returns public URL or null. */
 export async function uploadProfilePhotoFile(file: File): Promise<string | null> {
@@ -27,10 +27,8 @@ export async function uploadProfilePhotoFile(file: File): Promise<string | null>
     });
     return blob.url;
   } catch {
-    if (file.size <= 512 * 1024) {
-      return readFileAsDataUrl(file);
-    }
-    throw new Error('Could not upload photo. Try a smaller image or try again.');
+    /* Never persist base64 data URLs on User.image — they break auth JWT cookies on login */
+    throw new Error('Could not upload photo. Try again or use a smaller image.');
   }
 }
 
