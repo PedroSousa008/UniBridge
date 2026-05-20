@@ -16,6 +16,11 @@ import { ensureStudentCalendarTables } from '@/lib/db/ensure-calendar-schema';
 import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
 import { loadStudentWeeklySchedule } from '@/lib/student/weekly-schedule';
 import { parseTimeToMinutes } from '@/lib/student/weekly-schedule';
+import {
+  companyEventSourceRef,
+  loadApprovedCompanyEventsForCalendarView,
+  syncStudentCompanyEventCalendar,
+} from '@/lib/company/company-event-calendar-sync';
 
 export type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda';
 
@@ -389,6 +394,7 @@ export async function loadUnifiedCalendar(
   rangeEnd: Date
 ) {
   await ensureStudentCalendarTables();
+  await syncStudentCompanyEventCalendar(userId);
 
   const hidden = await prisma.studentCalendarHidden
     .findMany({ where: { studentId: userId } })
@@ -407,7 +413,7 @@ export async function loadUnifiedCalendar(
   });
   const subjectIds = enrollments.filter((e) => e.subject.status === 'ACTIVE').map((e) => e.subjectId);
 
-  const [assignments, exams, universityEvents, customEvents, taggedEvents, milestones] =
+  const [assignments, exams, universityEvents, customEvents, taggedEvents, milestones, partnerCompanyEvents] =
     await Promise.all([
       prisma.assignment.findMany({
         where: { subjectId: { in: subjectIds }, dueDate: { gte: rangeStart, lte: rangeEnd } },
@@ -459,6 +465,9 @@ export async function loadUnifiedCalendar(
         },
         include: { startup: { select: { name: true, id: true } } },
       }),
+      profile?.universityId
+        ? loadApprovedCompanyEventsForCalendarView(profile.universityId, rangeStart, rangeEnd)
+        : Promise.resolve([]),
     ]);
 
   const { classes } = await loadStudentWeeklySchedule(userId);
@@ -564,7 +573,15 @@ export async function loadUnifiedCalendar(
     });
   }
 
+  const syncedCompanyRefs = new Set(
+    customEvents
+      .map((r) => r.sourceRef)
+      .filter((ref): ref is string => Boolean(ref?.startsWith('company-event:')))
+  );
+
   const mapCustom = (row: (typeof customEvents)[0], source: string) => {
+    const isCompanyEvent = row.sourceRef?.startsWith('company-event:');
+    const companyEventId = isCompanyEvent ? row.sourceRef!.slice('company-event:'.length) : null;
     const base: UnifiedCalendarEvent = {
       id: row.id,
       title: row.title,
@@ -576,10 +593,10 @@ export async function loadUnifiedCalendar(
       subType: row.quickType.toLowerCase(),
       color: row.color,
       location: row.location,
-      source,
-      sourceId: row.id,
-      editable: source === 'custom',
-      href: null,
+      source: isCompanyEvent ? 'company-event' : source,
+      sourceId: companyEventId ?? row.id,
+      editable: source === 'custom' && !isCompanyEvent,
+      href: isCompanyEvent ? '/student/academics/calendar' : null,
       professor: row.professor,
       recurrence: row.recurrence,
       seriesId: null,
@@ -587,8 +604,35 @@ export async function loadUnifiedCalendar(
     return expandEventRecurrence(base, rangeStart, rangeEnd);
   };
 
-  for (const row of customEvents) events.push(...mapCustom(row, 'custom'));
+  for (const row of customEvents) {
+    events.push(...mapCustom(row, row.sourceRef?.startsWith('company-event:') ? 'company-event' : 'custom'));
+  }
   for (const row of taggedEvents) events.push(...mapCustom(row, 'tagged'));
+
+  for (const ce of partnerCompanyEvents) {
+    const ref = companyEventSourceRef(ce.id);
+    if (syncedCompanyRefs.has(ref)) continue;
+    if (hiddenSet.has(`company-event:${ce.id}`)) continue;
+    events.push({
+      id: `company-event-${ce.id}`,
+      title: ce.title,
+      description: [ce.companyName, ce.description].filter(Boolean).join(' — ') || ce.companyName,
+      start: ce.startsAt.toISOString(),
+      end: ce.endsAt.toISOString(),
+      allDay: false,
+      layer: 'CAREER',
+      subType: 'event',
+      color: ce.color,
+      location: ce.isOnline ? 'Online' : ce.location,
+      source: 'company-event',
+      sourceId: ce.id,
+      editable: false,
+      href: '/student/academics/calendar',
+      professor: null,
+      recurrence: 'NONE',
+      seriesId: null,
+    });
+  }
 
   return events.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 }

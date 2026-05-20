@@ -8,6 +8,7 @@ import {
   publishPartnershipLive,
   type PartnershipLiveEvent,
 } from '@/lib/partnerships/partnership-live-bus';
+import { publishApprovedEventsForPartnership } from '@/lib/company/company-event-calendar-sync';
 
 export type { PartnershipUiState };
 
@@ -289,6 +290,8 @@ async function activatePartnership(input: {
       partnershipId: partnership.id,
     },
   });
+
+  await publishApprovedEventsForPartnership(input.universityId, input.companyUserId);
 
   return { partnershipId: partnership.id, companyName, universityName };
 }
