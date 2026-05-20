@@ -85,6 +85,10 @@ const STATEMENTS: string[] = [
     CONSTRAINT "CompanyTeamMember_pkey" PRIMARY KEY ("id")
   )`,
   `CREATE INDEX IF NOT EXISTS "CompanyTeamMember_companyUserId_idx" ON "CompanyTeamMember"("companyUserId")`,
+];
+
+/** Idempotent column migrations — must run even when base tables already exist. */
+const MIGRATION_STATEMENTS: string[] = [
   `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "culture" TEXT`,
   `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "expectations" TEXT`,
   `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "leadershipStyle" TEXT`,
@@ -105,16 +109,37 @@ async function tableReady(): Promise<boolean> {
   }
 }
 
-async function runEnsure(): Promise<boolean> {
-  if (await tableReady()) return true;
-  for (const sql of STATEMENTS) {
+async function departmentColumnsReady(): Promise<boolean> {
+  try {
+    await prisma.$queryRaw`SELECT "culture" FROM "CompanyDepartment" LIMIT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runMigrations(): Promise<void> {
+  for (const sql of MIGRATION_STATEMENTS) {
     try {
       await prisma.$executeRawUnsafe(sql);
     } catch (e) {
-      console.error('[ensure-company-presence-schema]', e);
+      console.error('[ensure-company-presence-schema:migrate]', e);
     }
   }
-  return tableReady();
+}
+
+async function runEnsure(): Promise<boolean> {
+  if (!(await tableReady())) {
+    for (const sql of STATEMENTS) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (e) {
+        console.error('[ensure-company-presence-schema:create]', e);
+      }
+    }
+  }
+  await runMigrations();
+  return (await tableReady()) && (await departmentColumnsReady());
 }
 
 export function ensureCompanyPresenceTables(): Promise<boolean> {

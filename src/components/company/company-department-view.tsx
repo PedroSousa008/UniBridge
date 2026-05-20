@@ -48,6 +48,7 @@ export function CompanyDepartmentView({
 }) {
   const [view, setView] = useState<CompanyDepartmentView | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editDept, setEditDept] = useState(false);
   const [rolePanel, setRolePanel] = useState<{ open: boolean; roleId?: string }>({ open: false });
   const [menuRoleId, setMenuRoleId] = useState<string | null>(null);
@@ -63,18 +64,33 @@ export function CompanyDepartmentView({
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/company/presence/departments/${departmentId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setView(data);
-      setDeptDraft({
-        culture: data.culture ?? '',
-        expectations: data.expectations ?? '',
-        leadershipStyle: data.leadershipStyle ?? '',
-        growthPhilosophy: data.growthPhilosophy ?? '',
-      });
+    setError(null);
+    try {
+      const res = await fetch(`/api/company/presence/departments/${departmentId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setView(data);
+        setDeptDraft({
+          culture: data.culture ?? '',
+          expectations: data.expectations ?? '',
+          leadershipStyle: data.leadershipStyle ?? '',
+          growthPhilosophy: data.growthPhilosophy ?? '',
+        });
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setView(null);
+        setError(
+          res.status === 404
+            ? 'Department not found.'
+            : (body.error as string) ?? 'Could not load this department. Please try again.'
+        );
+      }
+    } catch {
+      setView(null);
+      setError('Network error while loading the department.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [departmentId]);
 
   useEffect(() => {
@@ -118,8 +134,24 @@ export function CompanyDepartmentView({
     onBack();
   }
 
-  if (loading || !view) {
+  if (loading) {
     return <p className="py-16 text-center text-sm text-muted-foreground">Loading department…</p>;
+  }
+
+  if (!view) {
+    return (
+      <div className="py-16 text-center space-y-4">
+        <p className="text-sm text-muted-foreground">{error ?? 'Could not load department.'}</p>
+        <div className="flex justify-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+            Retry
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            Back to presence
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

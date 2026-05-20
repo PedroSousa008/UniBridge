@@ -296,17 +296,11 @@ export async function loadCompanyDepartmentView(
         });
       }
       const skills = parseJsonArray(r.requiredSkills);
-      let avgCompatibility = 72;
-      try {
-        const est = await estimateRoleCompatibility(companyUserId, {
-          nonNegotiables: [],
-          preferredQualities: [],
-          requiredSkills: skills,
-        });
-        avgCompatibility = est.strongMatches > 0 ? 78 + Math.min(12, est.strongMatches) : 68;
-      } catch {
-        /* default */
-      }
+      const skillBoost = Math.min(12, skills.length * 2);
+      const appBoost = Math.min(8, applicationCount);
+      const avgCompatibility = r.isFilled
+        ? 70 + skillBoost
+        : 68 + skillBoost + appBoost;
 
       const priority = r.hiringPriority ?? 'normal';
       return {
