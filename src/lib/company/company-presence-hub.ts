@@ -152,6 +152,17 @@ type PresenceRow = {
   startupCollaboration: string | null;
 };
 
+export async function getCompanyPresenceMatchCriteria(companyUserId: string): Promise<{
+  nonNegotiables: string[];
+  preferredQualities: string[];
+}> {
+  const presence = await getOrCreatePresence(companyUserId);
+  return {
+    nonNegotiables: parseJsonArray(presence.nonNegotiables),
+    preferredQualities: parseJsonArray(presence.preferredQualities),
+  };
+}
+
 async function getOrCreatePresence(companyUserId: string): Promise<PresenceRow> {
   await ensureCompanyPresenceTables();
   const rows = await prisma.$queryRaw<PresenceRow[]>`
