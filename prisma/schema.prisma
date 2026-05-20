@@ -143,6 +143,18 @@ enum PartnershipStatus {
   INACTIVE
 }
 
+enum ResourceScope {
+  INTERNAL
+  EXTERNAL
+}
+
+enum ResourceHubCategory {
+  CAREER
+  STARTUP
+  UNIVERSITY
+  SUBJECT
+}
+
 enum AnnouncementStatus {
   DRAFT
   SCHEDULED
@@ -266,6 +278,7 @@ model User {
   teacherAttendanceNotes   TeacherAttendanceNote[] @relation("TeacherAttendanceNoteStudent")
   announcementReads        AnnouncementRead[]
   messageReadStates        StudentMessageReadState[]
+  resourcePreference       StudentResourcePreference?
 }
 
 model StudentProfile {
@@ -902,6 +915,45 @@ model StudentMessageReadState {
 
   @@unique([studentId, subjectId])
   @@index([studentId])
+}
+
+model ResourceCatalogItem {
+  id              String              @id @default(cuid())
+  title           String
+  description     String              @db.Text
+  category        ResourceHubCategory
+  subcategory     String?
+  scope           ResourceScope       @default(EXTERNAL)
+  url             String?
+  internalPath    String?
+  iconKey         String              @default("link")
+  tags            String[]            @default([])
+  keywords        String              @default("")
+  universityId    String?
+  subjectId       String?
+  recommendedById String?
+  isOfficial      Boolean             @default(false)
+  isTrending      Boolean             @default(false)
+  saveCount       Int                 @default(0)
+  sortOrder       Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([category])
+  @@index([subjectId])
+  @@index([universityId])
+}
+
+model StudentResourcePreference {
+  id          String   @id @default(cuid())
+  studentId   String   @unique
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  savedIds    String[] @default([])
+  pinnedIds   String[] @default([])
+  favoriteIds String[] @default([])
+  quickLists  Json?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
 }
 
 model CompanyPartnership {
