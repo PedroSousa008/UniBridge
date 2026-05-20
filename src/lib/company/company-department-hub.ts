@@ -3,7 +3,9 @@ import { prisma } from '@/lib/db';
 import { ensureCompanyPresenceTables } from '@/lib/db/ensure-company-presence-schema';
 import {
   batchInternshipApplicationCounts,
+  countPartnerStudents,
   parsePositionHolder,
+  quickApplicantCompatibility,
   roleStatusFromFilled,
   type PositionHolderData,
   type RoleStatus,
@@ -583,50 +585,44 @@ export async function loadCompanyRoleIntelligence(
   const nonNegotiables = parseJsonArray(row.nonNegotiables).map(labelForRequirementTag);
   const preferredQualities = parseJsonArray(row.preferredQualities).map(labelForRequirementTag);
 
-  const [applications, est] = await Promise.all([
-    internshipId
-      ? prisma.internshipApplication.findMany({
-          where: { internshipId },
-          include: {
-            student: { include: { user: { select: { id: true, name: true, image: true, headline: true } } } },
+  const applications = internshipId
+    ? await prisma.internshipApplication.findMany({
+        where: { internshipId },
+        include: {
+          student: {
+            include: {
+              user: { select: { id: true, name: true, image: true, headline: true } },
+            },
           },
-          orderBy: { updatedAt: 'desc' },
-          take: 20,
-        })
-      : Promise.resolve([]),
-    estimateRoleCompatibility(companyUserId, {
-      nonNegotiables,
-      preferredQualities,
-      requiredSkills: parseJsonArray(row.requiredSkills),
-    }),
-  ]);
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+      })
+    : [];
 
-  const topStudents = await Promise.all(
-    applications.slice(0, 6).map(async (app) => {
-      let compat = 70;
-      try {
-        const profile = await buildStudentProfile(app.student.userId);
-        const c = computeCompanyStudentCompatibility(profile, {
-          nonNegotiables,
-          preferredQualities,
-          requiredSkills: parseJsonArray(row.requiredSkills),
-          preferredSkills: parseJsonArray(row.preferredSkills),
-        });
-        compat = c.overall;
-      } catch {
-        /* */
-      }
-      return {
-        userId: app.student.userId,
-        name: app.student.user.name ?? 'Student',
-        image: app.student.user.image,
-        compatibility: compat,
-        headline: app.student.user.headline,
-      };
-    })
-  );
+  const skills = parseJsonArray(row.requiredSkills);
+  const skillBoost = Math.min(12, skills.length * 2);
+  const cardCompat = Boolean(row.isFilled) ? 70 + skillBoost : 68 + skillBoost;
+
+  const topStudents = applications.slice(0, 8).map((app) => {
+    const sp = app.student;
+    return {
+      userId: app.student.userId,
+      name: app.student.user.name ?? 'Student',
+      image: app.student.user.image,
+      compatibility: quickApplicantCompatibility(
+        sp.employabilityScore ?? 0,
+        sp.profileStrength ?? 0,
+        cardCompat
+      ),
+      headline: app.student.user.headline,
+    };
+  });
 
   topStudents.sort((a, b) => b.compatibility - a.compatibility);
+
+  const pool = await countPartnerStudents(companyUserId);
+  const estStrong = Math.max(0, Math.round(pool * 0.1));
 
   const stageCounts = new Map<string, number>();
   for (const app of applications) {
@@ -643,8 +639,8 @@ export async function loadCompanyRoleIntelligence(
   ];
 
   const insights: string[] = [];
-  if (est.strongMatches >= 20) {
-    insights.push(`${est.strongMatches} strong matches in your partner universities for this role.`);
+  if (estStrong >= 12) {
+    insights.push(`${estStrong}+ strong matches estimated in your partner universities for this role.`);
   }
   if (topStudents.some((s) => s.compatibility >= 80)) {
     insights.push('High compatibility among applicants — prioritize outreach to top matches.');
@@ -744,9 +740,9 @@ export async function loadCompanyRoleIntelligence(
           : 'Open for applications',
       avgCompatibility: topStudents.length
         ? Math.round(topStudents.reduce((a, s) => a + s.compatibility, 0) / topStudents.length)
-        : est.strongMatches > 0
+        : estStrong > 0
           ? 76
-          : 65,
+          : cardCompat,
       applicationCount: applications.length,
       strongestSkills: requiredSkills.slice(0, 5),
     },
@@ -760,6 +756,68 @@ export async function loadCompanyRoleIntelligence(
       statusLabel: companyStageLabel(companyStageFromApplication(app.status)),
       at: (app.appliedAt ?? app.updatedAt).toISOString(),
     })),
+  };
+}
+
+/** Instant role intelligence UI from department card data. */
+export function buildRoleIntelligenceSnapshot(
+  role: DepartmentRoleCard,
+  departmentId: string,
+  departmentName: string
+): CompanyRoleIntelligenceView {
+  const isFilled = role.isFilled;
+  return {
+    id: role.id,
+    departmentId,
+    departmentName,
+    title: role.title,
+    roleType: role.roleType,
+    remoteType: role.remoteType,
+    location: role.location,
+    isFilled,
+    roleStatus: role.roleStatus,
+    positionHolder: role.positionHolder,
+    status: role.status,
+    hiringPriority: role.hiringPriority,
+    description: null,
+    responsibilities: null,
+    expectations: null,
+    growthOpportunities: null,
+    requiredSkills: role.topSkills,
+    nonNegotiables: [],
+    preferredQualities: [],
+    visibilitySettings: { allStudents: true, universityIds: [], degrees: [], finalYearOnly: false },
+    applicationSettings: {
+      cvOptional: false,
+      videoIntroduction: false,
+      startupPortfolio: true,
+      customQuestions: [],
+      deadline: null,
+    },
+    hero: {
+      hiringStatus: isFilled
+        ? 'Position filled — aspirational example'
+        : role.hiringPriority === 'high'
+          ? 'Hiring actively'
+          : 'Open for applications',
+      avgCompatibility: role.avgCompatibility,
+      applicationCount: role.applicationCount,
+      strongestSkills: role.topSkills,
+    },
+    pipeline: [
+      { stage: 'applied', label: 'Applied', count: 0 },
+      { stage: 'reviewing', label: 'Reviewing', count: 0 },
+      { stage: 'interview', label: 'Interview', count: 0 },
+      { stage: 'shortlisted', label: 'Shortlisted', count: 0 },
+      { stage: 'hired', label: 'Hired', count: 0 },
+    ],
+    topStudents: [],
+    aiInsights: [
+      role.applicationCount > 0
+        ? `${role.applicationCount} application(s) on record for this role.`
+        : 'Publish requirements to attract matching students from partner universities.',
+    ],
+    applications: [],
   };
 }
 

@@ -11,11 +11,16 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireSession('COMPANY');
-  const { id } = await params;
-  const view = await loadCompanyRoleIntelligence(session.user.id, id);
-  if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(view);
+  try {
+    const session = await requireSession('COMPANY');
+    const { id } = await params;
+    const view = await loadCompanyRoleIntelligence(session.user.id, id);
+    if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(view);
+  } catch (e) {
+    console.error('[roles/[id] GET]', e);
+    return NextResponse.json({ error: 'Failed to load role' }, { status: 500 });
+  }
 }
 
 export async function PATCH(

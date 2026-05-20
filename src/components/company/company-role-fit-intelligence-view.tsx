@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArrowDown,
@@ -151,15 +151,26 @@ function PreferredChip({
 
 export function CompanyRoleFitIntelligenceView({
   roleId,
+  initialView,
   onBack,
 }: {
   roleId: string;
+  initialView?: RoleFitIntelligenceView;
   onBack: () => void;
 }) {
-  const [view, setView] = useState<RoleFitIntelligenceView | null>(null);
-  const [allReqs, setAllReqs] = useState<StructuredRequirement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<RoleFitIntelligenceView | null>(initialView ?? null);
+  const [allReqs, setAllReqs] = useState<StructuredRequirement[]>(
+    initialView ? [...initialView.requirements, ...initialView.preferredQualities] : []
+  );
+  const [loading, setLoading] = useState(!initialView);
+  const [error, setError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const hasViewRef = useRef(Boolean(initialView));
+
+  useEffect(() => {
+    hasViewRef.current = Boolean(view);
+  }, [view]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addPreferred, setAddPreferred] = useState(false);
@@ -173,20 +184,55 @@ export function CompanyRoleFitIntelligenceView({
     templateId: '',
   });
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/company/presence/roles/${roleId}/requirements`);
-    if (res.ok) {
-      const data = (await res.json()) as RoleFitIntelligenceView;
-      setView(data);
-      setAllReqs([...data.requirements, ...data.preferredQualities]);
-    }
-    setLoading(false);
-  }, [roleId]);
+  const refreshFullPreview = useCallback(
+    async (requirements: StructuredRequirement[]) => {
+      setPreviewLoading(true);
+      try {
+        const res = await fetch(`/api/company/presence/roles/${roleId}/compatibility-preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requirements }),
+        });
+        if (res.ok) {
+          const { preview } = await res.json();
+          setView((v) => (v ? { ...v, preview } : v));
+        }
+      } finally {
+        setPreviewLoading(false);
+      }
+    },
+    [roleId]
+  );
+
+  const refresh = useCallback(
+    async (silent = false) => {
+      if (!silent && !hasViewRef.current) setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/company/presence/roles/${roleId}/requirements`);
+        if (res.ok) {
+          const data = (await res.json()) as RoleFitIntelligenceView;
+          setView(data);
+          setAllReqs([...data.requirements, ...data.preferredQualities]);
+          void refreshFullPreview([...data.requirements, ...data.preferredQualities]);
+        } else {
+          const body = await res.json().catch(() => ({}));
+          if (!hasViewRef.current) setView(null);
+          setError((body.error as string) ?? 'Could not load role requirements.');
+        }
+      } catch {
+        if (!hasViewRef.current) setView(null);
+        setError('Network error while loading role requirements.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [roleId, refreshFullPreview]
+  );
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refresh(Boolean(initialView));
+  }, [roleId, refresh, initialView]);
 
   const activeNonNegotiable = useMemo(
     () => allReqs.filter((r) => !r.isPreferred && r.status === 'active').sort((a, b) => a.sortOrder - b.sortOrder),
@@ -303,16 +349,27 @@ export function CompanyRoleFitIntelligenceView({
   };
 
   if (loading && !view) {
-    return <p className="py-16 text-center text-sm text-muted-foreground">Loading role fit intelligence…</p>;
+    return (
+      <div className="py-16 space-y-4 animate-pulse">
+        <div className="h-8 w-48 rounded-lg bg-muted" />
+        <div className="h-40 rounded-3xl bg-muted" />
+        <div className="h-64 rounded-2xl bg-muted" />
+      </div>
+    );
   }
 
   if (!view) {
     return (
-      <div className="py-16 text-center">
-        <p className="text-sm text-muted-foreground">Could not load this role.</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={onBack}>
-          Back
-        </Button>
+      <div className="py-16 text-center space-y-4">
+        <p className="text-sm text-muted-foreground">{error ?? 'Could not load this role.'}</p>
+        <div className="flex justify-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+            Retry
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            Back
+          </Button>
+        </div>
       </div>
     );
   }
@@ -473,6 +530,7 @@ export function CompanyRoleFitIntelligenceView({
               <CardTitle className="text-base flex items-center gap-2">
                 <Zap className="h-4 w-4 text-brand" />
                 Live compatibility preview
+                {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

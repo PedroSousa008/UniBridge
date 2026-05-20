@@ -25,7 +25,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { CULTURE_TAG_OPTIONS } from '@/lib/company/company-presence-intelligence';
-import { buildDepartmentSnapshot, type CompanyDepartmentView } from '@/lib/company/company-department-hub';
+import {
+  buildDepartmentSnapshot,
+  buildRoleIntelligenceSnapshot,
+  type CompanyDepartmentView,
+  type CompanyRoleIntelligenceView,
+} from '@/lib/company/company-department-hub';
+import { buildRoleFitSnapshot, type RoleFitIntelligenceView } from '@/lib/company/company-role-requirements';
 import type { CompanyPresenceHub } from '@/lib/company/company-presence-hub';
 
 function StatPill({ label, value }: { label: string; value: string | number }) {
@@ -54,9 +60,9 @@ function CompatBar({ label, value }: { label: string; value: number }) {
 type PresenceScreen =
   | { type: 'overview' }
   | { type: 'requirements_hub' }
-  | { type: 'role_fit'; roleId: string }
+  | { type: 'role_fit'; roleId: string; initial?: RoleFitIntelligenceView }
   | { type: 'department'; id: string; initial?: CompanyDepartmentView }
-  | { type: 'role'; id: string; departmentId: string };
+  | { type: 'role'; id: string; departmentId: string; initial?: CompanyRoleIntelligenceView };
 
 export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: CompanyPresenceHub }) {
   const [hub, setHub] = useState(initialHub);
@@ -150,7 +156,24 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
             setScreen({ type: 'overview' });
             void refresh();
           }}
-          onOpenRole={(roleId) => setScreen({ type: 'role_fit', roleId })}
+          onOpenRole={(roleId) => {
+            const role = hub.roles.find((r) => r.id === roleId);
+            setScreen({
+              type: 'role_fit',
+              roleId,
+              initial: role
+                ? buildRoleFitSnapshot({
+                    id: role.id,
+                    title: role.title,
+                    departmentId: role.departmentId,
+                    departmentName: role.departmentName,
+                    isFilled: role.isFilled,
+                    applicationCount: role.applicationCount,
+                    hiringPriority: role.hiringPriority,
+                  })
+                : undefined,
+            });
+          }}
           onCreateRole={() => {
             if (firstDept) {
               setCreateRoleDeptId(firstDept.id);
@@ -180,6 +203,7 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
     return (
       <CompanyRoleFitIntelligenceView
         roleId={screen.roleId}
+        initialView={screen.initial}
         onBack={() => setScreen({ type: 'requirements_hub' })}
       />
     );
@@ -204,19 +228,55 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
           setScreen({ type: 'overview' });
           void refresh();
         }}
-        onOpenRole={(roleId) =>
-          setScreen({ type: 'role', id: roleId, departmentId: screen.id })
-        }
+        onOpenRole={(roleId) => {
+          const role = initial?.roles.find((r) => r.id === roleId);
+          setScreen({
+            type: 'role',
+            id: roleId,
+            departmentId: screen.id,
+            initial:
+              role && initial
+                ? buildRoleIntelligenceSnapshot(role, screen.id, initial.name)
+                : undefined,
+          });
+        }}
       />
     );
   }
 
   if (screen.type === 'role') {
+    const deptFromHub = hub.departments.find((d) => d.id === screen.departmentId);
+    const deptSnapshot = deptFromHub
+      ? buildDepartmentSnapshot(
+          deptFromHub,
+          hub.hero.companyName,
+          hub.departments.map((d) => ({ id: d.id, name: d.name }))
+        )
+      : null;
+    const roleCard = deptSnapshot?.roles.find((r) => r.id === screen.id);
+    const roleInitial =
+      screen.initial ??
+      (roleCard && deptSnapshot
+        ? buildRoleIntelligenceSnapshot(roleCard, screen.departmentId, deptSnapshot.name)
+        : undefined);
     return (
       <CompanyRoleIntelligenceScreen
         roleId={screen.id}
-        onBack={() => setScreen({ type: 'department', id: screen.departmentId })}
-        onBackDepartment={() => setScreen({ type: 'department', id: screen.departmentId })}
+        initialView={roleInitial}
+        onBack={() =>
+          setScreen({
+            type: 'department',
+            id: screen.departmentId,
+            initial: deptSnapshot ?? undefined,
+          })
+        }
+        onBackDepartment={() =>
+          setScreen({
+            type: 'department',
+            id: screen.departmentId,
+            initial: deptSnapshot ?? undefined,
+          })
+        }
       />
     );
   }

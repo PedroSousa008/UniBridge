@@ -39,6 +39,33 @@ export interface PositionHolderData {
   messagesAvailable: boolean;
 }
 
+/** Quick partner-universe size for estimates (no per-student profile builds). */
+export async function countPartnerStudents(companyUserId: string): Promise<number> {
+  const partnerships = await prisma.companyPartnership.findMany({
+    where: { companyUserId, status: 'ACTIVE' },
+    select: { universityId: true },
+  });
+  const uniIds = partnerships.map((p) => p.universityId);
+  if (uniIds.length === 0) return 0;
+  return prisma.studentProfile.count({
+    where: { universityId: { in: uniIds } },
+  });
+}
+
+export function quickApplicantCompatibility(
+  employabilityScore: number,
+  profileStrength: number,
+  fallback = 68
+): number {
+  if (employabilityScore > 0 || profileStrength > 0) {
+    return Math.min(
+      99,
+      Math.max(42, Math.round(employabilityScore * 0.72 + profileStrength * 0.28))
+    );
+  }
+  return fallback;
+}
+
 export function parsePositionHolder(val: unknown): PositionHolderData | null {
   if (!val || typeof val !== 'object') return null;
   const o = val as Record<string, unknown>;
