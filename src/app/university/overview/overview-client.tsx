@@ -7,6 +7,7 @@ import {
   Activity,
   AlertTriangle,
   BookOpen,
+  Calendar,
   Briefcase,
   Building2,
   Clock,
@@ -25,6 +26,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { getUniversityOverviewMetrics } from '@/lib/university/metrics';
 import { PartnershipEcosystemPanel } from '@/components/partnerships/partnership-ecosystem-panel';
+import { UniversityPendingEventsPanel } from '@/components/university/university-pending-events-panel';
+import type { UniversityPendingEventItem } from '@/lib/university/university-pending-events';
 
 type OverviewMetrics = Awaited<ReturnType<typeof getUniversityOverviewMetrics>>;
 
@@ -42,6 +45,7 @@ export interface UniversityOverviewClientProps {
     link: string | null;
     createdAt: string;
   }[];
+  pendingEvents: UniversityPendingEventItem[];
 }
 
 type ChartPeriod = '7D' | '30D' | '90D' | 'Year';
@@ -61,6 +65,7 @@ export function UniversityOverviewClient({
   engagementBy30,
   insights,
   recentActivity,
+  pendingEvents,
 }: UniversityOverviewClientProps) {
   const router = useRouter();
   const [period, setPeriod] = useState<ChartPeriod>('7D');
@@ -145,9 +150,15 @@ export function UniversityOverviewClient({
     },
     {
       label: 'Pending approvals',
-      value: kpis.pendingPathApprovals,
+      value: kpis.pendingPathApprovals + (kpis.pendingEventApprovals ?? 0),
       icon: AlertTriangle,
-      href: '/university/career?tab=paths',
+      href: '#event-approvals',
+    },
+    {
+      label: 'Event approvals',
+      value: kpis.pendingEventApprovals ?? 0,
+      icon: Calendar,
+      href: '#event-approvals',
     },
   ];
 
@@ -274,6 +285,8 @@ export function UniversityOverviewClient({
           </div>
         </CardContent>
       </Card>
+
+      <UniversityPendingEventsPanel initialEvents={pendingEvents} />
 
       <PartnershipEcosystemPanel viewer="university" title="Company Partnerships" />
 

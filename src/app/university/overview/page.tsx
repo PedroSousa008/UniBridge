@@ -5,6 +5,7 @@ import {
   getUniversityOverviewMetrics,
 } from '@/lib/university/metrics';
 import { prisma } from '@/lib/db';
+import { loadUniversityPendingEvents } from '@/lib/university/university-pending-events';
 import { UniversityOverviewClient } from './overview-client';
 
 export default async function UniversityOverviewPage() {
@@ -27,7 +28,9 @@ export default async function UniversityOverviewPage() {
           engagementScore: 0,
           platformGrowth: 0,
           pendingPathApprovals: 0,
+          pendingEventApprovals: 0,
         }}
+        pendingEvents={[]}
         studentBuckets={{
           improving: 0,
           atRisk: 0,
@@ -43,7 +46,7 @@ export default async function UniversityOverviewPage() {
   }
 
   const universityId = ctx.university.id;
-  const [metrics, insights, activity] = await Promise.all([
+  const [metrics, insights, activity, pendingEvents] = await Promise.all([
     getUniversityOverviewMetrics(universityId),
     generateUniversityInsights(universityId),
     prisma.activityItem.findMany({
@@ -51,6 +54,7 @@ export default async function UniversityOverviewPage() {
       orderBy: { createdAt: 'desc' },
       take: 12,
     }),
+    loadUniversityPendingEvents(universityId),
   ]);
 
   return (
@@ -60,6 +64,7 @@ export default async function UniversityOverviewPage() {
       engagementByDay={metrics.engagementByDay}
       engagementBy30={metrics.engagementBy30}
       insights={insights}
+      pendingEvents={JSON.parse(JSON.stringify(pendingEvents))}
       recentActivity={activity.map((a) => ({
         id: a.id,
         type: a.type,

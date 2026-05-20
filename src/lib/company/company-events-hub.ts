@@ -81,11 +81,30 @@ export async function approveCompanyEvent(eventId: string, universityId: string)
 
   const updated = await prisma.companyEvent.update({
     where: { id: eventId },
-    data: { status: 'approved', approvedAt: new Date() },
+    data: { status: 'approved', approvedAt: new Date(), rejectedReason: null },
   });
 
   await publishEventToEcosystem(eventId);
   return updated;
+}
+
+export async function rejectCompanyEvent(
+  eventId: string,
+  universityId: string,
+  reason?: string
+) {
+  const event = await prisma.companyEvent.findFirst({
+    where: { id: eventId, universityId, status: 'pending_approval' },
+  });
+  if (!event) return null;
+
+  return prisma.companyEvent.update({
+    where: { id: eventId },
+    data: {
+      status: 'rejected',
+      rejectedReason: reason?.trim() || 'University requested changes before approval.',
+    },
+  });
 }
 
 export async function loadEventAttendeeInsights(eventId: string, companyUserId: string) {

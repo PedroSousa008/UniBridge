@@ -16,6 +16,7 @@ export async function getUniversityOverviewMetrics(universityId: string) {
     students,
     recentEvents,
     pendingPaths,
+    pendingEvents,
   ] = await Promise.all([
     prisma.studentProfile.count({ where: { universityId } }),
     prisma.teacherProfile.count({ where: { universityId } }),
@@ -51,6 +52,9 @@ export async function getUniversityOverviewMetrics(universityId: string) {
     }),
     prisma.careerPath.count({
       where: { universityId, status: 'PENDING_APPROVAL' },
+    }),
+    prisma.companyEvent.count({
+      where: { universityId, status: 'pending_approval' },
     }),
   ]);
 
@@ -124,6 +128,7 @@ export async function getUniversityOverviewMetrics(universityId: string) {
       engagementScore: Math.round(avgEngagement),
       platformGrowth: activeWeek > 0 ? Math.min(24, activeWeek * 3) : 0,
       pendingPathApprovals: pendingPaths,
+      pendingEventApprovals: pendingEvents,
     },
     studentBuckets: {
       improving,
@@ -156,6 +161,12 @@ export async function generateUniversityInsights(universityId: string) {
   if (metrics.kpis.pendingPathApprovals > 0) {
     insights.push(
       `${metrics.kpis.pendingPathApprovals} company career path${metrics.kpis.pendingPathApprovals > 1 ? 's' : ''} await your approval before students can see them.`
+    );
+  }
+
+  if (metrics.kpis.pendingEventApprovals > 0) {
+    insights.push(
+      `${metrics.kpis.pendingEventApprovals} partner company event${metrics.kpis.pendingEventApprovals > 1 ? 's' : ''} await approval on Overview — approve to open RSVPs and student calendars.`
     );
   }
 
