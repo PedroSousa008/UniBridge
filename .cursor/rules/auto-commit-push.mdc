@@ -1,0 +1,20 @@
+---
+description: Commit and push to main after completing implementation work
+alwaysApply: true
+---
+
+# Auto commit and push
+
+After finishing a requested implementation (features, fixes, refactors with code changes):
+
+1. Run `git status` and `git diff` to verify changes.
+2. Stage relevant files (never commit secrets: `.env`, credentials).
+3. Create a concise commit message focused on **why**.
+4. Push to `origin main` (or the current branch) without waiting for the user to ask.
+
+Skip commit/push when:
+- The user explicitly says not to commit or push.
+- There are no changes to commit.
+- The work was read-only (questions, reviews only).
+
+If push fails, report the error and retry once after fixing obvious issues.
