@@ -1,3 +1,4 @@
+import { addDays, differenceInMinutes, startOfDay } from 'date-fns';
 import { prisma } from '@/lib/db';
 import { ensureStudentWeeklyClassTable } from '@/lib/db/ensure-schedule-schema';
 import { isPrismaSchemaMismatchError } from '@/lib/prisma-errors';
@@ -141,6 +142,52 @@ export function nextClassToday(classes: CalendarClass[], now = new Date()): Cale
     .filter((c) => c.dayOfWeek === today && parseTimeToMinutes(c.endTime) > nowMins)
     .sort((a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime));
   return todayClasses[0] ?? null;
+}
+
+/** Next class across the weekly schedule (includes ongoing sessions today). */
+export function findNextUpcomingClass(
+  classes: CalendarClass[],
+  now = new Date()
+): { cls: CalendarClass; startsAt: Date; endsAt: Date } | null {
+  let best: { cls: CalendarClass; startsAt: Date; endsAt: Date; diff: number } | null = null;
+
+  for (let offset = 0; offset < 14; offset++) {
+    const day = addDays(startOfDay(now), offset);
+    const dow = day.getDay();
+
+    for (const cls of classes) {
+      if (cls.dayOfWeek !== dow) continue;
+
+      const startsAt = new Date(day);
+      const startMins = parseTimeToMinutes(cls.startTime);
+      startsAt.setHours(Math.floor(startMins / 60), startMins % 60, 0, 0);
+
+      const endsAt = new Date(day);
+      const endMins = parseTimeToMinutes(cls.endTime);
+      endsAt.setHours(Math.floor(endMins / 60), endMins % 60, 0, 0);
+
+      if (endsAt <= now) continue;
+
+      const diff = startsAt.getTime() - now.getTime();
+      if (!best || diff < best.diff) {
+        best = { cls, startsAt, endsAt, diff };
+      }
+    }
+
+    if (best) break;
+  }
+
+  if (!best) return null;
+  return { cls: best.cls, startsAt: best.startsAt, endsAt: best.endsAt };
+}
+
+export function formatClassCountdown(target: Date, now = new Date()): string {
+  const mins = differenceInMinutes(target, now);
+  if (mins <= 0) return 'Now';
+  if (mins < 60) return `In ${mins}m`;
+  if (mins < 24 * 60) return `In ${Math.floor(mins / 60)}h ${mins % 60}m`;
+  const days = Math.ceil(mins / (24 * 60));
+  return `In ${days} day${days === 1 ? '' : 's'}`;
 }
 
 export function minutesUntilClass(cls: CalendarClass, now = new Date()): number {

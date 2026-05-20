@@ -1,4 +1,4 @@
-import { addDays, differenceInMinutes, format, parseISO, startOfDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { prisma } from '@/lib/db';
 import { computeStartupReadiness } from '@/lib/startups/readiness';
 import { loadGradebookHub } from '@/lib/student/load-gradebook-hub';
@@ -7,9 +7,9 @@ import { loadStudentAttendanceHub } from '@/lib/student/student-attendance';
 import { loadStudentExamsHub } from '@/lib/student/student-exams';
 import { loadStudentMessagesHub } from '@/lib/student/student-messages';
 import {
-  type CalendarClass,
+  findNextUpcomingClass,
+  formatClassCountdown,
   loadStudentWeeklySchedule,
-  parseTimeToMinutes,
 } from '@/lib/student/weekly-schedule';
 
 export interface HomeInsight {
@@ -175,38 +175,8 @@ export interface StudentHomeHub {
   hasData: boolean;
 }
 
-function findNextClass(
-  classes: CalendarClass[],
-  now = new Date()
-): { cls: CalendarClass; startsAt: Date } | null {
-  let best: { cls: CalendarClass; startsAt: Date; diff: number } | null = null;
-
-  for (let offset = 0; offset < 14; offset++) {
-    const day = addDays(startOfDay(now), offset);
-    const dow = day.getDay();
-
-    for (const cls of classes) {
-      if (cls.dayOfWeek !== dow) continue;
-      const startsAt = new Date(day);
-      const mins = parseTimeToMinutes(cls.startTime);
-      startsAt.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
-      if (startsAt <= now) continue;
-      const diff = startsAt.getTime() - now.getTime();
-      if (!best || diff < best.diff) best = { cls, startsAt, diff };
-    }
-    if (best && best.diff < 48 * 3600000) break;
-  }
-
-  if (!best) return null;
-  return { cls: best.cls, startsAt: best.startsAt };
-}
-
 function formatCountdown(target: Date, now = new Date()): string {
-  const mins = differenceInMinutes(target, now);
-  if (mins < 60) return `In ${mins}m`;
-  if (mins < 24 * 60) return `In ${Math.floor(mins / 60)}h ${mins % 60}m`;
-  const days = Math.ceil(mins / (24 * 60));
-  return `In ${days} day${days === 1 ? '' : 's'}`;
+  return formatClassCountdown(target, now);
 }
 
 function urgencyFromDueDate(due: Date, now = new Date()): HomeDeadline['urgency'] {
@@ -286,7 +256,7 @@ export async function loadStudentHomeHub(studentId: string, userName: string | n
     loadStudentExamsHub(studentId).catch(() => []),
     loadStudentAttendanceHub(studentId).catch(() => null),
     loadStudentMessagesHub(studentId).catch(() => null),
-    loadStudentWeeklySchedule(studentId).catch(() => ({ classes: [], subjects: [] })),
+    loadStudentWeeklySchedule(studentId),
     prisma.subjectAnnouncement.findMany({
       where: {
         subject: { enrollments: { some: { studentId } } },
@@ -367,7 +337,7 @@ export async function loadStudentHomeHub(studentId: string, userName: string | n
   );
   const upcomingExams = exams.filter((e) => !e.isCompleted);
 
-  const nextClassRaw = findNextClass(schedule.classes, now);
+  const nextClassRaw = findNextUpcomingClass(schedule.classes, now);
   const nextClass: HomeNextClass | null = nextClassRaw
     ? {
         subjectName: nextClassRaw.cls.subjectName,

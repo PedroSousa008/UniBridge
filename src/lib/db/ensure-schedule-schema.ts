@@ -53,7 +53,7 @@ END $$;
 
 async function tableExists(): Promise<boolean> {
   try {
-    await prisma.$queryRaw`SELECT 1 FROM "StudentWeeklyClass" LIMIT 1`;
+    await prisma.studentWeeklyClass.findFirst({ select: { id: true } });
     return true;
   } catch {
     return false;
@@ -73,9 +73,14 @@ async function runEnsure(): Promise<boolean> {
 }
 
 /** Idempotent: creates StudentWeeklyClass + enum on Neon if missing (once per server instance). */
-export function ensureStudentWeeklyClassTable(): Promise<boolean> {
+export async function ensureStudentWeeklyClassTable(): Promise<boolean> {
+  if (await tableExists()) return true;
+
   if (!ensurePromise) {
-    ensurePromise = runEnsure();
+    ensurePromise = runEnsure().then((ok) => {
+      if (!ok) ensurePromise = null;
+      return ok;
+    });
   }
   return ensurePromise;
 }

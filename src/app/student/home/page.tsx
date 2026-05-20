@@ -8,7 +8,10 @@ async function HomeContent() {
   const hub = await loadStudentHomeHub(session.user.id, session.user.name ?? null);
 
   return (
-    <StudentCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
+    <StudentCommandCenter
+      initialHub={JSON.parse(JSON.stringify(hub))}
+      userId={session.user.id}
+    />
   );
 }
 

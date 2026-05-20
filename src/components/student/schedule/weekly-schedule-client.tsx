@@ -17,10 +17,10 @@ import {
   calendarHours,
   CLASS_TYPE_LABELS,
   currentTimeLineTopPx,
+  findNextUpcomingClass,
   gridTotalHeightPx,
   heightPx,
   minutesUntilClass,
-  nextClassToday,
   parseTimeToMinutes,
   shouldShowCountdown,
   topOffsetPx,
@@ -72,7 +72,7 @@ export function WeeklyScheduleClient({
   const hours = calendarHours();
   const gridHeight = gridTotalHeightPx();
   const timeLineTop = currentTimeLineTopPx(now);
-  const nextClass = nextClassToday(classes, now);
+  const nextClass = findNextUpcomingClass(classes, now)?.cls ?? null;
 
   useEffect(() => {
     setClasses(mergeClasses(initialClasses, loadLocalScheduleClasses(userId)));

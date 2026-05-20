@@ -30,8 +30,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import type { StudentHomeHub } from '@/lib/student/student-home-hub';
+import { loadLocalScheduleClasses } from '@/lib/student/schedule-local-storage';
+import type { HomeNextClass, StudentHomeHub } from '@/lib/student/student-home-hub';
+import { findNextUpcomingClass, formatClassCountdown } from '@/lib/student/weekly-schedule';
 import { ProgressRing } from './progress-ring';
+
+function toHomeNextClass(
+  raw: NonNullable<ReturnType<typeof findNextUpcomingClass>>,
+  now = new Date()
+): HomeNextClass {
+  return {
+    subjectName: raw.cls.subjectName,
+    subjectId: raw.cls.subjectId,
+    professor: raw.cls.professor,
+    room: raw.cls.room,
+    building: raw.cls.building,
+    isOnline: raw.cls.isOnline,
+    startTime: raw.cls.startTime,
+    endTime: raw.cls.endTime,
+    countdown: formatClassCountdown(raw.startsAt, now),
+    classType: raw.cls.classType,
+  };
+}
 
 function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -168,8 +188,15 @@ function HomeRightSidebar({
   );
 }
 
-export function StudentCommandCenter({ initialHub }: { initialHub: StudentHomeHub }) {
+export function StudentCommandCenter({
+  initialHub,
+  userId,
+}: {
+  initialHub: StudentHomeHub;
+  userId: string;
+}) {
   const [hub, setHub] = useState(initialHub);
+  const [nextClass, setNextClass] = useState<HomeNextClass | null>(initialHub.nextClass);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiReply, setAiReply] = useState<string | null>(null);
@@ -180,11 +207,24 @@ export function StudentCommandCenter({ initialHub }: { initialHub: StudentHomeHu
       fetch('/api/student/home')
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
-          if (data?.progression) setHub(data);
+          if (data?.progression) {
+            setHub(data);
+            setNextClass(data.nextClass ?? null);
+          }
         });
     }, 60_000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    if (hub.nextClass) {
+      setNextClass(hub.nextClass);
+      return;
+    }
+    const local = loadLocalScheduleClasses(userId);
+    const upcoming = findNextUpcomingClass(local, new Date());
+    setNextClass(upcoming ? toHomeNextClass(upcoming) : null);
+  }, [hub.nextClass, userId]);
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -287,16 +327,26 @@ export function StudentCommandCenter({ initialHub }: { initialHub: StudentHomeHu
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <SnapshotCard
               title="Next class"
-              href={hub.nextClass?.subjectId ? `/student/academics/subjects/${hub.nextClass.subjectId}` : '/student/academics/schedule'}
+              href={
+                nextClass?.subjectId
+                  ? `/student/academics/subjects/${nextClass.subjectId}`
+                  : '/student/academics/schedule'
+              }
             >
-              {hub.nextClass ? (
+              {nextClass ? (
                 <>
-                  <p className="font-medium">{hub.nextClass.subjectName}</p>
-                  <p className="text-muted-foreground">{hub.nextClass.countdown}</p>
-                  <p className="text-xs mt-1">{hub.nextClass.startTime} · {hub.nextClass.room ?? 'TBA'}</p>
+                  <p className="font-medium">{nextClass.subjectName}</p>
+                  <p className="text-muted-foreground">{nextClass.countdown}</p>
+                  <p className="text-xs mt-1">
+                    {nextClass.startTime}–{nextClass.endTime}
+                    {nextClass.isOnline ? ' · Online' : ` · ${nextClass.room ?? 'TBA'}`}
+                  </p>
+                  {nextClass.professor ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">{nextClass.professor}</p>
+                  ) : null}
                 </>
               ) : (
-                <p className="text-muted-foreground">No upcoming class</p>
+                <p className="text-muted-foreground">Add classes on your weekly schedule</p>
               )}
             </SnapshotCard>
             <SnapshotCard title="Deadline" href={hub.upcomingDeadline?.href ?? '/student/academics/assignments'}>
