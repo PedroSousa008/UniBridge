@@ -5,13 +5,30 @@ import {
   loadCompanyPresenceHub,
   upsertCompanyTeamMember,
 } from '@/lib/company/company-presence-hub';
+import { isRealPersonName, loadCompanyTeamMemberProfile } from '@/lib/company/company-presence-people';
 
 export async function POST(req: NextRequest) {
   const session = await requireSession('COMPANY');
   const body = await req.json();
-  await upsertCompanyTeamMember(session.user.id, body);
-  const hub = await loadCompanyPresenceHub(session.user.id);
-  return NextResponse.json(hub);
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!isRealPersonName(name)) {
+    return NextResponse.json(
+      { error: 'Enter a real person name (not a job title or placeholder).' },
+      { status: 400 }
+    );
+  }
+  if (body.memberType === 'position_holder') {
+    return NextResponse.json(
+      { error: 'Position holders are added from a filled role, not People.' },
+      { status: 400 }
+    );
+  }
+  const memberId = await upsertCompanyTeamMember(session.user.id, { ...body, name });
+  const [hub, profile] = await Promise.all([
+    loadCompanyPresenceHub(session.user.id),
+    loadCompanyTeamMemberProfile(session.user.id, memberId),
+  ]);
+  return NextResponse.json({ ...hub, createdMemberId: memberId, createdProfile: profile });
 }
 
 export async function DELETE(req: NextRequest) {

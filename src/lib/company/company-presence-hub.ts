@@ -11,6 +11,13 @@ import {
   hiringActivityLabel,
   type CompanyCompatibilityBreakdown,
 } from '@/lib/company/company-presence-intelligence';
+import {
+  isRealPersonName,
+  loadDisplayableTeamMembers,
+  prunePositionHolderAfterRoleUnfilled,
+  pruneTeamMembersExclusiveToRole,
+  type CompanyPresenceTeamMemberCard,
+} from '@/lib/company/company-presence-people';
 
 function newId() {
   return crypto.randomUUID();
@@ -70,17 +77,7 @@ export interface CompanyPresenceDepartment {
   roles: CompanyPresenceRole[];
 }
 
-export interface CompanyPresenceTeamMember {
-  id: string;
-  name: string;
-  photoUrl: string | null;
-  age: number | null;
-  roleTitle: string | null;
-  memberType: string;
-  previousUniversity: string | null;
-  degree: string | null;
-  bio: string | null;
-}
+export type CompanyPresenceTeamMember = CompanyPresenceTeamMemberCard;
 
 export interface CompanyPresenceEvent {
   id: string;
@@ -313,7 +310,7 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
 export async function loadCompanyPresenceHub(companyUserId: string): Promise<CompanyPresenceHub> {
   await ensureCompanyPresenceTables();
 
-  const [user, profile, presence, partnerships, internships, events, pipelineCount, startupFollows, teamRows] =
+  const [user, profile, presence, partnerships, internships, events, pipelineCount, startupFollows, team] =
     await Promise.all([
       prisma.user.findUnique({ where: { id: companyUserId }, select: { name: true } }),
       prisma.companyProfile.findUnique({ where: { userId: companyUserId } }),
@@ -328,25 +325,7 @@ export async function loadCompanyPresenceHub(companyUserId: string): Promise<Com
       }),
       prisma.companyPipelineCandidate.count({ where: { companyUserId } }),
       prisma.startupFollower.count({ where: { userId: companyUserId } }),
-      prisma.$queryRaw<
-        {
-          id: string;
-          name: string;
-          photoUrl: string | null;
-          age: number | null;
-          roleTitle: string | null;
-          memberType: string;
-          previousUniversity: string | null;
-          degree: string | null;
-          bio: string | null;
-        }[]
-      >`
-        SELECT "id", "name", "photoUrl", "age", "roleTitle", "memberType",
-               "previousUniversity", "degree", "bio"
-        FROM "CompanyTeamMember"
-        WHERE "companyUserId" = ${companyUserId}
-        ORDER BY "sortOrder" ASC, "name" ASC
-      `,
+      loadDisplayableTeamMembers(companyUserId),
     ]);
 
   const { departments, roles } = await loadDepartmentsAndRoles(companyUserId);
@@ -375,7 +354,7 @@ export async function loadCompanyPresenceHub(companyUserId: string): Promise<Com
     eventEngagement: Math.min(100, events.length * 14),
     responseSpeed: pipelineCount > 5 ? 78 : 62,
     hiringSatisfaction: partnerships > 0 ? 80 : 55,
-    mentorshipActivity: Math.min(100, startupFollows * 8 + (teamRows.filter((t) => t.memberType === 'mentor').length) * 15),
+    mentorshipActivity: Math.min(100, startupFollows * 8 + (team.filter((t) => t.memberType === 'mentor').length) * 15),
   });
 
   const nonNegotiables = parseJsonArray(presence.nonNegotiables);
@@ -465,7 +444,7 @@ export async function loadCompanyPresenceHub(companyUserId: string): Promise<Com
     preferredQualities,
     departments,
     roles,
-    team: teamRows,
+    team,
     events: events.map((e) => ({
       id: e.id,
       title: e.title,
@@ -689,9 +668,11 @@ export async function syncRolePositionHolder(
   holder: Record<string, unknown>
 ) {
   await ensureCompanyPresenceTables();
+  const holderName = String(holder.name ?? '').trim();
+  if (!isRealPersonName(holderName)) return null;
   const memberId = await upsertCompanyTeamMember(companyUserId, {
     id: typeof holder.id === 'string' ? holder.id : undefined,
-    name: String(holder.name ?? 'Team member'),
+    name: holderName,
     photoUrl: typeof holder.photoUrl === 'string' ? holder.photoUrl : null,
     age: typeof holder.age === 'number' ? holder.age : holder.age ? Number(holder.age) : null,
     roleTitle,
@@ -810,9 +791,16 @@ export async function upsertCompanyRole(
       role.positionHolder as Record<string, unknown>
     );
   } else if (!isFilled) {
+    const prevHolder = await prisma.$queryRaw<{ positionHolderId: string | null }[]>`
+      SELECT "positionHolderId" FROM "CompanyRole" WHERE "id" = ${id} AND "companyUserId" = ${companyUserId} LIMIT 1
+    `;
+    const previousHolderId = prevHolder[0]?.positionHolderId ?? null;
     await prisma.$executeRaw`
       UPDATE "CompanyRole" SET "positionHolderId" = NULL WHERE "id" = ${id}
     `;
+    if (previousHolderId) {
+      await prunePositionHolderAfterRoleUnfilled(companyUserId, id, previousHolderId);
+    }
   }
 
   await syncRoleToInternship(companyUserId, id);
@@ -820,9 +808,11 @@ export async function upsertCompanyRole(
 }
 
 export async function deleteCompanyRole(companyUserId: string, roleId: string) {
-  const rows = await prisma.$queryRaw<{ internshipId: string | null }[]>`
-    SELECT "internshipId" FROM "CompanyRole" WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
+  const rows = await prisma.$queryRaw<{ internshipId: string | null; positionHolderId: string | null }[]>`
+    SELECT "internshipId", "positionHolderId" FROM "CompanyRole"
+    WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
   `;
+  await pruneTeamMembersExclusiveToRole(companyUserId, roleId, rows[0]?.positionHolderId ?? null);
   await prisma.$executeRaw`
     DELETE FROM "CompanyRole" WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
   `;

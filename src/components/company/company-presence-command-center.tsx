@@ -19,6 +19,7 @@ import { CompanyRoleFitIntelligenceView } from '@/components/company/company-rol
 import { CompanyRoleIntelligenceScreen } from '@/components/company/company-role-intelligence-view';
 import { CompanyRoleRequirementsHub } from '@/components/company/company-role-requirements-hub';
 import { CompanyRolePanel } from '@/components/company/company-role-panel';
+import { CompanyTeamMemberProfileScreen } from '@/components/company/company-team-member-profile';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +33,13 @@ import {
   type CompanyRoleIntelligenceView,
 } from '@/lib/company/company-department-hub';
 import { buildRoleFitSnapshot, type RoleFitIntelligenceView } from '@/lib/company/company-role-requirements';
+import {
+  buildTeamMemberProfileSnapshot,
+  type CompanyTeamMemberProfile,
+} from '@/lib/company/company-presence-people';
 import type { CompanyPresenceHub } from '@/lib/company/company-presence-hub';
+import { ImageUpload } from '@/components/ui/image-upload';
+import { SlidePanel } from '@/components/ui/slide-panel';
 
 function StatPill({ label, value }: { label: string; value: string | number }) {
   return (
@@ -62,7 +69,8 @@ type PresenceScreen =
   | { type: 'requirements_hub' }
   | { type: 'role_fit'; roleId: string; initial?: RoleFitIntelligenceView }
   | { type: 'department'; id: string; initial?: CompanyDepartmentView }
-  | { type: 'role'; id: string; departmentId: string; initial?: CompanyRoleIntelligenceView };
+  | { type: 'role'; id: string; departmentId: string; initial?: CompanyRoleIntelligenceView }
+  | { type: 'person'; memberId: string; initial?: CompanyTeamMemberProfile };
 
 export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: CompanyPresenceHub }) {
   const [hub, setHub] = useState(initialHub);
@@ -71,6 +79,15 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
   const [saving, setSaving] = useState(false);
   const [createRoleDeptId, setCreateRoleDeptId] = useState<string | null>(null);
   const [createRoleOpen, setCreateRoleOpen] = useState(false);
+  const [addPersonOpen, setAddPersonOpen] = useState(false);
+  const [newPersonDraft, setNewPersonDraft] = useState({
+    name: '',
+    roleTitle: '',
+    memberType: 'employee',
+    photoUrl: '',
+    previousUniversity: '',
+    degree: '',
+  });
   const [draft, setDraft] = useState({
     cultureHeadline: initialHub.hero.cultureHeadline ?? '',
     ownerName: initialHub.hero.ownerName ?? '',
@@ -134,18 +151,61 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
     setSaving(false);
   }
 
-  async function addTeamMember() {
+  async function saveNewPerson() {
+    if (newPersonDraft.name.trim().length < 2) return;
     setSaving(true);
     const res = await fetch('/api/company/presence/team', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'New team member', memberType: 'employee' }),
+      body: JSON.stringify({
+        name: newPersonDraft.name.trim(),
+        roleTitle: newPersonDraft.roleTitle.trim() || null,
+        memberType: newPersonDraft.memberType,
+        photoUrl: newPersonDraft.photoUrl || null,
+        previousUniversity: newPersonDraft.previousUniversity.trim() || null,
+        degree: newPersonDraft.degree.trim() || null,
+      }),
     });
-    if (res.ok) setHub(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      const { createdMemberId, createdProfile, ...nextHub } = data;
+      setHub(nextHub);
+      setAddPersonOpen(false);
+      setNewPersonDraft({
+        name: '',
+        roleTitle: '',
+        memberType: 'employee',
+        photoUrl: '',
+        previousUniversity: '',
+        degree: '',
+      });
+      if (createdMemberId && createdProfile) {
+        setScreen({
+          type: 'person',
+          memberId: createdMemberId,
+          initial: createdProfile,
+        });
+      }
+    }
     setSaving(false);
   }
 
   const c = hub.compatibilityPreview;
+
+  if (screen.type === 'person') {
+    return (
+      <CompanyTeamMemberProfileScreen
+        memberId={screen.memberId}
+        initialProfile={screen.initial}
+        onBack={() => {
+          setScreen({ type: 'overview' });
+          void refresh();
+        }}
+        onDeleted={() => void refresh()}
+        onUpdated={() => void refresh()}
+      />
+    );
+  }
 
   if (screen.type === 'requirements_hub') {
     const firstDept = hub.departments.find((d) => d.id !== '_general');
@@ -639,13 +699,23 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Users className="h-5 w-5" /> People
           </h3>
-          <Button size="sm" variant="outline" onClick={() => void addTeamMember()} disabled={saving}>
+          <Button size="sm" variant="outline" onClick={() => setAddPersonOpen(true)} disabled={saving}>
             <Plus className="h-4 w-4 mr-1" /> Add person
           </Button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {hub.team.map((m) => (
-            <Card key={m.id}>
+            <Card
+              key={m.id}
+              className="cursor-pointer transition hover:border-brand/40 hover:shadow-md"
+              onClick={() =>
+                setScreen({
+                  type: 'person',
+                  memberId: m.id,
+                  initial: buildTeamMemberProfileSnapshot(m),
+                })
+              }
+            >
               <CardContent className="flex gap-3 pt-5">
                 <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center shrink-0 overflow-hidden">
                   {m.photoUrl ? (
@@ -671,10 +741,60 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
           ))}
           {hub.team.length === 0 && (
             <p className="text-sm text-muted-foreground col-span-full">
-              Add employees, mentors, and recruiters so students see a human company.
+              Add real employees, mentors, and recruiters — not job openings. Filled roles can add position holders from the role editor.
             </p>
           )}
         </div>
+        <SlidePanel open={addPersonOpen} onClose={() => setAddPersonOpen(false)} title="Add person">
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Only add real people who work at your company. Open roles belong under Departments, not here.
+            </p>
+            <ImageUpload
+              label="Photo"
+              value={newPersonDraft.photoUrl}
+              onChange={(url) => setNewPersonDraft({ ...newPersonDraft, photoUrl: url })}
+              folder="company-team"
+            />
+            <div>
+              <label className="text-xs text-muted-foreground">Full name *</label>
+              <Input
+                value={newPersonDraft.name}
+                onChange={(e) => setNewPersonDraft({ ...newPersonDraft, name: e.target.value })}
+                placeholder="e.g. Maria Silva"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Role / title</label>
+              <Input
+                value={newPersonDraft.roleTitle}
+                onChange={(e) => setNewPersonDraft({ ...newPersonDraft, roleTitle: e.target.value })}
+                placeholder="e.g. Head of Engineering"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Type</label>
+              <select
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={newPersonDraft.memberType}
+                onChange={(e) => setNewPersonDraft({ ...newPersonDraft, memberType: e.target.value })}
+              >
+                <option value="employee">Employee</option>
+                <option value="mentor">Mentor</option>
+                <option value="recruiter">Recruiter</option>
+                <option value="founder">Founder</option>
+                <option value="leadership">Leadership</option>
+              </select>
+            </div>
+            <Button
+              className="w-full"
+              disabled={saving || newPersonDraft.name.trim().length < 2}
+              onClick={() => void saveNewPerson()}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save person'}
+            </Button>
+          </div>
+        </SlidePanel>
       </section>
 
       {/* Events + startups + why join */}

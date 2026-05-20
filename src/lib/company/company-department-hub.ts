@@ -21,6 +21,10 @@ import {
   ROLE_TYPE_OPTIONS,
 } from '@/lib/company/company-presence-intelligence';
 import {
+  loadDisplayableTeamMembers,
+  pruneTeamMembersExclusiveToRole,
+} from '@/lib/company/company-presence-people';
+import {
   getCompanyPresenceMatchCriteria,
   parseJsonArray,
   upsertCompanyRole,
@@ -263,7 +267,7 @@ export async function loadCompanyDepartmentView(
   const dept = deptRows[0];
   if (!dept) return null;
 
-  const [profile, rolesRaw, teamRows, allDepts] = await Promise.all([
+  const [profile, rolesRaw, allDisplayPeople, allDepts] = await Promise.all([
     prisma.companyProfile.findUnique({
       where: { userId: companyUserId },
       select: { companyName: true },
@@ -290,15 +294,7 @@ export async function loadCompanyDepartmentView(
         AND "status" != 'archived'
       ORDER BY "sortOrder" ASC, "title" ASC
     `,
-    prisma.$queryRaw<DepartmentTeamMember[]>`
-      SELECT "id", "name", "photoUrl", "roleTitle", "memberType",
-             "previousUniversity", "degree", "bio"
-      FROM "CompanyTeamMember"
-      WHERE "companyUserId" = ${companyUserId}
-        AND ("departmentId" = ${departmentId} OR "departmentId" IS NULL)
-      ORDER BY "sortOrder" ASC
-      LIMIT 24
-    `,
+    loadDisplayableTeamMembers(companyUserId),
     prisma.$queryRaw<{ id: string; name: string }[]>`
       SELECT "id", "name" FROM "CompanyDepartment" WHERE "companyUserId" = ${companyUserId}
     `,
@@ -432,7 +428,22 @@ export async function loadCompanyDepartmentView(
         .map(([k]) => k),
     },
     roles,
-    team: teamRows,
+    team: allDisplayPeople
+      .filter(
+        (m) =>
+          m.departmentId === departmentId ||
+          (m.departmentId == null && ['employee', 'mentor', 'recruiter', 'founder', 'leadership'].includes(m.memberType))
+      )
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        photoUrl: m.photoUrl,
+        roleTitle: m.roleTitle,
+        memberType: m.memberType,
+        previousUniversity: m.previousUniversity,
+        degree: m.degree,
+        bio: m.bio,
+      })),
     allDepartments: allDepts,
     companyName: profile?.companyName ?? 'Your company',
   };
@@ -530,7 +541,6 @@ export async function deleteCompanyDepartment(
   const roles = await prisma.$queryRaw<{ id: string; internshipId: string | null }[]>`
     SELECT "id", "internshipId" FROM "CompanyRole" WHERE "departmentId" = ${departmentId} AND "companyUserId" = ${companyUserId}
   `;
-
   if (mode === 'move' && targetDepartmentId) {
     for (const r of roles) {
       await prisma.$executeRaw`
@@ -543,6 +553,7 @@ export async function deleteCompanyDepartment(
     }
   } else {
     for (const r of roles) {
+      await pruneTeamMembersExclusiveToRole(companyUserId, r.id);
       await prisma.$executeRaw`DELETE FROM "CompanyRole" WHERE "id" = ${r.id}`;
       if (r.internshipId) {
         try {
@@ -556,6 +567,11 @@ export async function deleteCompanyDepartment(
       }
     }
   }
+
+  await prisma.$executeRaw`
+    UPDATE "CompanyTeamMember" SET "departmentId" = NULL
+    WHERE "companyUserId" = ${companyUserId} AND "departmentId" = ${departmentId}
+  `;
 
   await prisma.$executeRaw`
     DELETE FROM "CompanyDepartment" WHERE "id" = ${departmentId} AND "companyUserId" = ${companyUserId}
