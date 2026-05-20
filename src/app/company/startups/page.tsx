@@ -1,19 +1,27 @@
+import { Suspense } from 'react';
 import { requireSession } from '@/lib/session';
-import { loadCompanyStartupsHub } from '@/lib/company/company-startups-hub';
+import { loadCompanyStartupsEcosystemHub } from '@/lib/company/company-startups-ecosystem-hub';
 import { CompanyStartupsCommandCenter } from '@/components/company/company-startups-command-center';
-import { PageHeader } from '@/components/layout/page-header';
 
-export default async function CompanyStartupHubPage() {
+async function StartupsContent() {
   const session = await requireSession('COMPANY');
-  const hub = await loadCompanyStartupsHub(session.user.id);
+  const hub = await loadCompanyStartupsEcosystemHub(session.user.id);
 
   return (
-    <div>
-      <PageHeader
-        title="Startup Hub"
-        subtitle="Discover founders and ventures connected to live student profiles and traction."
-      />
-      <CompanyStartupsCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
-    </div>
+    <CompanyStartupsCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
+  );
+}
+
+export default function CompanyStartupHubPage() {
+  return (
+    <Suspense
+      fallback={
+        <p className="p-8 text-sm text-muted-foreground animate-pulse">
+          Loading startup ecosystem…
+        </p>
+      }
+    >
+      <StartupsContent />
+    </Suspense>
   );
 }
