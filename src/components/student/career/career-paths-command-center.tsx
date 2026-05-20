@@ -311,7 +311,7 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
     if (res.ok) setHub(await res.json());
   }, []);
 
-  async function setAsTarget(path: CareerPathCard, primary = false) {
+  async function saveTarget(path: CareerPathCard) {
     setSaving(true);
     setActionMessage(null);
     try {
@@ -326,36 +326,125 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
           isProfileInsight: path.isProfileInsight,
           compatibility: path.compatibility,
           missingRequirements: path.missingSkills,
-          setPrimary: primary,
+          setPrimary: false,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setActionMessage(data.error || 'Could not save career goal.');
+        setActionMessage(data.error || 'Could not save career path.');
         return;
       }
-
-      setHub((prev) => ({
-        ...prev,
-        paths: prev.paths.map((p) => ({
-          ...p,
-          isTarget: p.id === path.id ? true : p.isTarget,
-          isPrimaryTarget: primary ? p.id === path.id : p.isPrimaryTarget,
-          targetId: p.id === path.id ? data.target.id : p.targetId,
-        })),
-      }));
-
-      setActionMessage(
-        primary
-          ? `${path.roleTitle} set as your primary career goal.`
-          : `${path.roleTitle} saved to your career targets.`
-      );
+      setActionMessage(`${path.roleTitle} saved to your career targets.`);
       await refresh();
     } catch {
       setActionMessage('Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function unsaveTarget(path: CareerPathCard) {
+    if (!path.targetId) return;
+    setSaving(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch(`/api/career/targets?targetId=${path.targetId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setActionMessage(data.error || 'Could not remove saved path.');
+        return;
+      }
+      setActionMessage(`${path.roleTitle} removed from your saved paths.`);
+      await refresh();
+    } catch {
+      setActionMessage('Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function setPrimaryGoal(path: CareerPathCard) {
+    setSaving(true);
+    setActionMessage(null);
+    try {
+      if (path.isTarget && path.targetId) {
+        const res = await fetch('/api/career/targets', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetId: path.targetId, setPrimary: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setActionMessage(data.error || 'Could not set primary goal.');
+          return;
+        }
+        setActionMessage(`${path.roleTitle} is now your primary career goal.`);
+        await refresh();
+        return;
+      }
+
+      const res = await fetch('/api/career/targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roleTitle: path.roleTitle,
+          companyName: path.isProfileInsight ? 'Profile insight' : path.companyName,
+          careerPathId: path.isProfileInsight ? null : path.id,
+          profileInsightId: path.profileInsightId,
+          isProfileInsight: path.isProfileInsight,
+          compatibility: path.compatibility,
+          missingRequirements: path.missingSkills,
+          setPrimary: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionMessage(data.error || 'Could not set primary goal.');
+        return;
+      }
+      setActionMessage(`${path.roleTitle} is now your primary career goal.`);
+      await refresh();
+    } catch {
+      setActionMessage('Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearPrimaryGoal(path: CareerPathCard) {
+    if (!path.targetId) return;
+    setSaving(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch('/api/career/targets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: path.targetId, setPrimary: false }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setActionMessage(data.error || 'Could not update primary goal.');
+        return;
+      }
+      setActionMessage(`${path.roleTitle} is saved but no longer your primary goal.`);
+      await refresh();
+    } catch {
+      setActionMessage('Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleSave(path: CareerPathCard) {
+    if (path.isTarget) void unsaveTarget(path);
+    else void saveTarget(path);
+  }
+
+  function togglePrimary(path: CareerPathCard) {
+    if (path.isPrimaryTarget) void clearPrimaryGoal(path);
+    else void setPrimaryGoal(path);
   }
 
   function toggleCompare(id: string) {
@@ -543,21 +632,33 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      variant="outline"
-                      disabled={saving || selected.isTarget}
-                      onClick={() => setAsTarget(selected, false)}
+                      variant={selected.isTarget ? 'secondary' : 'outline'}
+                      disabled={saving}
+                      onClick={() => toggleSave(selected)}
+                      title={selected.isTarget ? 'Remove from saved paths' : 'Save to track this path'}
                     >
                       {saving ? (
                         <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                       ) : (
-                        <Star className="mr-1.5 h-4 w-4" />
+                        <Star
+                          className={cn(
+                            'mr-1.5 h-4 w-4',
+                            selected.isTarget && 'fill-amber-400 text-amber-500'
+                          )}
+                        />
                       )}
                       {selected.isTarget ? 'Saved' : 'Save'}
                     </Button>
                     <Button
                       size="sm"
-                      disabled={saving || selected.isPrimaryTarget}
-                      onClick={() => setAsTarget(selected, true)}
+                      variant={selected.isPrimaryTarget ? 'default' : 'outline'}
+                      disabled={saving}
+                      onClick={() => togglePrimary(selected)}
+                      title={
+                        selected.isPrimaryTarget
+                          ? 'Remove as primary goal (keeps saved)'
+                          : 'Set as your main career goal'
+                      }
                     >
                       {saving ? (
                         <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />

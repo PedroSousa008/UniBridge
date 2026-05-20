@@ -84,10 +84,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ target: updated, action: 'updated' });
   }
 
-  const count = await prisma.careerTarget.count({
-    where: { userId: session.user.id },
-  });
-
   const target = await prisma.careerTarget.create({
     data: {
       userId: session.user.id,
@@ -96,7 +92,7 @@ export async function POST(request: Request) {
       careerPathId,
       compatibility,
       missingRequirements,
-      isPrimary: body.setPrimary === true || count === 0,
+      isPrimary: body.setPrimary === true,
     },
   });
 
@@ -136,12 +132,51 @@ export async function PATCH(request: Request) {
     });
   }
 
+  const setPrimary =
+    body.setPrimary === true ? true : body.setPrimary === false ? false : target.isPrimary;
+
   const updated = await prisma.careerTarget.update({
     where: { id: targetId },
-    data: {
-      isPrimary: body.setPrimary === true ? true : body.isPrimary ?? target.isPrimary,
-    },
+    data: { isPrimary: setPrimary },
   });
 
   return NextResponse.json({ target: updated });
+}
+
+export async function DELETE(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || session.user.role !== 'STUDENT') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const targetId = searchParams.get('targetId');
+  if (!targetId) {
+    return NextResponse.json({ error: 'targetId required' }, { status: 400 });
+  }
+
+  const target = await prisma.careerTarget.findFirst({
+    where: { id: targetId, userId: session.user.id },
+  });
+  if (!target) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  const wasPrimary = target.isPrimary;
+  await prisma.careerTarget.delete({ where: { id: targetId } });
+
+  if (wasPrimary) {
+    const next = await prisma.careerTarget.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (next) {
+      await prisma.careerTarget.update({
+        where: { id: next.id },
+        data: { isPrimary: true },
+      });
+    }
+  }
+
+  return NextResponse.json({ ok: true });
 }
