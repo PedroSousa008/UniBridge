@@ -70,7 +70,7 @@ export interface CareerPathsHub {
   milestonesSummary: { done: number; total: number };
 }
 
-async function buildStudentProfile(userId: string): Promise<StudentCareerProfile> {
+export async function buildStudentProfile(userId: string): Promise<StudentCareerProfile> {
   const [profile, startups, gradebook, attendanceHub, assignmentsHub, enrollments] = await Promise.all([
     prisma.studentProfile.findUnique({ where: { userId } }),
     prisma.startup.findMany({

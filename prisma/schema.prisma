@@ -279,6 +279,8 @@ model User {
   announcementReads        AnnouncementRead[]
   messageReadStates        StudentMessageReadState[]
   resourcePreference       StudentResourcePreference?
+  compatibilitySnapshots   StudentCompatibilitySnapshot[]
+  workStyleProfile         StudentWorkStyleProfile?
 }
 
 model StudentProfile {
@@ -1429,6 +1431,28 @@ model StudentWeeklyClass {
   updatedAt    DateTime         @updatedAt
 
   @@index([studentId, dayOfWeek])
+}
+
+model StudentCompatibilitySnapshot {
+  id                 String   @id @default(cuid())
+  studentId          String
+  student            User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  overallScore       Int      @default(0)
+  employabilityScore Int      @default(0)
+  scoresJson         Json
+  capturedAt         DateTime @default(now())
+
+  @@index([studentId, capturedAt])
+}
+
+model StudentWorkStyleProfile {
+  id        String   @id @default(cuid())
+  studentId String   @unique
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers   Json     @default("{}")
+  traits    Json     @default("{}")
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 }
 
 model VerificationToken {
