@@ -28,7 +28,7 @@ export function StudentCareerClient() {
     { href: '/student/career/internships', label: tr('student.career.internships'), description: 'Discover, prepare & track your internship journey', icon: Briefcase },
     { href: '/student/career/opportunities', label: tr('student.career.opportunities'), description: 'Career pipeline, applications & interview tracking', icon: Award },
     { href: '/student/career/cv', label: tr('student.career.cv'), description: 'Verified professional identity from your ecosystem', icon: FileUser },
-    { href: '/student/career/employability', label: tr('student.career.employability'), description: tr('common.comingSoon'), icon: LineChart },
+    { href: '/student/career/employability', label: tr('student.career.employability'), description: 'Your employability evolution — graph-first progression', icon: LineChart },
     { href: '/student/career/simulation', label: tr('student.career.simulation'), description: tr('common.comingSoon'), icon: BarChart3 },
     { href: '/student/career/skills', label: tr('student.career.skills'), description: 'Verified skill tree powered by your ecosystem', icon: Target },
   ];
