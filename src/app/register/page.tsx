@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { RegisterForm } from './register-form';
 
 export default function RegisterPage() {
@@ -16,7 +17,9 @@ export default function RegisterPage() {
           Choose your role and enter the ecosystem.
         </p>
         <div className="mt-8 rounded-2xl border border-border/60 bg-card p-6 shadow-card">
-          <RegisterForm />
+          <Suspense fallback={<div className="h-48 animate-pulse rounded-xl bg-muted" />}>
+            <RegisterForm />
+          </Suspense>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import type { UserRole } from '@prisma/client';
 import { Button } from '@/components/ui/button';
@@ -13,11 +13,14 @@ import { cn } from '@/lib/utils';
 
 export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { tr, locale } = useI18n();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('STUDENT');
+  const [role, setRole] = useState<UserRole>(
+    searchParams.get('role') === 'company' ? 'COMPANY' : 'STUDENT'
+  );
   const [institution, setInstitution] = useState('');
   const [ownerAvailable, setOwnerAvailable] = useState(false);
   const [error, setError] = useState('');

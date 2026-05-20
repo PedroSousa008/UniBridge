@@ -1,14 +1,16 @@
 import { requireSession } from '@/lib/session';
-import { prisma } from '@/lib/db';
-import { CompanyHomeClient } from './company-home-client';
+import { loadCompanyHomeHub } from '@/lib/company/company-home-hub';
+import { CompanyHomeCommandCenter } from '@/components/company/company-home-command-center';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function CompanyHomePage() {
-  await requireSession('COMPANY');
+  const session = await requireSession('COMPANY');
+  const hub = await loadCompanyHomeHub(session.user.id);
 
-  const [students, startups] = await Promise.all([
-    prisma.user.count({ where: { role: 'STUDENT' } }),
-    prisma.startup.count(),
-  ]);
-
-  return <CompanyHomeClient stats={{ students, startups }} />;
+  return (
+    <div>
+      <PageHeader title="Recruitment intelligence" subtitle="Discover and develop top talent across your ecosystem." />
+      <CompanyHomeCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
+    </div>
+  );
 }
