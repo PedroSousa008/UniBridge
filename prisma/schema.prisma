@@ -306,6 +306,71 @@ model StudentProfile {
   internshipJournals     StudentInternshipJournal[]
   cvProfile              StudentCvProfile?
   reportedSkills         StudentReportedSkill[]
+  identitySettings       StudentIdentitySettings?
+  profileProjects        StudentProfileProject[]
+  profileAchievements    StudentProfileAchievement[]
+}
+
+model StudentIdentitySettings {
+  id                     String   @id @default(cuid())
+  studentProfileId       String   @unique
+  studentProfile         StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  age                    Int?
+  personalLocation       String?
+  linkedIn               String?
+  portfolioUrl           String?
+  phone                  String?
+  languages              Json?
+  interests              Json?
+  careerIndustries       Json?
+  careerRoles            Json?
+  careerGoals            Json?
+  dreamCompanies         Json?
+  openToInternships      Boolean  @default(true)
+  openToNetworking       Boolean  @default(false)
+  openToStartup          Boolean  @default(false)
+  openToFullTime         Boolean  @default(false)
+  visibilityProfile      String   @default("university")
+  visibilityCv           String   @default("private")
+  visibilityProjects     String   @default("companies")
+  visibilityNetworking   String   @default("private")
+  visibilityAchievements String   @default("public")
+  visibilityOpportunities String  @default("companies")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model StudentProfileProject {
+  id               String   @id @default(cuid())
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?  @db.Text
+  linkUrl          String?
+  fileUrl          String?
+  tags             Json?
+  sortOrder        Int      @default(0)
+  visible          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([studentProfileId])
+}
+
+model StudentProfileAchievement {
+  id               String   @id @default(cuid())
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  kind             String
+  title            String
+  description      String?  @db.Text
+  earnedAt         DateTime @default(now())
+  verified         Boolean  @default(false)
+  sourceType       String?
+  sourceId         String?
+  createdAt        DateTime @default(now())
+
+  @@index([studentProfileId])
 }
 
 model StudentReportedSkill {
