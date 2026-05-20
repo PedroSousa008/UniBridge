@@ -30,7 +30,7 @@ export function StudentCareerClient() {
     { href: '/student/career/cv', label: tr('student.career.cv'), description: 'Verified professional identity from your ecosystem', icon: FileUser },
     { href: '/student/career/employability', label: tr('student.career.employability'), description: tr('common.comingSoon'), icon: LineChart },
     { href: '/student/career/simulation', label: tr('student.career.simulation'), description: tr('common.comingSoon'), icon: BarChart3 },
-    { href: '/student/career/skills', label: tr('student.career.skills'), description: tr('common.comingSoon'), icon: Target },
+    { href: '/student/career/skills', label: tr('student.career.skills'), description: 'Verified skill tree powered by your ecosystem', icon: Target },
   ];
 
   return (

@@ -305,6 +305,21 @@ model StudentProfile {
   internshipApplications InternshipApplication[]
   internshipJournals     StudentInternshipJournal[]
   cvProfile              StudentCvProfile?
+  reportedSkills         StudentReportedSkill[]
+}
+
+model StudentReportedSkill {
+  id               String   @id @default(cuid())
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  skillId          String
+  claimedLevel     Int      @default(50)
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([studentProfileId, skillId])
+  @@index([studentProfileId])
 }
 
 model StudentCvProfile {

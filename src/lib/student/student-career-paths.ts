@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { computePathCompatibility, type StudentCareerProfile } from '@/lib/career/compatibility-engine';
 import { scoreArchetypes } from '@/lib/career/career-archetypes';
+import { buildEcosystemSkills, skillsToProfileSlugs } from '@/lib/career/skills-intelligence';
 import { computeStartupReadiness } from '@/lib/startups/readiness';
 import { loadGradebookHub } from '@/lib/student/load-gradebook-hub';
 import { loadStudentAttendanceHub } from '@/lib/student/student-attendance';
@@ -106,7 +107,7 @@ export async function buildStudentProfile(userId: string): Promise<StudentCareer
   const startupReadiness =
     startups.length > 0 ? computeStartupReadiness(startups[0]!).readinessScore : null;
 
-  return {
+  const careerProfile: StudentCareerProfile = {
     profileStrength: profile?.profileStrength ?? 0,
     employabilityScore: Math.round(profile?.employabilityScore ?? 0),
     engagementScore: Math.round(profile?.engagementScore ?? 0),
@@ -118,6 +119,57 @@ export async function buildStudentProfile(userId: string): Promise<StudentCareer
     assignmentCompletionRate,
     inferredSkills: [],
   };
+
+  let inferredSkills: string[] = [];
+  if (profile) {
+    const [applications, journalCount, selfRows] = await Promise.all([
+      prisma.internshipApplication.findMany({
+        where: { studentId: profile.id },
+        include: {
+          internship: {
+            select: {
+              title: true,
+              companyUser: { select: { name: true, companyProfile: { select: { companyName: true } } } },
+            },
+          },
+        },
+      }),
+      prisma.studentInternshipJournal.count({ where: { studentId: profile.id } }),
+      prisma.studentReportedSkill.findMany({ where: { studentProfileId: profile.id } }).catch(() => []),
+    ]);
+
+    const tracked = buildEcosystemSkills({
+      profile: careerProfile,
+      assignments: assignmentsHub.assignments.map((a) => ({
+        id: a.id,
+        title: a.title,
+        subjectName: a.subject.name,
+        status: a.status,
+        score: a.score,
+        isGroup: a.isGroup,
+      })),
+      internships: applications.map((a) => ({
+        title: a.internship.title,
+        companyName:
+          a.internship.companyUser.companyProfile?.companyName ??
+          a.internship.companyUser.name ??
+          'Company',
+        status: a.status,
+      })),
+      startups: startups.map((s) => ({
+        name: s.name,
+        readinessScore: s.readinessScore,
+        milestonesDone: s.milestones.filter((m) => m.status === 'done').length,
+      })),
+      journals: journalCount,
+      primaryRole: null,
+      pathRequirements: {},
+      selfReported: selfRows.map((r) => ({ skillId: r.skillId, claimedLevel: r.claimedLevel })),
+    });
+    inferredSkills = skillsToProfileSlugs(tracked);
+  }
+
+  return { ...careerProfile, inferredSkills };
 }
 
 function pathToCard(
