@@ -98,6 +98,14 @@ const STATEMENTS: string[] = [
   EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
 ];
 
+const MIGRATION_STATEMENTS: string[] = [
+  `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "isFollowed" BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "notesJson" JSONB`,
+  `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "timelineJson" JSONB`,
+  `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "ecosystemSignals" JSONB`,
+  `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "growthPercent" INTEGER`,
+];
+
 async function tableReady(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1 FROM "CompanyPipelineCandidate" LIMIT 1`;
@@ -107,15 +115,27 @@ async function tableReady(): Promise<boolean> {
   }
 }
 
-async function runEnsure(): Promise<boolean> {
-  if (await tableReady()) return true;
-  for (const sql of STATEMENTS) {
+async function runMigrations(): Promise<void> {
+  for (const sql of MIGRATION_STATEMENTS) {
     try {
       await prisma.$executeRawUnsafe(sql);
     } catch (e) {
-      console.error('[ensure-company-ecosystem-schema]', e);
+      console.error('[ensure-company-ecosystem-schema:migrate]', e);
     }
   }
+}
+
+async function runEnsure(): Promise<boolean> {
+  if (!(await tableReady())) {
+    for (const sql of STATEMENTS) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (e) {
+        console.error('[ensure-company-ecosystem-schema]', e);
+      }
+    }
+  }
+  await runMigrations();
   return tableReady();
 }
 

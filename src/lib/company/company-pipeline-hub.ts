@@ -1,32 +1,130 @@
 import { prisma } from '@/lib/db';
 import { ensureCompanyEcosystemTables } from '@/lib/db/ensure-company-ecosystem-schema';
-import { buildCompanyCandidateCard, type CompanyCandidateCard } from '@/lib/company/company-candidate-builder';
 import {
+  buildCompanyCandidateCard,
+  type PipelineCandidateProfile,
+} from '@/lib/company/company-candidate-builder';
+import {
+  assignPipelineAiSections,
+  DEFAULT_PIPELINE_TAGS,
+  normalizePipelineStage,
+  PIPELINE_AI_SECTIONS,
   PIPELINE_STAGES,
+  passesPipelineFilters,
+  scoreSearchMatch,
   stageFromApplicationStatus,
+  type PipelineAiSectionId,
+  type PipelineFilters,
+  type PipelineNote,
   type PipelineStageId,
+  type PipelineTimelineEvent,
+  SEARCH_SUGGESTIONS,
 } from '@/lib/company/company-pipeline-intelligence';
+
+function newId() {
+  return crypto.randomUUID();
+}
+
+function parseNotes(val: unknown): PipelineNote[] {
+  if (!Array.isArray(val)) return [];
+  return val
+    .filter((x) => x && typeof x === 'object')
+    .map((x) => {
+      const o = x as Record<string, unknown>;
+      return {
+        id: String(o.id ?? newId()),
+        body: String(o.body ?? ''),
+        pinned: Boolean(o.pinned),
+        authorName: String(o.authorName ?? 'Recruiter'),
+        createdAt: String(o.createdAt ?? new Date().toISOString()),
+        updatedAt: String(o.updatedAt ?? new Date().toISOString()),
+      };
+    })
+    .filter((n) => n.body.trim());
+}
+
+function parseTimeline(val: unknown, fallback: PipelineTimelineEvent[]): PipelineTimelineEvent[] {
+  if (!Array.isArray(val) || val.length === 0) return fallback;
+  return val
+    .filter((x) => x && typeof x === 'object')
+    .map((x) => {
+      const o = x as Record<string, unknown>;
+      return {
+        id: String(o.id ?? newId()),
+        type: String(o.type ?? 'activity'),
+        title: String(o.title ?? 'Update'),
+        detail: typeof o.detail === 'string' ? o.detail : null,
+        at: String(o.at ?? new Date().toISOString()),
+      };
+    });
+}
+
+function parseStringArray(val: unknown): string[] {
+  if (!Array.isArray(val)) return [];
+  return val.map(String);
+}
 
 export interface PipelineCard {
   id: string;
   stage: PipelineStageId;
   rating: number | null;
   tags: string[];
-  internalNotes: string;
+  isFollowed: boolean;
+  notes: PipelineNote[];
+  legacyNotes: string;
   assignedTo: string | null;
   reminderAt: string | null;
   applicationId: string | null;
-  candidate: CompanyCandidateCard;
+  candidate: PipelineCandidateProfile;
   interviews: { id: string; startAt: string; endAt: string; meetingLink: string | null; status: string }[];
   messageCount: number;
+  talentHref: string;
+  updatedAt: string;
+}
+
+export interface PipelineAnalytics {
+  savedTalent: number;
+  highCompatibility: number;
+  futurePotential: number;
+  startupFounders: number;
+  leadershipProfiles: number;
+  fastestGrowing: number;
+  openToOpportunities: number;
+  highActivity: number;
+  watching: number;
+  inInterview: number;
 }
 
 export interface CompanyPipelineHub {
   stages: typeof PIPELINE_STAGES;
   columns: Record<PipelineStageId, PipelineCard[]>;
-  aiHighlights: { label: string; candidateName: string; pipelineId: string }[];
+  allCards: PipelineCard[];
+  /** Full pipeline pool (unfiltered) for compare / AI */
+  pipelinePool: PipelineCard[];
+  analytics: PipelineAnalytics;
+  aiSections: { id: PipelineAiSectionId; title: string; subtitle: string; pipelineIds: string[] }[];
+  searchSuggestions: string[];
+  defaultTags: string[];
   dbReady: boolean;
   serverTime: string;
+}
+
+export async function migrateLegacyPipelineStages(companyUserId: string) {
+  const dbReady = await ensureCompanyEcosystemTables();
+  if (!dbReady) return;
+  const rows = await prisma.companyPipelineCandidate.findMany({
+    where: { companyUserId },
+    select: { id: true, stage: true },
+  });
+  for (const row of rows) {
+    const normalized = normalizePipelineStage(row.stage);
+    if (normalized !== row.stage) {
+      await prisma.companyPipelineCandidate.update({
+        where: { id: row.id },
+        data: { stage: normalized },
+      });
+    }
+  }
 }
 
 export async function syncPipelineFromApplications(companyUserId: string) {
@@ -61,9 +159,31 @@ export async function syncPipelineFromApplications(companyUserId: string) {
   }
 }
 
-export async function loadCompanyPipelineHub(companyUserId: string): Promise<CompanyPipelineHub> {
+function computeAnalytics(cards: PipelineCard[]): PipelineAnalytics {
+  const active = cards.filter((c) => c.stage !== 'archived');
+  return {
+    savedTalent: active.filter((c) => ['saved', 'watching', 'future_potential'].includes(c.stage)).length,
+    highCompatibility: active.filter((c) => (c.candidate.compatibilityScore ?? 0) >= 75).length,
+    futurePotential: cards.filter((c) => c.stage === 'future_potential').length,
+    startupFounders: active.filter((c) => c.candidate.startupInvolvement).length,
+    leadershipProfiles: active.filter((c) => c.candidate.leadershipScore >= 65).length,
+    fastestGrowing: active.filter((c) => c.candidate.growthPercent >= 10).length,
+    openToOpportunities: active.filter((c) => c.candidate.availability.length > 0).length,
+    highActivity: active.filter((c) => c.candidate.ecosystemSignals.length >= 2).length,
+    watching: cards.filter((c) => c.stage === 'watching').length,
+    inInterview: cards.filter((c) => c.stage === 'interview').length,
+  };
+}
+
+export async function loadCompanyPipelineHub(
+  companyUserId: string,
+  options?: { query?: string; filters?: PipelineFilters; includeArchived?: boolean }
+): Promise<CompanyPipelineHub> {
   const dbReady = await ensureCompanyEcosystemTables();
-  if (dbReady) await syncPipelineFromApplications(companyUserId);
+  if (dbReady) {
+    await migrateLegacyPipelineStages(companyUserId);
+    await syncPipelineFromApplications(companyUserId);
+  }
 
   const columns = PIPELINE_STAGES.reduce(
     (acc, s) => {
@@ -74,8 +194,36 @@ export async function loadCompanyPipelineHub(companyUserId: string): Promise<Com
   );
 
   if (!dbReady) {
-    return { stages: PIPELINE_STAGES, columns, aiHighlights: [], dbReady: false, serverTime: new Date().toISOString() };
+    return {
+      stages: PIPELINE_STAGES,
+      columns,
+      allCards: [],
+      pipelinePool: [],
+      analytics: {
+        savedTalent: 0,
+        highCompatibility: 0,
+        futurePotential: 0,
+        startupFounders: 0,
+        leadershipProfiles: 0,
+        fastestGrowing: 0,
+        openToOpportunities: 0,
+        highActivity: 0,
+        watching: 0,
+        inInterview: 0,
+      },
+      aiSections: PIPELINE_AI_SECTIONS.map((s) => ({ ...s, pipelineIds: [] })),
+      searchSuggestions: SEARCH_SUGGESTIONS,
+      defaultTags: DEFAULT_PIPELINE_TAGS,
+      dbReady: false,
+      serverTime: new Date().toISOString(),
+    };
   }
+
+  const companyUser = await prisma.user.findUnique({
+    where: { id: companyUserId },
+    select: { name: true },
+  });
+  const authorName = companyUser?.name ?? 'Recruiter';
 
   const rows = await prisma.companyPipelineCandidate.findMany({
     where: { companyUserId },
@@ -86,23 +234,62 @@ export async function loadCompanyPipelineHub(companyUserId: string): Promise<Com
     orderBy: { updatedAt: 'desc' },
   });
 
-  const aiHighlights: CompanyPipelineHub['aiHighlights'] = [];
+  const allCards: PipelineCard[] = [];
 
   for (const row of rows) {
     const candidate = await buildCompanyCandidateCard(row.studentUserId, companyUserId);
     if (!candidate) continue;
 
-    const stage = (PIPELINE_STAGES.some((s) => s.id === row.stage) ? row.stage : 'saved') as PipelineStageId;
+    const stage = normalizePipelineStage(row.stage);
+    const notes = parseNotes((row as { notesJson?: unknown }).notesJson);
+    const legacy = row.internalNotes?.trim() ?? '';
+    const mergedNotes =
+      notes.length > 0
+        ? notes
+        : legacy
+          ? [
+              {
+                id: 'legacy',
+                body: legacy,
+                pinned: true,
+                authorName,
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString(),
+              },
+            ]
+          : [];
+
+    const storedSignals = parseStringArray((row as { ecosystemSignals?: unknown }).ecosystemSignals);
+    const ecosystemSignals =
+      storedSignals.length > 0
+        ? storedSignals
+        : candidate.ecosystemSignals;
+
+    const timeline = parseTimeline(
+      (row as { timelineJson?: unknown }).timelineJson,
+      candidate.timeline
+    );
+
     const card: PipelineCard = {
       id: row.id,
       stage,
       rating: row.rating,
       tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
-      internalNotes: row.internalNotes ?? '',
+      isFollowed: Boolean((row as { isFollowed?: boolean }).isFollowed),
+      notes: mergedNotes,
+      legacyNotes: legacy,
       assignedTo: row.assignedTo,
       reminderAt: row.reminderAt?.toISOString() ?? null,
       applicationId: row.applicationId,
-      candidate,
+      candidate: {
+        ...candidate,
+        ecosystemSignals,
+        timeline,
+        growthPercent:
+          typeof (row as { growthPercent?: number | null }).growthPercent === 'number'
+            ? Number((row as { growthPercent?: number | null }).growthPercent)
+            : candidate.growthPercent,
+      },
       interviews: row.interviews.map((i) => ({
         id: i.id,
         startAt: i.startAt.toISOString(),
@@ -111,22 +298,65 @@ export async function loadCompanyPipelineHub(companyUserId: string): Promise<Com
         status: i.status,
       })),
       messageCount: row._count.messages,
+      talentHref: `/company/talent?student=${row.studentUserId}`,
+      updatedAt: row.updatedAt.toISOString(),
     };
-    columns[stage].push(card);
-
-    for (const label of candidate.aiLabels.slice(0, 1)) {
-      aiHighlights.push({
-        label,
-        candidateName: candidate.name,
-        pipelineId: row.id,
-      });
-    }
+    allCards.push(card);
   }
+
+  const query = options?.query?.trim() ?? '';
+  const filters = options?.filters ?? {};
+  const includeArchived = options?.includeArchived ?? false;
+
+  let filtered = allCards;
+  if (!includeArchived) {
+    filtered = filtered.filter((c) => c.stage !== 'archived');
+  }
+  if (filters.stage) {
+    filtered = filtered.filter((c) => c.stage === filters.stage);
+  }
+  if (filters.followed) {
+    filtered = filtered.filter((c) => c.isFollowed);
+  }
+  if (filters.tag) {
+    filtered = filtered.filter((c) => c.tags.includes(filters.tag!));
+  }
+  filtered = filtered.filter((c) => passesPipelineFilters(c.candidate, filters));
+
+  if (query) {
+    filtered = filtered
+      .map((c) => ({ card: c, score: scoreSearchMatch(c.candidate, query) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.card);
+  }
+
+  for (const card of filtered) {
+    columns[card.stage].push(card);
+  }
+
+  const sectionMap = assignPipelineAiSections(
+    allCards.filter((c) => c.stage !== 'archived').map((c) => ({
+      pipelineId: c.id,
+      candidate: c.candidate,
+      stage: c.stage,
+    }))
+  );
 
   return {
     stages: PIPELINE_STAGES,
     columns,
-    aiHighlights: aiHighlights.slice(0, 6),
+    allCards: filtered,
+    pipelinePool: allCards,
+    analytics: computeAnalytics(allCards),
+    aiSections: PIPELINE_AI_SECTIONS.map((s) => ({
+      id: s.id,
+      title: s.title,
+      subtitle: s.subtitle,
+      pipelineIds: sectionMap[s.id] ?? [],
+    })),
+    searchSuggestions: SEARCH_SUGGESTIONS,
+    defaultTags: DEFAULT_PIPELINE_TAGS,
     dbReady: true,
     serverTime: new Date().toISOString(),
   };
@@ -140,24 +370,128 @@ export async function upsertPipelineCandidate(
     rating: number;
     tags: string[];
     internalNotes: string;
+    notesJson: PipelineNote[];
+    isFollowed: boolean;
     assignedTo: string;
     reminderAt: Date;
+    ecosystemSignals: string[];
+    timelineJson: PipelineTimelineEvent[];
+    growthPercent: number;
   }>
 ) {
   const student = await prisma.studentProfile.findUnique({ where: { userId: studentUserId } });
   if (!student) return null;
 
-  return prisma.companyPipelineCandidate.upsert({
+  const stage = data.stage ? normalizePipelineStage(data.stage) : undefined;
+
+  const record = await prisma.companyPipelineCandidate.upsert({
     where: { companyUserId_studentUserId: { companyUserId, studentUserId } },
     create: {
       companyUserId,
       studentUserId,
       studentProfileId: student.id,
-      stage: data.stage ?? 'saved',
-      ...data,
+      stage: stage ?? 'saved',
+      tags: data.tags ?? [],
+      internalNotes: data.internalNotes,
     },
-    update: data,
+    update: {
+      ...(stage ? { stage } : {}),
+      rating: data.rating,
+      tags: data.tags,
+      internalNotes: data.internalNotes,
+      assignedTo: data.assignedTo,
+      reminderAt: data.reminderAt,
+    },
   });
+
+  if (data.isFollowed != null) {
+    await prisma.$executeRaw`
+      UPDATE "CompanyPipelineCandidate" SET "isFollowed" = ${data.isFollowed}, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${record.id}
+    `;
+  }
+  if (data.notesJson) {
+    await prisma.$executeRaw`
+      UPDATE "CompanyPipelineCandidate" SET "notesJson" = ${JSON.stringify(data.notesJson)}::jsonb, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${record.id}
+    `;
+  }
+  if (data.ecosystemSignals) {
+    await prisma.$executeRaw`
+      UPDATE "CompanyPipelineCandidate" SET "ecosystemSignals" = ${JSON.stringify(data.ecosystemSignals)}::jsonb, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${record.id}
+    `;
+  }
+  if (data.timelineJson) {
+    await prisma.$executeRaw`
+      UPDATE "CompanyPipelineCandidate" SET "timelineJson" = ${JSON.stringify(data.timelineJson)}::jsonb, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${record.id}
+    `;
+  }
+  if (data.growthPercent != null) {
+    await prisma.$executeRaw`
+      UPDATE "CompanyPipelineCandidate" SET "growthPercent" = ${data.growthPercent}, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${record.id}
+    `;
+  }
+
+  return record;
+}
+
+export async function addPipelineNote(
+  companyUserId: string,
+  pipelineId: string,
+  body: string,
+  authorName: string
+) {
+  const row = await prisma.companyPipelineCandidate.findFirst({
+    where: { id: pipelineId, companyUserId },
+  });
+  if (!row || !body.trim()) return null;
+
+  const notes = parseNotes((row as { notesJson?: unknown }).notesJson);
+  const note: PipelineNote = {
+    id: newId(),
+    body: body.trim(),
+    pinned: false,
+    authorName,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const next = [note, ...notes];
+  await prisma.$executeRaw`
+    UPDATE "CompanyPipelineCandidate" SET "notesJson" = ${JSON.stringify(next)}::jsonb, "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${pipelineId}
+  `;
+  return note;
+}
+
+export async function updatePipelineNote(
+  companyUserId: string,
+  pipelineId: string,
+  noteId: string,
+  patch: Partial<{ body: string; pinned: boolean }>
+) {
+  const row = await prisma.companyPipelineCandidate.findFirst({
+    where: { id: pipelineId, companyUserId },
+  });
+  if (!row) return null;
+
+  const notes = parseNotes((row as { notesJson?: unknown }).notesJson).map((n) =>
+    n.id === noteId
+      ? {
+          ...n,
+          ...(patch.body != null ? { body: patch.body.trim() } : {}),
+          ...(patch.pinned != null ? { pinned: patch.pinned } : {}),
+          updatedAt: new Date().toISOString(),
+        }
+      : n
+  );
+  await prisma.$executeRaw`
+    UPDATE "CompanyPipelineCandidate" SET "notesJson" = ${JSON.stringify(notes)}::jsonb, "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${pipelineId}
+  `;
+  return notes.find((n) => n.id === noteId) ?? null;
 }
 
 export async function schedulePipelineInterview(
@@ -243,4 +577,13 @@ export async function sendPipelineMessage(
   });
 
   return msg;
+}
+
+export async function loadPipelineCompare(
+  companyUserId: string,
+  pipelineIds: string[]
+): Promise<PipelineCard[]> {
+  const hub = await loadCompanyPipelineHub(companyUserId, { includeArchived: true });
+  const map = new Map(hub.pipelinePool.map((c) => [c.id, c]));
+  return pipelineIds.map((id) => map.get(id)).filter(Boolean) as PipelineCard[];
 }

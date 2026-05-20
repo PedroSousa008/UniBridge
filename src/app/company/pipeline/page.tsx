@@ -11,7 +11,7 @@ export default async function CompanyPipelinePage() {
     <div>
       <PageHeader
         title="Pipeline"
-        subtitle="Relationship and hiring process — synced with student profiles, applications, and calendars."
+        subtitle="Your intelligent talent operating space — curate, watch, and grow relationships with future leaders."
       />
       <CompanyPipelineCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
     </div>
