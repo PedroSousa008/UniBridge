@@ -85,6 +85,15 @@ const STATEMENTS: string[] = [
     CONSTRAINT "CompanyTeamMember_pkey" PRIMARY KEY ("id")
   )`,
   `CREATE INDEX IF NOT EXISTS "CompanyTeamMember_companyUserId_idx" ON "CompanyTeamMember"("companyUserId")`,
+  `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "culture" TEXT`,
+  `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "expectations" TEXT`,
+  `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "leadershipStyle" TEXT`,
+  `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "growthPhilosophy" TEXT`,
+  `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "hiringActivity" TEXT DEFAULT 'active'`,
+  `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "hiringPriority" TEXT DEFAULT 'normal'`,
+  `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "visibilitySettings" JSONB`,
+  `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "applicationSettings" JSONB`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "departmentId" TEXT`,
 ];
 
 async function tableReady(): Promise<boolean> {

@@ -5,21 +5,23 @@ import Link from 'next/link';
 import {
   Building2,
   CalendarDays,
+  ChevronRight,
   Loader2,
   Plus,
   Rocket,
   Sparkles,
   Target,
-  Trash2,
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { CompanyDepartmentView } from '@/components/company/company-department-view';
+import { CompanyRoleIntelligenceScreen } from '@/components/company/company-role-intelligence-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { CULTURE_TAG_OPTIONS, ROLE_TYPE_OPTIONS } from '@/lib/company/company-presence-intelligence';
+import { CULTURE_TAG_OPTIONS } from '@/lib/company/company-presence-intelligence';
 import type { CompanyPresenceHub } from '@/lib/company/company-presence-hub';
 
 function StatPill({ label, value }: { label: string; value: string | number }) {
@@ -45,8 +47,14 @@ function CompatBar({ label, value }: { label: string; value: number }) {
   );
 }
 
+type PresenceScreen =
+  | { type: 'overview' }
+  | { type: 'department'; id: string }
+  | { type: 'role'; id: string; departmentId: string };
+
 export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: CompanyPresenceHub }) {
   const [hub, setHub] = useState(initialHub);
+  const [screen, setScreen] = useState<PresenceScreen>({ type: 'overview' });
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
@@ -99,43 +107,6 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
     setEditMode(false);
   }
 
-  async function addRole() {
-    setSaving(true);
-    const res = await fetch('/api/company/presence/roles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: 'New role',
-        roleType: 'internship',
-        remoteType: 'hybrid',
-        requiredSkills: [],
-        preferredSkills: [],
-      }),
-    });
-    if (res.ok) setHub(await res.json());
-    setSaving(false);
-  }
-
-  async function updateRole(roleId: string, patch: Record<string, unknown>) {
-    const role = hub.roles.find((r) => r.id === roleId);
-    if (!role) return;
-    setSaving(true);
-    const res = await fetch('/api/company/presence/roles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...role, ...patch, id: roleId }),
-    });
-    if (res.ok) setHub(await res.json());
-    setSaving(false);
-  }
-
-  async function removeRole(roleId: string) {
-    setSaving(true);
-    const res = await fetch(`/api/company/presence/roles?id=${roleId}`, { method: 'DELETE' });
-    if (res.ok) setHub(await res.json());
-    setSaving(false);
-  }
-
   async function addDepartment() {
     const name = window.prompt('Department name');
     if (!name?.trim()) return;
@@ -161,6 +132,31 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
   }
 
   const c = hub.compatibilityPreview;
+
+  if (screen.type === 'department') {
+    return (
+      <CompanyDepartmentView
+        departmentId={screen.id}
+        onBack={() => {
+          setScreen({ type: 'overview' });
+          void refresh();
+        }}
+        onOpenRole={(roleId) =>
+          setScreen({ type: 'role', id: roleId, departmentId: screen.id })
+        }
+      />
+    );
+  }
+
+  if (screen.type === 'role') {
+    return (
+      <CompanyRoleIntelligenceScreen
+        roleId={screen.id}
+        onBack={() => setScreen({ type: 'department', id: screen.departmentId })}
+        onBackDepartment={() => setScreen({ type: 'department', id: screen.departmentId })}
+      />
+    );
+  }
 
   return (
     <div className="space-y-10">
@@ -453,91 +449,42 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
         </Button>
       ) : null}
 
-      {/* Departments & roles */}
+      {/* Departments */}
       <section>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Roles & team structure</h3>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => void addDepartment()} disabled={saving}>
-              <Plus className="h-4 w-4 mr-1" /> Department
-            </Button>
-            <Button size="sm" variant="brand" onClick={() => void addRole()} disabled={saving}>
-              <Plus className="h-4 w-4 mr-1" /> Role
-            </Button>
-          </div>
+          <h3 className="text-lg font-semibold">Departments</h3>
+          <Button size="sm" variant="outline" onClick={() => void addDepartment()} disabled={saving}>
+            <Plus className="h-4 w-4 mr-1" /> New department
+          </Button>
         </div>
-        <div className="space-y-4">
-          {hub.departments.map((dept) => (
-            <Card key={dept.id}>
-              <CardHeader className="pb-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-base">{dept.name}</CardTitle>
-                  <div className="flex gap-2 text-xs">
-                    <Badge variant="secondary">{dept.occupiedCount} occupied</Badge>
-                    <Badge className="bg-emerald-500/15 text-emerald-700">{dept.openCount} open</Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {dept.roles.map((role) => (
-                  <div
-                    key={role.id}
-                    className={cn(
-                      'rounded-xl border p-4 transition',
-                      role.isFilled && 'opacity-60 bg-muted/30'
-                    )}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium">{role.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {ROLE_TYPE_OPTIONS.find((t) => t.id === role.roleType)?.label ?? role.roleType}
-                          {role.location ? ` · ${role.location}` : ''} · {role.remoteType}
-                        </p>
-                        {role.isFilled ? (
-                          <Badge variant="outline" className="mt-1 text-[10px]">
-                            Filled — applications still open
-                          </Badge>
-                        ) : (
-                          <Badge className="mt-1 text-[10px] bg-emerald-500/15 text-emerald-700">Open</Badge>
-                        )}
-                      </div>
-                      <div className="flex gap-1">
-                        {editMode ? (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => void updateRole(role.id, { isFilled: !role.isFilled })}
-                            >
-                              {role.isFilled ? 'Mark open' : 'Mark filled'}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => void removeRole(role.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">{role.applicationCount} applications</span>
-                        )}
-                      </div>
-                    </div>
-                    {role.description ? (
-                      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{role.description}</p>
-                    ) : null}
-                    {(role.salaryMin || role.salaryMax) && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Salary: {role.salaryMin ?? '—'} – {role.salaryMax ?? '—'}
-                      </p>
-                    )}
-                  </div>
-                ))}
-                {dept.roles.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No roles in this department yet.</p>
-                )}
-              </CardContent>
-            </Card>
+        <p className="text-sm text-muted-foreground mb-4">
+          Click a department to manage roles, team culture, and live hiring — each department is a living team.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {hub.departments.filter((d) => d.id !== '_general').map((dept) => (
+            <button
+              key={dept.id}
+              type="button"
+              onClick={() => setScreen({ type: 'department', id: dept.id })}
+              className="group text-left rounded-2xl border bg-gradient-to-br from-card to-muted/20 p-5 transition hover:border-brand/40 hover:shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-lg font-semibold group-hover:text-brand transition-colors">{dept.name}</p>
+                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-brand" />
+              </div>
+              <div className="mt-4 flex gap-2 text-xs">
+                <Badge variant="secondary">{dept.occupiedCount} occupied</Badge>
+                <Badge className="bg-emerald-500/15 text-emerald-700">{dept.openCount} open</Badge>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">{dept.roles.length} roles in ecosystem</p>
+            </button>
           ))}
         </div>
+        {hub.departments.filter((d) => d.id !== '_general').length === 0 && (
+          <p className="text-sm text-muted-foreground rounded-xl border border-dashed p-6 text-center">
+            Create a department like Finance or Strategy to start building your hiring ecosystem.
+          </p>
+        )}
       </section>
 
       {/* Team */}

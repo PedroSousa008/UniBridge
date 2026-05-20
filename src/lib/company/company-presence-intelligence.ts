@@ -154,3 +154,28 @@ export const ROLE_TYPE_OPTIONS = [
   { id: 'leadership', label: 'Leadership track' },
   { id: 'startup_collab', label: 'Startup collaboration' },
 ] as const;
+
+export const HIRING_PRIORITY_OPTIONS = [
+  { id: 'high', label: 'High priority' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'low', label: 'Low' },
+] as const;
+
+export const ECOSYSTEM_REQUIREMENT_TAGS = [
+  { id: 'gpa_14', label: 'GPA 14+', group: 'academic' as const },
+  { id: 'gpa_15', label: 'GPA 15+', group: 'academic' as const },
+  { id: 'fluent_english', label: 'Fluent English', group: 'skills' as const },
+  { id: 'communication', label: 'Strong communication', group: 'skills' as const },
+  { id: 'analytical', label: 'Analytical thinking', group: 'skills' as const },
+  { id: 'excel', label: 'Excel / spreadsheets', group: 'skills' as const },
+  { id: 'erasmus', label: 'Erasmus / international', group: 'experience' as const },
+  { id: 'startup_exp', label: 'Startup experience', group: 'experience' as const },
+  { id: 'leadership', label: 'Leadership roles', group: 'experience' as const },
+  { id: 'networking', label: 'Networking activity', group: 'experience' as const },
+  { id: 'internship_exp', label: 'Prior internships', group: 'experience' as const },
+  { id: 'availability', label: 'Full-time availability', group: 'other' as const },
+] as const;
+
+export function labelForRequirementTag(id: string): string {
+  return ECOSYSTEM_REQUIREMENT_TAGS.find((t) => t.id === id)?.label ?? id;
+}

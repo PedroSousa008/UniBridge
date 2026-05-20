@@ -12,7 +12,7 @@ function newId() {
   return crypto.randomUUID();
 }
 
-function parseJsonArray(val: unknown): string[] {
+export function parseJsonArray(val: unknown): string[] {
   if (Array.isArray(val)) return val.map(String);
   return [];
 }
@@ -240,7 +240,7 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
              "preferredQualities", "growthOpportunities", "salaryMin", "salaryMax",
              "remoteType", "location", "startDate", "isFilled", "status", "internshipId"
       FROM "CompanyRole"
-      WHERE "companyUserId" = ${companyUserId}
+      WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
       ORDER BY "sortOrder" ASC, "title" ASC
     `,
   ]);
@@ -560,6 +560,19 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
     select: { id: true, universityId: true },
   });
 
+  const statusRow = await prisma.$queryRaw<{ status: string }[]>`
+    SELECT "status" FROM "CompanyRole" WHERE "id" = ${roleId} LIMIT 1
+  `;
+  if (statusRow[0]?.status === 'archived') {
+    if (role.internshipId) {
+      await prisma.internship.update({
+        where: { id: role.internshipId },
+        data: { status: 'ARCHIVED' },
+      });
+    }
+    return;
+  }
+
   const availability = role.isFilled ? 'filled' : 'available';
   const payload = {
     title: role.title,
@@ -625,6 +638,9 @@ export async function upsertCompanyRole(
           "startDate" = ${role.startDate ? new Date(String(role.startDate)) : null},
           "isFilled" = ${Boolean(role.isFilled)},
           "status" = ${String(role.status ?? 'published')},
+          "hiringPriority" = ${String(role.hiringPriority ?? 'normal')},
+          "visibilitySettings" = ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
+          "applicationSettings" = ${JSON.stringify(role.applicationSettings ?? {})}::jsonb,
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${id} AND "companyUserId" = ${companyUserId}
       `
@@ -633,7 +649,8 @@ export async function upsertCompanyRole(
           "id", "companyUserId", "departmentId", "title", "roleType", "description",
           "responsibilities", "expectations", "requiredSkills", "preferredSkills",
           "nonNegotiables", "preferredQualities", "growthOpportunities",
-          "salaryMin", "salaryMax", "remoteType", "location", "startDate", "isFilled", "status"
+          "salaryMin", "salaryMax", "remoteType", "location", "startDate", "isFilled", "status",
+          "hiringPriority", "visibilitySettings", "applicationSettings"
         ) VALUES (
           ${id}, ${companyUserId},
           ${typeof role.departmentId === 'string' ? role.departmentId : null},
@@ -653,7 +670,10 @@ export async function upsertCompanyRole(
           ${typeof role.location === 'string' ? role.location : null},
           ${role.startDate ? new Date(String(role.startDate)) : null},
           ${Boolean(role.isFilled)},
-          ${String(role.status ?? 'published')}
+          ${String(role.status ?? 'published')},
+          ${String(role.hiringPriority ?? 'normal')},
+          ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
+          ${JSON.stringify(role.applicationSettings ?? {})}::jsonb
         )
       `;
 
