@@ -28,7 +28,7 @@ export function StudentAcademicsClient() {
     { href: '/student/academics/documents', label: tr('student.academics.documents'), description: 'Academic resource library', icon: FileText },
     { href: '/student/academics/attendance', label: tr('student.academics.attendance'), description: 'Presence & consistency dashboard', icon: UserCheck },
     { href: '/student/academics/announcements', label: tr('student.academics.announcements'), description: 'Synced updates hub with live alerts', icon: Megaphone },
-    { href: '/student/academics/messages', label: tr('student.academics.messages'), description: 'Class channels by subject', icon: MessageSquare },
+    { href: '/student/academics/messages', label: tr('student.academics.messages'), description: 'Class channels with unread indicators', icon: MessageSquare },
     { href: '/student/academics/resources', label: tr('student.academics.resources'), description: tr('common.comingSoon'), icon: BookOpen },
   ];
 

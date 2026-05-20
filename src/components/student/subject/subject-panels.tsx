@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { SubjectWorkspace } from '@/lib/student/subject-context';
+import { extractMessageMeta, searchMessages } from '@/lib/student/student-messages';
 import {
   attendanceSummary,
   buildGradeRows,
@@ -523,7 +524,25 @@ export function SubjectMessagesPanel({
 }) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [search, setSearch] = useState('');
   const [messages, setMessages] = useState(ws.messages);
+
+  useEffect(() => {
+    fetch('/api/student/messages/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subjectId }),
+    }).catch(() => {});
+  }, [subjectId]);
+
+  const searchHits = useMemo(
+    () => (search.trim() ? searchMessages(messages, search) : []),
+    [messages, search]
+  );
+  const hitIds = useMemo(() => new Set(searchHits.map((h) => h.id)), [searchHits]);
+  const displayMessages = search.trim()
+    ? messages.filter((m) => hitIds.has(m.id))
+    : messages;
 
   async function send() {
     if (!body.trim()) return;
@@ -541,6 +560,18 @@ export function SubjectMessagesPanel({
     setSending(false);
   }
 
+  function highlightBody(text: string) {
+    if (!search.trim()) return text;
+    const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let result = text;
+    for (const term of terms) {
+      if (term.length < 2 || ['file', 'files', 'link', 'links'].includes(term)) continue;
+      const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      result = result.replace(re, '«$1»');
+    }
+    return result;
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
@@ -551,23 +582,59 @@ export function SubjectMessagesPanel({
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search messages, links, files, keywords…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          {search.trim() && (
+            <p className="mb-3 text-xs text-muted-foreground">
+              {searchHits.length} result{searchHits.length === 1 ? '' : 's'}
+              {searchHits.some((h) => h.hasFile) ? ' · includes files' : ''}
+              {searchHits.some((h) => h.hasLink) ? ' · includes links' : ''}
+            </p>
+          )}
           <div className="mb-4 max-h-[400px] space-y-3 overflow-y-auto">
-            {messages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Start the conversation.</p>
+            {displayMessages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {search.trim() ? 'No messages match your search.' : 'Start the conversation.'}
+              </p>
             ) : (
-              messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={`rounded-xl p-3 text-sm ${
-                    m.authorId === userId ? 'ml-8 bg-brand/10' : 'mr-8 bg-muted/50'
-                  }`}
-                >
-                  <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {m.author.name}
-                  </p>
-                  <p>{m.body}</p>
-                </div>
-              ))
+              displayMessages.map((m) => {
+                const meta = extractMessageMeta(m.body);
+                return (
+                  <div
+                    key={m.id}
+                    id={`msg-${m.id}`}
+                    className={`rounded-xl p-3 text-sm ${
+                      m.authorId === userId ? 'ml-8 bg-brand/10' : 'mr-8 bg-muted/50'
+                    } ${search.trim() && hitIds.has(m.id) ? 'ring-1 ring-brand/30' : ''}`}
+                  >
+                    <p className="text-xs font-medium text-muted-foreground mb-1">
+                      {m.author.name}
+                    </p>
+                    <p className="whitespace-pre-wrap">{highlightBody(m.body)}</p>
+                    {(meta.hasLink || meta.hasFile) && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {meta.hasLink && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            link
+                          </Badge>
+                        )}
+                        {meta.hasFile && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            file
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
           <div className="flex gap-2">
