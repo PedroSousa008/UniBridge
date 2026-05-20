@@ -20,7 +20,7 @@ export function StudentCareerClient() {
   const { tr } = useI18n();
 
   const modules = [
-    { href: '/student/career/paths', label: tr('student.career.paths'), description: tr('common.comingSoon'), icon: TrendingUp },
+    { href: '/student/career/paths', label: tr('student.career.paths'), description: 'Personalized roadmap with compatibility scores', icon: TrendingUp },
     { href: '/student/career/compatibility', label: tr('student.career.compatibility'), description: tr('common.comingSoon'), icon: Target },
     { href: '/student/career/mentor', label: tr('student.career.mentor'), description: tr('common.comingSoon'), icon: Sparkles },
     { href: '/student/career/salary', label: tr('student.career.salary'), description: tr('common.comingSoon'), icon: Wallet },

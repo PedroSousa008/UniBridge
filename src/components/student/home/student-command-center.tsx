@@ -401,7 +401,7 @@ export function StudentCommandCenter({
               <Card className="lg:col-span-3 border-dashed">
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
                   Set career targets to unlock compatibility tracking.{' '}
-                  <Link href="/student/career/compatibility" className="text-brand underline">Get started</Link>
+                  <Link href="/student/career/paths" className="text-brand underline">Get started</Link>
                 </CardContent>
               </Card>
             ) : (

@@ -26,9 +26,39 @@ export async function POST(request: Request) {
   const body = await request.json();
   const roleTitle = String(body.roleTitle || '').trim();
   const companyName = String(body.companyName || '').trim() || null;
+  const careerPathId = body.careerPathId ? String(body.careerPathId) : null;
+  const compatibility = body.compatibility != null ? Number(body.compatibility) : 0;
+  const missingRequirements =
+    body.missingRequirements != null ? JSON.stringify(body.missingRequirements) : null;
 
   if (!roleTitle) {
     return NextResponse.json({ error: 'Role title is required' }, { status: 400 });
+  }
+
+  const existing = careerPathId
+    ? await prisma.careerTarget.findFirst({
+        where: { userId: session.user.id, careerPathId },
+      })
+    : await prisma.careerTarget.findFirst({
+        where: { userId: session.user.id, roleTitle, companyName },
+      });
+
+  if (existing) {
+    const updated = await prisma.careerTarget.update({
+      where: { id: existing.id },
+      data: {
+        compatibility,
+        missingRequirements,
+        isPrimary: body.setPrimary === true ? true : existing.isPrimary,
+      },
+    });
+    if (body.setPrimary === true) {
+      await prisma.careerTarget.updateMany({
+        where: { userId: session.user.id, id: { not: existing.id } },
+        data: { isPrimary: false },
+      });
+    }
+    return NextResponse.json({ target: updated });
   }
 
   const count = await prisma.careerTarget.count({
@@ -40,10 +70,55 @@ export async function POST(request: Request) {
       userId: session.user.id,
       roleTitle,
       companyName,
-      compatibility: 0,
-      isPrimary: count === 0,
+      careerPathId: careerPathId && !careerPathId.startsWith('archetype-') ? careerPathId : null,
+      compatibility,
+      missingRequirements,
+      isPrimary: body.setPrimary === true || count === 0,
     },
   });
 
+  if (body.setPrimary === true) {
+    await prisma.careerTarget.updateMany({
+      where: { userId: session.user.id, id: { not: target.id } },
+      data: { isPrimary: false },
+    });
+  }
+
   return NextResponse.json({ target }, { status: 201 });
+}
+
+export async function PATCH(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || session.user.role !== 'STUDENT') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const targetId = String(body.targetId || '');
+  if (!targetId) {
+    return NextResponse.json({ error: 'targetId required' }, { status: 400 });
+  }
+
+  const target = await prisma.careerTarget.findFirst({
+    where: { id: targetId, userId: session.user.id },
+  });
+  if (!target) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  if (body.setPrimary === true) {
+    await prisma.careerTarget.updateMany({
+      where: { userId: session.user.id },
+      data: { isPrimary: false },
+    });
+  }
+
+  const updated = await prisma.careerTarget.update({
+    where: { id: targetId },
+    data: {
+      isPrimary: body.setPrimary === true ? true : body.isPrimary ?? target.isPrimary,
+    },
+  });
+
+  return NextResponse.json({ target: updated });
 }

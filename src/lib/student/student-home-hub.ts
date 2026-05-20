@@ -424,7 +424,7 @@ export async function loadStudentHomeHub(studentId: string, userName: string | n
     insights.push({
       id: 'career',
       text: `Career compatibility averaging ${compatibilityAvg}% across your targets.`,
-      href: '/student/career/compatibility',
+      href: '/student/career/paths',
     });
   }
   if (startupReadiness != null && startupReadiness > 0) {
@@ -460,7 +460,7 @@ export async function loadStudentHomeHub(studentId: string, userName: string | n
   quickActions.push({
     id: 'career',
     label: careerTargets.length ? 'View Career Path' : 'Explore Career',
-    href: careerTargets.length ? '/student/career/compatibility' : '/student/career',
+    href: careerTargets.length ? '/student/career/paths' : '/student/career',
   });
   if (startups.length > 0) {
     quickActions.push({
@@ -635,7 +635,7 @@ export async function loadStudentHomeHub(studentId: string, userName: string | n
         roleTitle: t.roleTitle,
         companyName: t.companyName,
         compatibility: Math.round(t.compatibility),
-        href: '/student/career/compatibility',
+        href: '/student/career/paths',
       })),
       avgCompatibility: compatibilityAvg,
       recommendedActions,
