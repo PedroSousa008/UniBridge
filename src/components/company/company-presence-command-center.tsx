@@ -15,7 +15,10 @@ import {
   Users,
 } from 'lucide-react';
 import { CompanyDepartmentView } from '@/components/company/company-department-view';
+import { CompanyRoleFitIntelligenceView } from '@/components/company/company-role-fit-intelligence-view';
 import { CompanyRoleIntelligenceScreen } from '@/components/company/company-role-intelligence-view';
+import { CompanyRoleRequirementsHub } from '@/components/company/company-role-requirements-hub';
+import { CompanyRolePanel } from '@/components/company/company-role-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,6 +52,8 @@ function CompatBar({ label, value }: { label: string; value: number }) {
 
 type PresenceScreen =
   | { type: 'overview' }
+  | { type: 'requirements_hub' }
+  | { type: 'role_fit'; roleId: string }
   | { type: 'department'; id: string }
   | { type: 'role'; id: string; departmentId: string };
 
@@ -57,6 +62,8 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
   const [screen, setScreen] = useState<PresenceScreen>({ type: 'overview' });
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [createRoleDeptId, setCreateRoleDeptId] = useState<string | null>(null);
+  const [createRoleOpen, setCreateRoleOpen] = useState(false);
   const [draft, setDraft] = useState({
     cultureHeadline: initialHub.hero.cultureHeadline ?? '',
     ownerName: initialHub.hero.ownerName ?? '',
@@ -132,6 +139,50 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
   }
 
   const c = hub.compatibilityPreview;
+
+  if (screen.type === 'requirements_hub') {
+    const firstDept = hub.departments.find((d) => d.id !== '_general');
+    return (
+      <>
+        <CompanyRoleRequirementsHub
+          onBack={() => {
+            setScreen({ type: 'overview' });
+            void refresh();
+          }}
+          onOpenRole={(roleId) => setScreen({ type: 'role_fit', roleId })}
+          onCreateRole={() => {
+            if (firstDept) {
+              setCreateRoleDeptId(firstDept.id);
+              setCreateRoleOpen(true);
+            } else {
+              void addDepartment();
+            }
+          }}
+        />
+        {createRoleDeptId ? (
+          <CompanyRolePanel
+            open={createRoleOpen}
+            departmentId={createRoleDeptId}
+            departmentName={hub.departments.find((d) => d.id === createRoleDeptId)?.name ?? 'Department'}
+            onClose={() => setCreateRoleOpen(false)}
+            onSaved={() => {
+              setCreateRoleOpen(false);
+              void refresh();
+            }}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  if (screen.type === 'role_fit') {
+    return (
+      <CompanyRoleFitIntelligenceView
+        roleId={screen.roleId}
+        onBack={() => setScreen({ type: 'requirements_hub' })}
+      />
+    );
+  }
 
   if (screen.type === 'department') {
     return (
@@ -301,55 +352,68 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
           </CardContent>
         </Card>
 
-        {/* Non-negotiables */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base">Requirements & fit</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground mb-2">Non-negotiables</p>
-              {editMode ? (
-                <textarea
-                  className="min-h-[80px] w-full rounded-xl border px-3 py-2 text-sm"
-                  value={draft.nonNegotiables}
-                  onChange={(e) => setDraft({ ...draft, nonNegotiables: e.target.value })}
-                  placeholder="One per line"
-                />
-              ) : (
-                <ul className="space-y-1 text-sm">
-                  {hub.nonNegotiables.length === 0 ? (
-                    <li className="text-muted-foreground">Add absolute requirements students must meet.</li>
-                  ) : (
-                    hub.nonNegotiables.map((n) => (
-                      <li key={n} className="rounded-lg bg-muted/50 px-2 py-1">
-                        {n}
-                      </li>
-                    ))
-                  )}
-                </ul>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground mb-2">Preferred qualities</p>
-              {editMode ? (
-                <textarea
-                  className="min-h-[80px] w-full rounded-xl border px-3 py-2 text-sm"
-                  value={draft.preferredQualities}
-                  onChange={(e) => setDraft({ ...draft, preferredQualities: e.target.value })}
-                />
-              ) : (
-                <div className="flex flex-wrap gap-1">
-                  {hub.preferredQualities.map((q) => (
-                    <Badge key={q} variant="secondary" className="text-[10px]">
-                      {q}
-                    </Badge>
-                  ))}
+        {/* Requirements & fit — opens Role Requirements Hub */}
+        <button
+          type="button"
+          onClick={() => !editMode && setScreen({ type: 'requirements_hub' })}
+          className={cn(
+            'lg:col-span-1 text-left rounded-2xl border bg-card transition',
+            !editMode && 'hover:border-brand/40 hover:shadow-md cursor-pointer group'
+          )}
+        >
+          <Card className="border-0 shadow-none h-full">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center justify-between">
+                Requirements & fit
+                {!editMode && <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-brand" />}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Live role compatibility intelligence — tap to open hub
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3 rounded-xl bg-brand/5 border border-brand/20 p-3">
+                <Sparkles className="h-8 w-8 text-brand shrink-0" />
+                <div>
+                  <p className="text-2xl font-bold text-brand tabular-nums">
+                    {hub.departments.reduce((n, d) => n + d.roles.length, 0)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Roles with requirements</p>
                 </div>
+              </div>
+              {editMode ? (
+                <>
+                  <textarea
+                    className="min-h-[60px] w-full rounded-xl border px-3 py-2 text-sm"
+                    value={draft.nonNegotiables}
+                    onChange={(e) => setDraft({ ...draft, nonNegotiables: e.target.value })}
+                    placeholder="Company-wide non-negotiables (one per line)"
+                  />
+                  <textarea
+                    className="min-h-[60px] w-full rounded-xl border px-3 py-2 text-sm"
+                    value={draft.preferredQualities}
+                    onChange={(e) => setDraft({ ...draft, preferredQualities: e.target.value })}
+                    placeholder="Company-wide preferred qualities"
+                  />
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {hub.nonNegotiables.length} company-wide non-negotiables ·{' '}
+                    {hub.preferredQualities.length} preferred qualities
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {[...hub.nonNegotiables.slice(0, 2), ...hub.preferredQualities.slice(0, 2)].map((q) => (
+                      <Badge key={q} variant="secondary" className="text-[10px]">
+                        {q}
+                      </Badge>
+                    ))}
+                  </div>
+                </>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </button>
       </div>
 
       {/* Culture */}

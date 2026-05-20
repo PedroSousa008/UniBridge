@@ -641,6 +641,7 @@ export async function upsertCompanyRole(
           "hiringPriority" = ${String(role.hiringPriority ?? 'normal')},
           "visibilitySettings" = ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
           "applicationSettings" = ${JSON.stringify(role.applicationSettings ?? {})}::jsonb,
+          "structuredRequirements" = ${JSON.stringify(role.structuredRequirements ?? [])}::jsonb,
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${id} AND "companyUserId" = ${companyUserId}
       `
@@ -650,7 +651,7 @@ export async function upsertCompanyRole(
           "responsibilities", "expectations", "requiredSkills", "preferredSkills",
           "nonNegotiables", "preferredQualities", "growthOpportunities",
           "salaryMin", "salaryMax", "remoteType", "location", "startDate", "isFilled", "status",
-          "hiringPriority", "visibilitySettings", "applicationSettings"
+          "hiringPriority", "visibilitySettings", "applicationSettings", "structuredRequirements"
         ) VALUES (
           ${id}, ${companyUserId},
           ${typeof role.departmentId === 'string' ? role.departmentId : null},
@@ -673,7 +674,8 @@ export async function upsertCompanyRole(
           ${String(role.status ?? 'published')},
           ${String(role.hiringPriority ?? 'normal')},
           ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
-          ${JSON.stringify(role.applicationSettings ?? {})}::jsonb
+          ${JSON.stringify(role.applicationSettings ?? {})}::jsonb,
+          ${JSON.stringify(role.structuredRequirements ?? [])}::jsonb
         )
       `;
 

@@ -176,6 +176,18 @@ export function PartnershipCompanyView({
                   <li key={i}>· {r}</li>
                 ))}
               </ul>
+              {p.improveCompatibilityTips.length > 0 ? (
+                <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-3">
+                  <p className="text-xs font-medium text-brand mb-2">
+                    To improve your compatibility with {detail.name}
+                  </p>
+                  <ul className="text-xs space-y-1 text-muted-foreground">
+                    {p.improveCompatibilityTips.map((tip) => (
+                      <li key={tip}>· {tip}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
           {p && (p.nonNegotiables.length > 0 || p.preferredQualities.length > 0) ? (

@@ -408,6 +408,22 @@ export async function archiveCompanyRole(companyUserId: string, roleId: string) 
 export async function duplicateCompanyRole(companyUserId: string, roleId: string) {
   const intel = await loadCompanyRoleIntelligence(companyUserId, roleId);
   if (!intel) return null;
+  const row = await loadRoleRow(companyUserId, roleId);
+  const { parseStructuredRequirements, migrateLegacyToStructured } = await import(
+    '@/lib/company/company-role-requirements'
+  );
+  let structured = parseStructuredRequirements(row?.structuredRequirements);
+  if (structured.length === 0) {
+    structured = migrateLegacyToStructured({
+      nonNegotiables: intel.nonNegotiables,
+      preferredQualities: intel.preferredQualities,
+      requiredSkills: intel.requiredSkills,
+    });
+  }
+  const copiedStructured = structured.map((r) => ({
+    ...r,
+    id: crypto.randomUUID(),
+  }));
   return upsertCompanyRole(companyUserId, {
     departmentId: intel.departmentId,
     title: `${intel.title} (copy)`,
@@ -426,6 +442,7 @@ export async function duplicateCompanyRole(companyUserId: string, roleId: string
     visibilitySettings: intel.visibilitySettings,
     applicationSettings: intel.applicationSettings,
     hiringPriority: intel.hiringPriority,
+    structuredRequirements: copiedStructured,
   });
 }
 

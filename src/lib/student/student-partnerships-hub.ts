@@ -72,6 +72,7 @@ export interface PartnershipCompanyPresenceSlice {
   attractivenessScore: number;
   whyJoin: { title: string; description: string }[];
   events: { id: string; title: string; startsAt: string }[];
+  improveCompatibilityTips: string[];
 }
 
 export interface PartnershipCompanyDetail extends PartnershipCompanyCard {
@@ -318,8 +319,36 @@ export async function loadPartnershipCompanyDetail(
 
   let presence: PartnershipCompanyPresenceSlice | undefined;
   try {
-    const { loadCompanyPresenceForStudent } = await import('@/lib/company/company-presence-hub');
+    const { loadCompanyPresenceForStudent, parseJsonArray } = await import('@/lib/company/company-presence-hub');
+    const {
+      buildStudentRoleFitGaps,
+      migrateLegacyToStructured,
+      parseStructuredRequirements,
+    } = await import('@/lib/company/company-role-requirements');
+    const { labelForRequirementTag } = await import('@/lib/company/company-presence-intelligence');
     const p = await loadCompanyPresenceForStudent(partnership.companyUserId, userId);
+
+    const roleRows = await prisma.$queryRaw<
+      { structuredRequirements: unknown; nonNegotiables: unknown; preferredQualities: unknown; requiredSkills: unknown }[]
+    >`
+      SELECT "structuredRequirements", "nonNegotiables", "preferredQualities", "requiredSkills"
+      FROM "CompanyRole"
+      WHERE "companyUserId" = ${partnership.companyUserId} AND "status" != 'archived'
+    `;
+    const mergedReqs = roleRows.flatMap((row) => {
+      let structured = parseStructuredRequirements(row.structuredRequirements);
+      if (structured.length === 0) {
+        structured = migrateLegacyToStructured({
+          nonNegotiables: parseJsonArray(row.nonNegotiables).map(labelForRequirementTag),
+          preferredQualities: parseJsonArray(row.preferredQualities).map(labelForRequirementTag),
+          requiredSkills: parseJsonArray(row.requiredSkills).map(labelForRequirementTag),
+        });
+      }
+      return structured.filter((r) => r.status === 'active');
+    });
+
+    const improveCompatibilityTips = buildStudentRoleFitGaps(profile, name, mergedReqs);
+
     presence = {
       cultureHeadline: p.hero.cultureHeadline,
       compatibility: p.compatibility,
@@ -341,6 +370,7 @@ export async function loadPartnershipCompanyDetail(
       attractivenessScore: p.attractiveness.score,
       whyJoin: p.whyJoin,
       events: p.events.map((e) => ({ id: e.id, title: e.title, startsAt: e.startsAt })),
+      improveCompatibilityTips,
     };
   } catch {
     /* presence tables optional */
