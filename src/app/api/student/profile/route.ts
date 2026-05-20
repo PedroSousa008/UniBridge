@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ensureProfileIdentityTables } from '@/lib/db/ensure-profile-identity-schema';
-import { parseJsonArray } from '@/lib/career/profile-intelligence';
+import {
+  isProfileVisibility,
+  parseJsonArray,
+  serializeVisibilityField,
+  type ProfileVisibility,
+} from '@/lib/career/profile-intelligence';
 import { loadStudentProfileHub } from '@/lib/student/student-profile-hub';
 import { requireSession } from '@/lib/session';
 
@@ -37,6 +42,18 @@ export async function PATCH(req: NextRequest) {
     });
   }
 
+  function parseVisibilityBody(key: string): string | undefined {
+    const val = body[key];
+    if (Array.isArray(val)) {
+      const arr = val.filter((x): x is ProfileVisibility => typeof x === 'string' && isProfileVisibility(x));
+      if (arr.length > 0) return serializeVisibilityField(arr);
+    }
+    if (typeof val === 'string' && isProfileVisibility(val)) {
+      return serializeVisibilityField([val]);
+    }
+    return undefined;
+  }
+
   if (dbReady) {
     const settingsData = {
       age: typeof body.age === 'number' ? body.age : undefined,
@@ -54,12 +71,12 @@ export async function PATCH(req: NextRequest) {
       openToNetworking: typeof body.openToNetworking === 'boolean' ? body.openToNetworking : undefined,
       openToStartup: typeof body.openToStartup === 'boolean' ? body.openToStartup : undefined,
       openToFullTime: typeof body.openToFullTime === 'boolean' ? body.openToFullTime : undefined,
-      visibilityProfile: typeof body.visibilityProfile === 'string' ? body.visibilityProfile : undefined,
-      visibilityCv: typeof body.visibilityCv === 'string' ? body.visibilityCv : undefined,
-      visibilityProjects: typeof body.visibilityProjects === 'string' ? body.visibilityProjects : undefined,
-      visibilityNetworking: typeof body.visibilityNetworking === 'string' ? body.visibilityNetworking : undefined,
-      visibilityAchievements: typeof body.visibilityAchievements === 'string' ? body.visibilityAchievements : undefined,
-      visibilityOpportunities: typeof body.visibilityOpportunities === 'string' ? body.visibilityOpportunities : undefined,
+      visibilityProfile: parseVisibilityBody('visibilityProfile'),
+      visibilityCv: parseVisibilityBody('visibilityCv'),
+      visibilityProjects: parseVisibilityBody('visibilityProjects'),
+      visibilityNetworking: parseVisibilityBody('visibilityNetworking'),
+      visibilityAchievements: parseVisibilityBody('visibilityAchievements'),
+      visibilityOpportunities: parseVisibilityBody('visibilityOpportunities'),
     };
 
     const clean = Object.fromEntries(Object.entries(settingsData).filter(([, v]) => v !== undefined));

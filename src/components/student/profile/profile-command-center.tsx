@@ -25,7 +25,12 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { ProfileHub } from '@/lib/student/student-profile-hub';
-import type { ProfileVisibility } from '@/lib/career/profile-intelligence';
+import {
+  formatVisibilityLabels,
+  toggleVisibilitySelection,
+  type ProfileVisibility,
+  type VisibilitySectionKey,
+} from '@/lib/career/profile-intelligence';
 import { ProgressRing } from '@/components/student/home/progress-ring';
 
 export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub }) {
@@ -51,7 +56,14 @@ export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub })
   });
   const [newProject, setNewProject] = useState({ title: '', description: '', linkUrl: '', tags: '' });
   const [openTo, setOpenTo] = useState(hub.openTo);
-  const [visibility, setVisibility] = useState(hub.visibility);
+  const [visibility, setVisibility] = useState<Record<string, ProfileVisibility[]>>(hub.visibility);
+
+  function toggleVisibilitySection(sectionKey: VisibilitySectionKey, audienceId: ProfileVisibility) {
+    setVisibility((prev) => ({
+      ...prev,
+      [sectionKey]: toggleVisibilitySelection(prev[sectionKey] ?? [], audienceId),
+    }));
+  }
 
   const split = (s: string) =>
     s
@@ -566,24 +578,43 @@ export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub })
               ))}
 
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground pt-2">Visibility</p>
-              {(['visibilityProfile', 'visibilityCv', 'visibilityProjects'] as const).map((key) => (
-                <div key={key}>
-                  <label className="text-xs text-muted-foreground">{key.replace('visibility', '')}</label>
-                  <select
-                    className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                    value={visibility[key]}
-                    onChange={(e) =>
-                      setVisibility({ ...visibility, [key]: e.target.value as ProfileVisibility })
-                    }
-                  >
-                    {hub.visibilityOptions.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+              <p className="text-xs text-muted-foreground">
+                Select one or more audiences per section. Private hides from everyone else; other options can be combined.
+              </p>
+              {hub.visibilitySections.map(({ key, label }) => {
+                const selected = visibility[key] ?? [];
+                return (
+                  <div key={key} className="rounded-lg border bg-muted/20 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="text-xs font-medium text-foreground">{label}</label>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatVisibilityLabels(selected)}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {hub.visibilityOptions.map((opt) => {
+                        const active = selected.includes(opt.id);
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            title={opt.description}
+                            onClick={() => toggleVisibilitySection(key, opt.id)}
+                            className={cn(
+                              'rounded-full border px-2.5 py-1 text-xs transition',
+                              active
+                                ? 'border-violet-500 bg-violet-500/15 text-violet-800 dark:text-violet-200'
+                                : 'border-transparent bg-background hover:border-muted-foreground/30'
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <div className="border-t p-4">
               <Button className="w-full" onClick={() => void saveProfile()} disabled={saving}>

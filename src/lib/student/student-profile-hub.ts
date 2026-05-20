@@ -7,8 +7,10 @@ import {
   buildVerifiedBadges,
   computeProfileStrength,
   parseJsonArray,
+  parseVisibilityField,
   studentAgeFromYear,
   VISIBILITY_OPTIONS,
+  VISIBILITY_SECTION_KEYS,
   OPEN_TO_OPTIONS,
   type ActivityFeedItem,
   type CareerInterests,
@@ -52,8 +54,9 @@ export interface ProfileHub {
   activityFeed: ActivityFeedItem[];
   careerInterests: CareerInterests;
   openTo: Record<string, boolean>;
-  visibility: Record<string, ProfileVisibility>;
+  visibility: Record<string, ProfileVisibility[]>;
   visibilityOptions: typeof VISIBILITY_OPTIONS;
+  visibilitySections: typeof VISIBILITY_SECTION_KEYS;
   openToOptions: typeof OPEN_TO_OPTIONS;
   editable: {
     name: string;
@@ -470,14 +473,15 @@ export async function loadStudentProfileHub(userId: string): Promise<ProfileHub>
       openToFullTime: settings?.openToFullTime ?? false,
     },
     visibility: {
-      visibilityProfile: (settings?.visibilityProfile ?? 'university') as ProfileVisibility,
-      visibilityCv: (settings?.visibilityCv ?? 'private') as ProfileVisibility,
-      visibilityProjects: (settings?.visibilityProjects ?? 'companies') as ProfileVisibility,
-      visibilityNetworking: (settings?.visibilityNetworking ?? 'private') as ProfileVisibility,
-      visibilityAchievements: (settings?.visibilityAchievements ?? 'public') as ProfileVisibility,
-      visibilityOpportunities: (settings?.visibilityOpportunities ?? 'companies') as ProfileVisibility,
+      visibilityProfile: parseVisibilityField(settings?.visibilityProfile, ['university']),
+      visibilityCv: parseVisibilityField(settings?.visibilityCv, ['private']),
+      visibilityProjects: parseVisibilityField(settings?.visibilityProjects, ['companies']),
+      visibilityNetworking: parseVisibilityField(settings?.visibilityNetworking, ['private']),
+      visibilityAchievements: parseVisibilityField(settings?.visibilityAchievements, ['public']),
+      visibilityOpportunities: parseVisibilityField(settings?.visibilityOpportunities, ['companies']),
     },
     visibilityOptions: VISIBILITY_OPTIONS,
+    visibilitySections: VISIBILITY_SECTION_KEYS,
     openToOptions: OPEN_TO_OPTIONS,
     editable: {
       name: user?.name ?? '',

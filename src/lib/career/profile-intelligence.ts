@@ -4,11 +4,78 @@ export type ProfileVisibility = 'private' | 'university' | 'companies' | 'public
 
 export const VISIBILITY_OPTIONS: { id: ProfileVisibility; label: string; description: string }[] = [
   { id: 'private', label: 'Private', description: 'Only you' },
-  { id: 'university', label: 'University only', description: 'Your institution' },
-  { id: 'companies', label: 'Companies only', description: 'Partners & recruiters' },
+  { id: 'university', label: 'University', description: 'Your institution' },
+  { id: 'companies', label: 'Companies', description: 'Partners & recruiters' },
   { id: 'peers', label: 'Students', description: 'UniBridge peers' },
   { id: 'public', label: 'Public', description: 'Discoverable profile' },
 ];
+
+export const VISIBILITY_SECTION_KEYS = [
+  { key: 'visibilityProfile', label: 'Profile' },
+  { key: 'visibilityCv', label: 'CV' },
+  { key: 'visibilityProjects', label: 'Projects' },
+  { key: 'visibilityNetworking', label: 'Networking' },
+  { key: 'visibilityAchievements', label: 'Achievements' },
+  { key: 'visibilityOpportunities', label: 'Opportunities' },
+] as const;
+
+export type VisibilitySectionKey = (typeof VISIBILITY_SECTION_KEYS)[number]['key'];
+
+const VISIBILITY_IDS: ProfileVisibility[] = ['private', 'university', 'companies', 'public', 'peers'];
+
+export function isProfileVisibility(v: string): v is ProfileVisibility {
+  return VISIBILITY_IDS.includes(v as ProfileVisibility);
+}
+
+/** Parse DB value: JSON array or legacy single string. */
+export function parseVisibilityField(
+  raw: string | null | undefined,
+  fallback: ProfileVisibility[]
+): ProfileVisibility[] {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      const valid = parsed.filter((x): x is ProfileVisibility => typeof x === 'string' && isProfileVisibility(x));
+      return valid.length > 0 ? valid : fallback;
+    }
+  } catch {
+    /* legacy single value */
+  }
+  if (isProfileVisibility(raw)) return [raw];
+  return fallback;
+}
+
+export function serializeVisibilityField(values: ProfileVisibility[]): string {
+  const normalized = values.length > 0 ? values : (['private'] as ProfileVisibility[]);
+  return JSON.stringify(normalized);
+}
+
+/** Multi-select: private is exclusive; other audiences can be combined. */
+export function toggleVisibilitySelection(
+  current: ProfileVisibility[],
+  id: ProfileVisibility
+): ProfileVisibility[] {
+  if (id === 'private') {
+    return current.includes('private') ? [] : ['private'];
+  }
+  let next = current.filter((v) => v !== 'private');
+  if (next.includes(id)) {
+    next = next.filter((v) => v !== id);
+  } else {
+    next = [...next, id];
+  }
+  return next;
+}
+
+export function formatVisibilityLabels(values: ProfileVisibility[]): string {
+  if (values.length === 0 || (values.length === 1 && values[0] === 'private')) {
+    return 'Private';
+  }
+  return values
+    .map((id) => VISIBILITY_OPTIONS.find((o) => o.id === id)?.label ?? id)
+    .join(' · ');
+}
 
 export const OPEN_TO_OPTIONS = [
   { id: 'openToInternships', label: 'Open to Internships' },
