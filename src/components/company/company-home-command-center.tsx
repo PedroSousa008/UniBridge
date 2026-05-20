@@ -5,6 +5,7 @@ import { ArrowRight, Building2, Target, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { CompanyHomeHub } from '@/lib/company/company-home-hub';
+import { PartnershipEcosystemPanel } from '@/components/partnerships/partnership-ecosystem-panel';
 
 export function CompanyHomeCommandCenter({ initialHub }: { initialHub: CompanyHomeHub }) {
   const hub = initialHub;
@@ -77,23 +78,9 @@ export function CompanyHomeCommandCenter({ initialHub }: { initialHub: CompanyHo
           </ul>
         </section>
 
-        <section className="rounded-2xl border p-6">
-          <p className="mb-4 font-medium">University partnerships</p>
-          <ul className="space-y-2">
-            {hub.partnerships.map((p) => (
-              <li key={p.id} className="flex justify-between rounded-lg border px-4 py-3 text-sm">
-                <span>{p.universityName}</span>
-                {p.tier ? <Badge variant="secondary">{p.tier}</Badge> : null}
-              </li>
-            ))}
-            {hub.partnerships.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Active partnerships unlock verified talent from partner universities — aligned with student Partnerships hub.
-              </p>
-            )}
-          </ul>
-        </section>
       </div>
+
+      <PartnershipEcosystemPanel viewer="company" title="University Partnerships" />
     </div>
   );
 }

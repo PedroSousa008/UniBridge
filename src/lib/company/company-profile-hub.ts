@@ -15,17 +15,23 @@ export interface CompanyProfileHub {
     applications: number;
     careerPaths: number;
   };
+  partneredWith: { id: string; name: string; logoUrl: string | null }[];
   serverTime: string;
 }
 
 export async function loadCompanyProfileHub(userId: string): Promise<CompanyProfileHub> {
-  const [user, profile, partnerships, internships, applications, careerPaths] = await Promise.all([
+  const [user, profile, activePartnerships, internships, applications, careerPaths] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true, image: true },
     }),
     prisma.companyProfile.findUnique({ where: { userId } }),
-    prisma.companyPartnership.count({ where: { companyUserId: userId, status: 'ACTIVE' } }),
+    prisma.companyPartnership.findMany({
+      where: { companyUserId: userId, status: 'ACTIVE' },
+      include: { university: { select: { id: true, name: true, logoUrl: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 12,
+    }),
     prisma.internship.count({ where: { companyUserId: userId } }),
     prisma.internshipApplication.count({ where: { internship: { companyUserId: userId } } }),
     prisma.careerPath.count({ where: { companyUserId: userId, status: 'PUBLISHED' } }),
@@ -44,7 +50,17 @@ export async function loadCompanyProfileHub(userId: string): Promise<CompanyProf
       logoUrl: profile?.logoUrl ?? null,
       headquarters: profile?.headquarters ?? null,
     },
-    stats: { partnerships, internships, applications, careerPaths },
+    stats: {
+      partnerships: activePartnerships.length,
+      internships,
+      applications,
+      careerPaths,
+    },
+    partneredWith: activePartnerships.map((p) => ({
+      id: p.university.id,
+      name: p.university.name,
+      logoUrl: p.university.logoUrl,
+    })),
     serverTime: new Date().toISOString(),
   };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { CompanyProfileHub } from '@/lib/company/company-profile-hub';
@@ -61,6 +61,30 @@ export function CompanyProfileCommandCenter({ initialHub }: { initialHub: Compan
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save company profile'}
         </Button>
       </section>
+
+      {hub.partneredWith.length > 0 ? (
+        <section className="rounded-2xl border p-6">
+          <p className="mb-3 text-sm font-medium">Partnered with</p>
+          <div className="flex flex-wrap gap-3">
+            {hub.partneredWith.map((u) => (
+              <div
+                key={u.id}
+                className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2 text-sm"
+              >
+                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                  {u.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={u.logoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <span className="font-medium">{u.name}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-2 gap-4">
         {[

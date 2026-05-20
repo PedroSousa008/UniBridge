@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Building2 } from 'lucide-react';
 
 const TABS = [
   { id: 'profile', label: 'Profile' },
@@ -43,9 +44,19 @@ export interface UniversityProfileClientProps {
     position: string | null;
     institution: string | null;
   };
+  partneredWith?: {
+    id: string;
+    name: string;
+    logoUrl: string | null;
+    industry: string | null;
+  }[];
 }
 
-export function UniversityProfileClient({ university, admin }: UniversityProfileClientProps) {
+export function UniversityProfileClient({
+  university,
+  admin,
+  partneredWith = [],
+}: UniversityProfileClientProps) {
   const router = useRouter();
   const [tab, setTab] = useState('profile');
   const [saving, setSaving] = useState(false);
@@ -91,6 +102,39 @@ export function UniversityProfileClient({ university, admin }: UniversityProfile
       />
 
       <SectionTabs tabs={TABS} active={tab} onChange={setTab} className="mb-8" />
+
+      {partneredWith.length > 0 ? (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base">Partnered with</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {partneredWith.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2 text-sm"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                    {c.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={c.logoUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium">{c.name}</p>
+                    {c.industry ? (
+                      <p className="text-xs text-muted-foreground">{c.industry}</p>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {tab === 'profile' ? (
         <Card>

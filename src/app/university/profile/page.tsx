@@ -1,5 +1,6 @@
 import { requireSession } from '@/lib/session';
 import { getUniversityContext } from '@/lib/university/context';
+import { prisma } from '@/lib/db';
 import { UniversityProfileClient } from './profile-client';
 
 export default async function UniversityProfilePage() {
@@ -30,6 +31,20 @@ export default async function UniversityProfilePage() {
     );
   }
 
+  const activePartners = await prisma.companyPartnership.findMany({
+    where: { universityId: ctx.university.id, status: 'ACTIVE' },
+    include: {
+      companyUser: {
+        select: {
+          id: true,
+          companyProfile: { select: { companyName: true, logoUrl: true, industry: true } },
+        },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 12,
+  });
+
   return (
     <UniversityProfileClient
       university={{
@@ -49,6 +64,12 @@ export default async function UniversityProfilePage() {
         position: ctx.profile.position,
         institution: ctx.profile.institution,
       }}
+      partneredWith={activePartners.map((p) => ({
+        id: p.companyUser.id,
+        name: p.companyUser.companyProfile?.companyName ?? 'Company',
+        logoUrl: p.companyUser.companyProfile?.logoUrl ?? null,
+        industry: p.companyUser.companyProfile?.industry ?? null,
+      }))}
     />
   );
 }

@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { getUniversityOverviewMetrics } from '@/lib/university/metrics';
+import { PartnershipEcosystemPanel } from '@/components/partnerships/partnership-ecosystem-panel';
 
 type OverviewMetrics = Awaited<ReturnType<typeof getUniversityOverviewMetrics>>;
 
@@ -273,6 +274,8 @@ export function UniversityOverviewClient({
           </div>
         </CardContent>
       </Card>
+
+      <PartnershipEcosystemPanel viewer="university" title="Company Partnerships" />
 
       <Card>
         <CardHeader>
