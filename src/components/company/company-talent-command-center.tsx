@@ -127,12 +127,30 @@ export function CompanyTalentCommandCenter({ initialHub }: { initialHub: Company
                 </Badge>
               ))}
             </div>
-            <Button variant="outline" size="sm" className="mt-4 w-full" asChild>
-              <Link href={c.href}>
-                <Target className="mr-2 h-3.5 w-3.5" />
-                {c.source === 'applicant' ? 'View in pipeline' : 'View candidate'}
-              </Link>
-            </Button>
+            <div className="mt-4 flex gap-2">
+              {c.source === 'partnership' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={async () => {
+                    await fetch('/api/company/pipeline', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ studentUserId: c.userId, stage: 'saved' }),
+                    });
+                  }}
+                >
+                  Save to pipeline
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="flex-1" asChild>
+                <Link href={c.href}>
+                  <Target className="mr-2 h-3.5 w-3.5" />
+                  {c.source === 'applicant' ? 'Pipeline' : 'View'}
+                </Link>
+              </Button>
+            </div>
           </div>
         ))}
       </div>

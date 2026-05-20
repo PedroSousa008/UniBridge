@@ -12,6 +12,8 @@ import {
   Search,
   Target,
   BarChart3,
+  Kanban,
+  CalendarDays,
   Globe,
   Sparkles,
   Settings,
@@ -50,8 +52,11 @@ export const universityNav: RoleNavItem[] = [
 export const companyNav: RoleNavItem[] = [
   { href: '/company/home', labelKey: 'company.nav.home', icon: Home },
   { href: '/company/talent', labelKey: 'company.nav.talent', icon: Search },
+  { href: '/company/pipeline', labelKey: 'company.nav.pipeline', icon: Kanban },
   { href: '/company/opportunities', labelKey: 'company.nav.opportunities', icon: Target },
+  { href: '/company/startups', labelKey: 'company.nav.startups', icon: Rocket },
   { href: '/company/insights', labelKey: 'company.nav.insights', icon: BarChart3 },
+  { href: '/company/events', labelKey: 'company.nav.events', icon: CalendarDays },
   { href: '/company/profile', labelKey: 'company.nav.profile', icon: User },
 ];
 

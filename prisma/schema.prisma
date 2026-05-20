@@ -221,6 +221,7 @@ model University {
   activityItems    ActivityItem[]
   internships      Internship[]
   challenges       CompanyChallenge[]
+  companyEvents    CompanyEvent[]
 }
 
 model User {
@@ -371,6 +372,97 @@ model StudentProfileAchievement {
   createdAt        DateTime @default(now())
 
   @@index([studentProfileId])
+}
+
+model CompanyPipelineCandidate {
+  id               String   @id @default(cuid())
+  companyUserId    String
+  studentUserId    String
+  studentProfileId String?
+  applicationId    String?  @unique
+  stage            String   @default("saved")
+  rating           Int?
+  tags             Json?
+  internalNotes    String?  @db.Text
+  assignedTo       String?
+  reminderAt       DateTime?
+  aiLabels         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  interviews CompanyPipelineInterview[]
+  messages   CompanyPipelineMessage[]
+
+  @@unique([companyUserId, studentUserId])
+  @@index([companyUserId, stage])
+}
+
+model CompanyPipelineInterview {
+  id             String   @id @default(cuid())
+  pipelineId     String
+  pipeline       CompanyPipelineCandidate @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  startAt        DateTime
+  endAt          DateTime
+  meetingLink    String?
+  status         String   @default("scheduled")
+  calendarSynced Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([pipelineId])
+}
+
+model CompanyPipelineMessage {
+  id           String   @id @default(cuid())
+  pipelineId   String
+  pipeline     CompanyPipelineCandidate @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  senderUserId String
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([pipelineId])
+}
+
+model CompanyEvent {
+  id              String    @id @default(cuid())
+  companyUserId   String
+  universityId    String
+  university      University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  title           String
+  coverUrl        String?
+  description     String?   @db.Text
+  status          String    @default("pending_approval")
+  targetDegrees   Json?
+  targetYears     Json?
+  targetSkills    Json?
+  capacity        Int?
+  location        String?
+  isOnline        Boolean   @default(false)
+  speakers        Json?
+  sponsors        Json?
+  scheduleJson    Json?
+  startsAt        DateTime
+  endsAt          DateTime
+  rejectedReason  String?
+  approvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  rsvps CompanyEventRsvp[]
+
+  @@index([companyUserId])
+  @@index([universityId, status])
+}
+
+model CompanyEventRsvp {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         CompanyEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  studentUserId String
+  status        String   @default("rsvp")
+  createdAt     DateTime @default(now())
+
+  @@unique([eventId, studentUserId])
+  @@index([eventId])
 }
 
 model StudentReportedSkill {

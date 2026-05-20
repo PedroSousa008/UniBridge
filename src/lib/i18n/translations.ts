@@ -142,8 +142,11 @@ export const translations = {
       nav: {
         home: 'Home',
         talent: 'Talent',
+        pipeline: 'Pipeline',
         opportunities: 'Opportunities',
+        startups: 'Startup Hub',
         insights: 'Insights',
+        events: 'Events',
         profile: 'Profile',
       },
       home: {
@@ -316,8 +319,11 @@ export const translations = {
       nav: {
         home: 'Início',
         talent: 'Talento',
+        pipeline: 'Pipeline',
         opportunities: 'Oportunidades',
+        startups: 'Startup Hub',
         insights: 'Insights',
+        events: 'Eventos',
         profile: 'Perfil',
       },
       home: {
