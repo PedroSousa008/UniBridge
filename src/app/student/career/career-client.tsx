@@ -25,7 +25,7 @@ export function StudentCareerClient() {
     { href: '/student/career/mentor', label: tr('student.career.mentor'), description: 'AI-powered strategic guidance toward your goals', icon: Sparkles },
     { href: '/student/career/salary', label: tr('student.career.salary'), description: tr('common.comingSoon'), icon: Wallet },
     { href: '/student/career/partnerships', label: tr('student.career.partnerships'), description: 'University-connected career marketplace', icon: Building2 },
-    { href: '/student/career/internships', label: tr('student.career.internships'), description: tr('common.comingSoon'), icon: Briefcase },
+    { href: '/student/career/internships', label: tr('student.career.internships'), description: 'Discover, prepare & track your internship journey', icon: Briefcase },
     { href: '/student/career/opportunities', label: tr('student.career.opportunities'), description: tr('common.comingSoon'), icon: Award },
     { href: '/student/career/cv', label: tr('student.career.cv'), description: tr('common.comingSoon'), icon: FileUser },
     { href: '/student/career/employability', label: tr('student.career.employability'), description: tr('common.comingSoon'), icon: LineChart },

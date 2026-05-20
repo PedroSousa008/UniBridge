@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { APPLICATION_STATUS_LABELS } from '@/lib/career/partnership-intelligence';
-import type { PartnershipJob } from '@/lib/student/student-partnerships-hub';
+import type { InternshipCard } from '@/lib/student/internship-job-builder';
 
 export function PartnershipJobCard({
   job,
@@ -21,7 +21,7 @@ export function PartnershipJobCard({
   onApply,
   compact,
 }: {
-  job: PartnershipJob;
+  job: InternshipCard;
   selected?: boolean;
   compare?: boolean;
   loading?: boolean;
@@ -146,7 +146,7 @@ export function PartnershipJobCard({
   );
 }
 
-export function JobDetailPanel({ job }: { job: PartnershipJob }) {
+export function JobDetailPanel({ job }: { job: InternshipCard }) {
   return (
     <div className="space-y-6">
       <div>
@@ -224,21 +224,21 @@ export function JobDetailPanel({ job }: { job: PartnershipJob }) {
   );
 }
 
-export function JobComparisonTable({ jobs }: { jobs: PartnershipJob[] }) {
+export function JobComparisonTable({ jobs }: { jobs: InternshipCard[] }) {
   if (jobs.length < 2) return null;
   const rows = [
-    { label: 'Compatibility', get: (j: PartnershipJob) => `${j.compatibility}%` },
-    { label: 'Salary', get: (j: PartnershipJob) => j.salaryLabel ?? '—' },
-    { label: 'Location', get: (j: PartnershipJob) => j.location ?? '—' },
-    { label: 'Work mode', get: (j: PartnershipJob) => j.remoteLabel },
-    { label: 'Type', get: (j: PartnershipJob) => j.employmentType },
-    { label: 'Profile completion', get: (j: PartnershipJob) => `${j.profileCompletion}%` },
+    { label: 'Compatibility', get: (j: InternshipCard) => `${j.compatibility}%` },
+    { label: 'Salary', get: (j: InternshipCard) => j.salaryLabel ?? '—' },
+    { label: 'Location', get: (j: InternshipCard) => j.location ?? '—' },
+    { label: 'Work mode', get: (j: InternshipCard) => j.remoteLabel },
+    { label: 'Type', get: (j: InternshipCard) => j.employmentType },
+    { label: 'Profile completion', get: (j: InternshipCard) => `${j.profileCompletion}%` },
     {
       label: 'Top missing skill',
-      get: (j: PartnershipJob) => j.missingSkills[0]?.name ?? 'None',
+      get: (j: InternshipCard) => j.missingSkills[0]?.name ?? 'None',
     },
-    { label: 'Candidates', get: (j: PartnershipJob) => String(j.candidateCount) },
-    { label: 'Status', get: (j: PartnershipJob) => (j.availabilityStatus === 'filled' ? 'Filled' : 'Open') },
+    { label: 'Candidates', get: (j: InternshipCard) => String(j.candidateCount) },
+    { label: 'Status', get: (j: InternshipCard) => (j.availabilityStatus === 'filled' ? 'Filled' : 'Open') },
   ];
 
   return (

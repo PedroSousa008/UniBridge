@@ -1,57 +1,19 @@
-import type { CareerPath, Internship } from '@prisma/client';
+import type { Internship } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { computePathCompatibility } from '@/lib/career/compatibility-engine';
 import {
-  computeBreakdown,
-  whyScoreLines,
-} from '@/lib/career/compatibility-intelligence';
-import {
   alumniPlaceholder,
-  formatSalary,
   hiringStatusLabel,
-  improveCompatibilityTips,
-  inferDepartment,
-  jobAiInsight,
   normalizePartnershipTier,
-  profileCompletionForJob,
-  remoteLabel,
 } from '@/lib/career/partnership-intelligence';
 import { ensurePartnershipTables } from '@/lib/db/ensure-partnerships-schema';
 import { buildStudentProfile } from '@/lib/student/student-career-paths';
+import {
+  buildInternshipCard,
+  type InternshipCard,
+} from '@/lib/student/internship-job-builder';
 
-export interface PartnershipJob {
-  id: string;
-  partnershipId: string;
-  companyUserId: string;
-  companyName: string;
-  title: string;
-  department: string;
-  description: string | null;
-  salaryLabel: string | null;
-  salaryMin: number | null;
-  salaryMax: number | null;
-  location: string | null;
-  remoteType: string;
-  remoteLabel: string;
-  employmentType: string;
-  compatibility: number;
-  requiredSkills: string[];
-  missingSkills: { name: string; gapPercent: number; importance: number }[];
-  matchedSkills: { name: string; score: number; matched: boolean }[];
-  whyMatches: string[];
-  improveTips: string[];
-  aiInsight: string;
-  breakdown: { id: string; label: string; score: number; status: string }[];
-  deadline: string | null;
-  availabilityStatus: 'available' | 'filled';
-  candidateCount: number;
-  isBookmarked: boolean;
-  isCandidate: boolean;
-  applicationStatus: string | null;
-  profileCompletion: number;
-  tags: string[];
-  createdAt: string;
-}
+export type PartnershipJob = InternshipCard;
 
 export interface PartnershipCompanyCard {
   id: string;
@@ -92,92 +54,6 @@ export interface PartnershipsHub {
   serverTime: string;
 }
 
-type InternshipWithRelations = Internship & {
-  careerPath: CareerPath | null;
-  _count: { applications: number };
-  applications?: { status: string }[];
-};
-
-function internshipToPath(
-  internship: InternshipWithRelations,
-  companyName: string,
-  industry: string | null
-): CareerPath {
-  const linked = internship.careerPath;
-  if (linked) return linked;
-
-  return {
-    id: internship.id,
-    companyUserId: internship.companyUserId,
-    universityId: internship.universityId,
-    partnershipId: internship.partnershipId,
-    roleTitle: internship.title,
-    companyName,
-    industry,
-    description: internship.description,
-    requiredSubjects: [],
-    gradeRequirements: null,
-    recommendedSkills: internship.recommendedSkills ?? [],
-    recommendedInternships: [],
-    salaryMin: internship.salaryMin,
-    salaryMax: internship.salaryMax,
-    compatibilityCriteria: internship.compatibilityCriteria,
-    status: 'PUBLISHED',
-    publishedAt: internship.createdAt,
-    createdAt: internship.createdAt,
-    updatedAt: internship.updatedAt,
-  } as CareerPath;
-}
-
-function buildJob(
-  internship: InternshipWithRelations,
-  companyName: string,
-  industry: string | null,
-  partnershipId: string,
-  profile: Awaited<ReturnType<typeof buildStudentProfile>>,
-  bookmarked: Set<string>,
-  studentApplication: { status: string } | null
-): PartnershipJob {
-  const path = internshipToPath(internship, companyName, industry);
-  const result = computePathCompatibility(path, profile);
-  const breakdown = computeBreakdown(profile, result);
-  const department = internship.department ?? inferDepartment(internship.title, industry);
-
-  return {
-    id: internship.id,
-    partnershipId,
-    companyUserId: internship.companyUserId,
-    companyName,
-    title: internship.title,
-    department,
-    description: internship.description,
-    salaryLabel: formatSalary(internship.salaryMin, internship.salaryMax),
-    salaryMin: internship.salaryMin,
-    salaryMax: internship.salaryMax,
-    location: internship.location,
-    remoteType: internship.remoteType ?? 'on_site',
-    remoteLabel: remoteLabel(internship.remoteType),
-    employmentType: internship.employmentType ?? 'internship',
-    compatibility: result.compatibility,
-    requiredSkills: path.recommendedSkills,
-    missingSkills: result.missingSkills,
-    matchedSkills: result.matchedSkills,
-    whyMatches: whyScoreLines(result, breakdown),
-    improveTips: improveCompatibilityTips(result, profile, breakdown),
-    aiInsight: jobAiInsight(result, internship.title, profile),
-    breakdown,
-    deadline: internship.deadline?.toISOString() ?? null,
-    availabilityStatus:
-      (internship.availabilityStatus ?? 'available') === 'filled' ? 'filled' : 'available',
-    candidateCount: internship._count.applications,
-    isBookmarked: bookmarked.has(internship.id),
-    isCandidate: studentApplication?.status === 'candidate',
-    applicationStatus: studentApplication?.status ?? null,
-    profileCompletion: profileCompletionForJob(profile, result),
-    tags: result.tags,
-    createdAt: internship.createdAt.toISOString(),
-  };
-}
 
 async function getStudentProfileId(userId: string): Promise<string | null> {
   const sp = await prisma.studentProfile.findUnique({
@@ -212,7 +88,7 @@ export async function loadStudentPartnershipsHub(userId: string): Promise<Partne
                   ? {
                       applications: {
                         where: { studentId: studentProfileId },
-                        select: { status: true },
+                        select: { id: true, status: true, appliedAt: true },
                         take: 1,
                       },
                     }
@@ -244,17 +120,18 @@ export async function loadStudentPartnershipsHub(userId: string): Promise<Partne
   for (const p of partnerships) {
     const cp = p.companyUser.companyProfile;
     const name = cp?.companyName ?? 'Partner company';
-    const partnershipJobs = p.internships.map((i) =>
-      buildJob(
-        i as InternshipWithRelations,
+    const partnershipJobs = p.internships.map((i) => {
+      const row = i as typeof i & { applications?: { id: string; status: string; appliedAt: Date | null }[] };
+      const app = row.applications?.[0];
+      return buildInternshipCard(
+        row,
         name,
         cp?.industry ?? null,
-        p.id,
         profile,
         bookmarkedJobs,
-        (i as InternshipWithRelations).applications?.[0] ?? null
-      )
-    );
+        app ? { id: app.id, status: app.status, appliedAt: app.appliedAt ?? null } : null
+      );
+    });
     jobs.push(...partnershipJobs);
 
     const avgCompat =
@@ -326,7 +203,7 @@ export async function loadPartnershipCompanyDetail(
             ? {
                 applications: {
                   where: { studentId: studentProfileId },
-                  select: { status: true },
+                  select: { id: true, status: true, appliedAt: true },
                   take: 1,
                 },
               }
@@ -355,17 +232,18 @@ export async function loadPartnershipCompanyDetail(
   const cp = partnership.companyUser.companyProfile;
   const name = cp?.companyName ?? 'Partner company';
 
-  const allJobs = partnership.internships.map((i) =>
-    buildJob(
-      i as InternshipWithRelations,
+  const allJobs = partnership.internships.map((i) => {
+    const row = i as typeof i & { applications?: { id: string; status: string; appliedAt: Date | null }[] };
+    const app = row.applications?.[0];
+    return buildInternshipCard(
+      row,
       name,
       cp?.industry ?? null,
-      partnership.id,
       profile,
       bookmarkedJobs,
-      (i as InternshipWithRelations).applications?.[0] ?? null
-    )
-  );
+      app ? { id: app.id, status: app.status, appliedAt: app.appliedAt ?? null } : null
+    );
+  });
 
   const deptMap = new Map<string, PartnershipJob[]>();
   for (const job of allJobs) {
@@ -460,10 +338,10 @@ export async function becomeJobCandidate(userId: string, internshipId: string) {
     create: {
       internshipId,
       studentId: studentProfileId,
-      status: 'candidate',
+      status: 'preparing',
     },
     update: {
-      status: 'candidate',
+      status: 'preparing',
     },
   });
   return { status: app.status };
@@ -482,9 +360,11 @@ export async function applyToJob(userId: string, internshipId: string) {
       internshipId,
       studentId: studentProfileId,
       status: 'applied',
+      appliedAt: new Date(),
     },
     update: {
       status: 'applied',
+      appliedAt: new Date(),
     },
   });
   return { status: app.status };

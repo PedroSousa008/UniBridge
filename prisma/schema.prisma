@@ -303,6 +303,7 @@ model StudentProfile {
   updatedAt         DateTime @updatedAt
 
   internshipApplications InternshipApplication[]
+  internshipJournals     StudentInternshipJournal[]
 }
 
 model TeacherProfile {
@@ -1067,16 +1068,35 @@ model Internship {
 }
 
 model InternshipApplication {
+  id              String   @id @default(cuid())
+  internshipId    String
+  internship      Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status          String   @default("preparing")
+  appliedAt       DateTime?
+  companyResponse String?  @db.Text
+  interviewRounds Json?
+  documentsJson   Json?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([internshipId, studentId])
+}
+
+model StudentInternshipJournal {
   id           String   @id @default(cuid())
-  internshipId String
-  internship   Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)
   studentId    String
   student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  status       String   @default("candidate")
+  internshipId String?
+  title        String
+  content      String   @db.Text
+  kind         String   @default("reflection")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@unique([internshipId, studentId])
+  @@index([studentId])
 }
 
 model CompanyPartnershipBookmark {
