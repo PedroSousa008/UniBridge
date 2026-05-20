@@ -1,24 +1,25 @@
+import { Suspense } from 'react';
 import { requireSession } from '@/lib/session';
-import { loadCompanyHomeHub } from '@/lib/company/company-home-hub';
-import { loadCompanyOpportunitiesHub } from '@/lib/company/company-opportunities-hub';
-import { PageHeader } from '@/components/layout/page-header';
-import { CompanyInsightsClient } from './insights-client';
+import { loadCompanyInsightsEcosystemHub } from '@/lib/company/company-insights-ecosystem-hub';
+import { CompanyInsightsCommandCenter } from '@/components/company/company-insights-command-center';
 
-export default async function CompanyInsightsPage() {
+async function InsightsContent() {
   const session = await requireSession('COMPANY');
-  const [home, opportunities] = await Promise.all([
-    loadCompanyHomeHub(session.user.id),
-    loadCompanyOpportunitiesHub(session.user.id),
-  ]);
+  const hub = await loadCompanyInsightsEcosystemHub(session.user.id);
 
+  return <CompanyInsightsCommandCenter hub={JSON.parse(JSON.stringify(hub))} />;
+}
+
+export default function CompanyInsightsPage() {
   return (
-    <div>
-      <PageHeader title="Recruitment insights" subtitle="Funnel and ecosystem performance at a glance." />
-      <CompanyInsightsClient
-        stats={home.stats}
-        byStage={opportunities.byStage}
-        pipelineCount={opportunities.pipeline.length}
-      />
-    </div>
+    <Suspense
+      fallback={
+        <p className="p-8 text-sm text-muted-foreground animate-pulse">
+          Loading strategic intelligence…
+        </p>
+      }
+    >
+      <InsightsContent />
+    </Suspense>
   );
 }
