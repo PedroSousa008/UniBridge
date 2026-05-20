@@ -304,6 +304,44 @@ model StudentProfile {
 
   internshipApplications InternshipApplication[]
   internshipJournals     StudentInternshipJournal[]
+  cvProfile              StudentCvProfile?
+}
+
+model StudentCvProfile {
+  id               String   @id @default(cuid())
+  studentProfileId String   @unique
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  visibility       String   @default("private")
+  activeVersion    String   @default("corporate")
+  headline         String?
+  summary          String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  entries CvEntry[]
+}
+
+model CvEntry {
+  id                 String   @id @default(cuid())
+  profileId          String
+  profile            StudentCvProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  section            String
+  title              String
+  subtitle           String?
+  body               String?  @db.Text
+  verificationStatus String   @default("pending")
+  sourceType         String?
+  sourceId           String?
+  verifiedBy         String?
+  startDate          DateTime?
+  endDate            DateTime?
+  sortOrder          Int      @default(0)
+  visible            Boolean  @default(true)
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([profileId, section])
 }
 
 model TeacherProfile {
