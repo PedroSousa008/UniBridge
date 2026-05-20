@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  loadCompanyOpportunitiesHub,
+  loadCompanyOpportunitiesEcosystemHub,
   updateCompanyApplication,
-} from '@/lib/company/company-opportunities-hub';
+} from '@/lib/company/company-opportunities-ecosystem-hub';
 import { requireSession } from '@/lib/session';
 
 export async function GET() {
   const session = await requireSession('COMPANY');
-  const hub = await loadCompanyOpportunitiesHub(session.user.id);
+  const hub = await loadCompanyOpportunitiesEcosystemHub(session.user.id);
   return NextResponse.json(hub);
 }
 
@@ -34,6 +34,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
   }
 
-  const hub = await loadCompanyOpportunitiesHub(session.user.id);
+  const hub = await loadCompanyOpportunitiesEcosystemHub(session.user.id);
   return NextResponse.json(hub);
 }
