@@ -13,6 +13,10 @@ import {
   remoteLabel,
 } from '@/lib/career/partnership-intelligence';
 import type { StudentCareerProfile } from '@/lib/career/compatibility-engine';
+import {
+  parsePositionHolder,
+  type PositionHolderData,
+} from '@/lib/company/company-presence-shared';
 
 export type InternshipLifecycleStage =
   | 'saved'
@@ -53,6 +57,8 @@ export interface InternshipCard {
   breakdown: { id: string; label: string; score: number; status: string }[];
   deadline: string | null;
   availabilityStatus: 'available' | 'filled';
+  positionHolder: PositionHolderData | null;
+  filledInterestLabel: string | null;
   candidateCount: number;
   isBookmarked: boolean;
   isCandidate: boolean;
@@ -322,6 +328,13 @@ export function buildInternshipCard(
     deadline: internship.deadline?.toISOString() ?? null,
     availabilityStatus:
       (internship.availabilityStatus ?? 'available') === 'filled' ? 'filled' : 'available',
+    positionHolder: parsePositionHolder(
+      (internship as Internship & { positionHolderJson?: unknown }).positionHolderJson
+    ),
+    filledInterestLabel:
+      (internship.availabilityStatus ?? 'available') === 'filled'
+        ? 'This role is currently filled, but you can still express interest for future openings.'
+        : null,
     candidateCount: internship._count.applications,
     isBookmarked: bookmarked.has(internship.id),
     isCandidate:

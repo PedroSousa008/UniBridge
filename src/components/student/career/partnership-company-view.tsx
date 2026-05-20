@@ -78,7 +78,7 @@ export function PartnershipCompanyView({
     ? detail.departments
         .map((d) => ({
           ...d,
-          jobs: d.jobs.filter((j) => j.availabilityStatus === 'available'),
+          jobs: d.jobs,
         }))
         .filter((d) => d.jobs.length > 0)
     : detail.departments;

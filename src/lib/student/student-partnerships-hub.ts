@@ -1,4 +1,5 @@
 import type { Internship } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { computePathCompatibility } from '@/lib/career/compatibility-engine';
 import {
@@ -155,11 +156,30 @@ export async function loadStudentPartnershipsHub(userId: string): Promise<Partne
   const companies: PartnershipCompanyCard[] = [];
   const jobs: PartnershipJob[] = [];
 
+  async function positionHolderByInternshipId(ids: string[]) {
+    const map = new Map<string, unknown>();
+    if (ids.length === 0) return map;
+    try {
+      const rows = await prisma.$queryRaw<{ id: string; positionHolderJson: unknown }[]>`
+        SELECT "id", "positionHolderJson" FROM "Internship" WHERE "id" IN (${Prisma.join(ids)})
+      `;
+      for (const r of rows) map.set(r.id, r.positionHolderJson);
+    } catch {
+      /* column may not exist yet */
+    }
+    return map;
+  }
+
   for (const p of partnerships) {
     const cp = p.companyUser.companyProfile;
     const name = cp?.companyName ?? 'Partner company';
+    const holderMap = await positionHolderByInternshipId(p.internships.map((i) => i.id));
     const partnershipJobs = p.internships.map((i) => {
-      const row = i as typeof i & { applications?: { id: string; status: string; appliedAt: Date | null }[] };
+      const row = i as typeof i & {
+        applications?: { id: string; status: string; appliedAt: Date | null }[];
+        positionHolderJson?: unknown;
+      };
+      row.positionHolderJson = holderMap.get(i.id);
       const app = row.applications?.[0];
       return buildInternshipCard(
         row,
@@ -270,8 +290,25 @@ export async function loadPartnershipCompanyDetail(
   const cp = partnership.companyUser.companyProfile;
   const name = cp?.companyName ?? 'Partner company';
 
+  const internshipIds = partnership.internships.map((i) => i.id);
+  let holderMap = new Map<string, unknown>();
+  if (internshipIds.length > 0) {
+    try {
+      const rows = await prisma.$queryRaw<{ id: string; positionHolderJson: unknown }[]>`
+        SELECT "id", "positionHolderJson" FROM "Internship" WHERE "id" IN (${Prisma.join(internshipIds)})
+      `;
+      holderMap = new Map(rows.map((r) => [r.id, r.positionHolderJson]));
+    } catch {
+      /* */
+    }
+  }
+
   const allJobs = partnership.internships.map((i) => {
-    const row = i as typeof i & { applications?: { id: string; status: string; appliedAt: Date | null }[] };
+    const row = i as typeof i & {
+      applications?: { id: string; status: string; appliedAt: Date | null }[];
+      positionHolderJson?: unknown;
+    };
+    row.positionHolderJson = holderMap.get(i.id);
     const app = row.applications?.[0];
     return buildInternshipCard(
       row,

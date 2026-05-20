@@ -33,6 +33,7 @@ export function PartnershipJobCard({
   compact?: boolean;
 }) {
   const filled = job.availabilityStatus === 'filled';
+  const holder = job.positionHolder;
   const statusLabel = job.applicationStatus
     ? APPLICATION_STATUS_LABELS[job.applicationStatus] ?? job.applicationStatus
     : null;
@@ -41,7 +42,7 @@ export function PartnershipJobCard({
     <Card
       className={cn(
         'border-border/60 transition-all',
-        filled && 'opacity-60 bg-muted/30',
+        filled && 'opacity-75 bg-muted/25 border-muted-foreground/20',
         selected && 'ring-2 ring-brand/40 shadow-md',
         compare && 'ring-2 ring-violet-400/50',
         onSelect && 'cursor-pointer hover:shadow-md'
@@ -72,6 +73,31 @@ export function PartnershipJobCard({
             </div>
             <p className="font-semibold tracking-tight">{job.title}</p>
             {!compact ? <p className="text-xs text-muted-foreground mt-0.5">{job.companyName}</p> : null}
+            {filled && job.filledInterestLabel ? (
+              <p className="text-xs text-muted-foreground mt-2 rounded-lg bg-muted/50 px-2 py-1.5">
+                {job.filledInterestLabel}
+              </p>
+            ) : null}
+            {filled && holder ? (
+              <div className="mt-2 flex items-center gap-2 rounded-lg border bg-card/80 px-2 py-1.5">
+                <div className="h-8 w-8 rounded-md bg-muted overflow-hidden shrink-0">
+                  {holder.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={holder.photoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-xs font-medium">{holder.name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {holder.previousUniversity ?? '—'}
+                    {holder.degree ? ` · ${holder.degree}` : ''}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {holder.mentoringAvailable ? 'Mentoring available' : 'View profile path'}
+                  </p>
+                </div>
+              </div>
+            ) : null}
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {job.salaryLabel ? <span>{job.salaryLabel}</span> : null}
               {job.location ? (
@@ -135,9 +161,13 @@ export function PartnershipJobCard({
           <Button size="sm" variant="outline" disabled={loading} onClick={onBecomeCandidate}>
             {job.isCandidate ? 'Candidate' : 'Become candidate'}
           </Button>
-          {onApply && !filled ? (
+          {onApply ? (
             <Button size="sm" disabled={loading || job.applicationStatus === 'applied'} onClick={onApply}>
-              {job.applicationStatus === 'applied' ? 'Applied' : 'Apply'}
+              {job.applicationStatus === 'applied'
+                ? 'Interest registered'
+                : filled
+                  ? 'Express interest'
+                  : 'Apply'}
             </Button>
           ) : null}
         </div>
@@ -147,8 +177,35 @@ export function PartnershipJobCard({
 }
 
 export function JobDetailPanel({ job }: { job: InternshipCard }) {
+  const filled = job.availabilityStatus === 'filled';
+  const holder = job.positionHolder;
   return (
     <div className="space-y-6">
+      {filled && job.filledInterestLabel ? (
+        <p className="rounded-xl border border-muted-foreground/20 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          {job.filledInterestLabel}
+        </p>
+      ) : null}
+      {filled && holder ? (
+        <div className="rounded-xl border p-4 space-y-2">
+          <p className="text-sm font-medium">Current role holder</p>
+          <p className="font-semibold">{holder.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {holder.previousUniversity ?? 'University not listed'}
+            {holder.degree ? ` · ${holder.degree}` : ''}
+            {holder.graduationYear ? ` · Class of ${holder.graduationYear}` : ''}
+          </p>
+          {holder.bio ? <p className="text-sm text-muted-foreground">{holder.bio}</p> : null}
+          <div className="flex flex-wrap gap-2 text-xs">
+            {holder.mentoringAvailable ? (
+              <Badge variant="secondary">Available for mentoring</Badge>
+            ) : null}
+            {holder.messagesAvailable ? (
+              <Badge variant="outline">Open to student messages</Badge>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div>
         <p className="text-sm font-medium mb-2">AI insight</p>
         <p className="rounded-lg bg-brand/5 border border-brand/15 px-4 py-3 text-sm">{job.aiInsight}</p>

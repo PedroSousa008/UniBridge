@@ -1,5 +1,9 @@
 import { prisma } from '@/lib/db';
 import { ensureCompanyPresenceTables } from '@/lib/db/ensure-company-presence-schema';
+import {
+  batchInternshipApplicationCounts,
+  type PositionHolderData,
+} from '@/lib/company/company-presence-shared';
 import { buildStudentProfile } from '@/lib/student/student-career-paths';
 import {
   computeAttractivenessScore,
@@ -52,6 +56,7 @@ export interface CompanyPresenceRole {
   startDate: string | null;
   isFilled: boolean;
   status: string;
+  hiringPriority: string;
   internshipId: string | null;
   applicationCount: number;
 }
@@ -232,13 +237,14 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
         startDate: Date | null;
         isFilled: boolean;
         status: string;
+        hiringPriority: string | null;
         internshipId: string | null;
       }[]
     >`
       SELECT "id", "departmentId", "title", "roleType", "description", "responsibilities",
              "expectations", "requiredSkills", "preferredSkills", "nonNegotiables",
              "preferredQualities", "growthOpportunities", "salaryMin", "salaryMax",
-             "remoteType", "location", "startDate", "isFilled", "status", "internshipId"
+             "remoteType", "location", "startDate", "isFilled", "status", "hiringPriority", "internshipId"
       FROM "CompanyRole"
       WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
       ORDER BY "sortOrder" ASC, "title" ASC
@@ -246,17 +252,8 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
   ]);
 
   const deptMap = new Map(departments.map((d) => [d.id, d.name]));
-  const appCounts = new Map<string, number>();
-
   const internshipIds = roles.map((r) => r.internshipId).filter(Boolean) as string[];
-  if (internshipIds.length > 0) {
-    const counts = await prisma.internshipApplication.groupBy({
-      by: ['internshipId'],
-      where: { internshipId: { in: internshipIds } },
-      _count: { id: true },
-    });
-    for (const c of counts) appCounts.set(c.internshipId, c._count.id);
-  }
+  const appCounts = await batchInternshipApplicationCounts(internshipIds);
 
   const mappedRoles: CompanyPresenceRole[] = roles.map((r) => ({
     id: r.id,
@@ -279,6 +276,7 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
     startDate: r.startDate?.toISOString() ?? null,
     isFilled: r.isFilled,
     status: r.status,
+    hiringPriority: r.hiringPriority ?? 'normal',
     internshipId: r.internshipId,
     applicationCount: r.internshipId ? (appCounts.get(r.internshipId) ?? 0) : 0,
   }));
@@ -524,6 +522,60 @@ export async function saveCompanyPresenceProfile(
   `;
 }
 
+async function loadPositionHolderSnapshot(
+  positionHolderId: string | null,
+  departmentName: string
+): Promise<PositionHolderData | null> {
+  if (!positionHolderId) return null;
+  try {
+    const rows = await prisma.$queryRaw<
+      {
+        id: string;
+        name: string;
+        photoUrl: string | null;
+        age: number | null;
+        roleTitle: string | null;
+        previousUniversity: string | null;
+        degree: string | null;
+        bio: string | null;
+        graduationYear: string | null;
+        linkedInUrl: string | null;
+        portfolioUrl: string | null;
+        startedAt: Date | null;
+        careerPath: string | null;
+        mentoringAvailable: boolean | null;
+        messagesAvailable: boolean | null;
+      }[]
+    >`
+      SELECT "id", "name", "photoUrl", "age", "roleTitle", "previousUniversity", "degree", "bio",
+             "graduationYear", "linkedInUrl", "portfolioUrl", "startedAt", "careerPath",
+             "mentoringAvailable", "messagesAvailable"
+      FROM "CompanyTeamMember" WHERE "id" = ${positionHolderId} LIMIT 1
+    `;
+    const h = rows[0];
+    if (!h) return null;
+    return {
+      id: h.id,
+      photoUrl: h.photoUrl,
+      name: h.name,
+      age: h.age,
+      roleTitle: h.roleTitle ?? '',
+      departmentName,
+      previousUniversity: h.previousUniversity,
+      degree: h.degree,
+      graduationYear: h.graduationYear,
+      bio: h.bio,
+      linkedInUrl: h.linkedInUrl ?? h.portfolioUrl,
+      startedAt: h.startedAt?.toISOString() ?? null,
+      careerPath: h.careerPath,
+      mentoringAvailable: Boolean(h.mentoringAvailable),
+      messagesAvailable: Boolean(h.messagesAvailable),
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function syncRoleToInternship(companyUserId: string, roleId: string) {
   const rows = await prisma.$queryRaw<
     {
@@ -538,10 +590,12 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
       isFilled: boolean;
       internshipId: string | null;
       roleType: string;
+      positionHolderId: string | null;
     }[]
   >`
     SELECT "title", "description", "departmentId", "remoteType", "location",
-           "salaryMin", "salaryMax", "requiredSkills", "isFilled", "internshipId", "roleType"
+           "salaryMin", "salaryMax", "requiredSkills", "isFilled", "internshipId", "roleType",
+           "positionHolderId"
     FROM "CompanyRole" WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
   `;
   const role = rows[0];
@@ -574,6 +628,11 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
   }
 
   const availability = role.isFilled ? 'filled' : 'available';
+  const positionHolder = await loadPositionHolderSnapshot(
+    role.positionHolderId as string | null,
+    departmentName
+  );
+  const positionHolderJson = positionHolder ? JSON.stringify(positionHolder) : null;
   const payload = {
     title: role.title,
     description: role.description,
@@ -595,6 +654,12 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
       where: { id: role.internshipId },
       data: payload,
     });
+    if (positionHolderJson != null) {
+      await prisma.$executeRaw`
+        UPDATE "Internship" SET "positionHolderJson" = ${positionHolderJson}::jsonb
+        WHERE "id" = ${role.internshipId}
+      `;
+    }
   } else {
     const internship = await prisma.internship.create({
       data: {
@@ -606,7 +671,50 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
     await prisma.$executeRaw`
       UPDATE "CompanyRole" SET "internshipId" = ${internship.id} WHERE "id" = ${roleId}
     `;
+    if (positionHolderJson != null) {
+      await prisma.$executeRaw`
+        UPDATE "Internship" SET "positionHolderJson" = ${positionHolderJson}::jsonb
+        WHERE "id" = ${internship.id}
+      `;
+    }
   }
+}
+
+export async function syncRolePositionHolder(
+  companyUserId: string,
+  roleId: string,
+  departmentId: string | null,
+  departmentName: string,
+  roleTitle: string,
+  holder: Record<string, unknown>
+) {
+  await ensureCompanyPresenceTables();
+  const memberId = await upsertCompanyTeamMember(companyUserId, {
+    id: typeof holder.id === 'string' ? holder.id : undefined,
+    name: String(holder.name ?? 'Team member'),
+    photoUrl: typeof holder.photoUrl === 'string' ? holder.photoUrl : null,
+    age: typeof holder.age === 'number' ? holder.age : holder.age ? Number(holder.age) : null,
+    roleTitle,
+    departmentId,
+    memberType: 'position_holder',
+    previousUniversity:
+      typeof holder.previousUniversity === 'string' ? holder.previousUniversity : null,
+    degree: typeof holder.degree === 'string' ? holder.degree : null,
+    graduationYear: typeof holder.graduationYear === 'string' ? holder.graduationYear : null,
+    bio: typeof holder.bio === 'string' ? holder.bio : null,
+    linkedInUrl: typeof holder.linkedInUrl === 'string' ? holder.linkedInUrl : null,
+    portfolioUrl: typeof holder.linkedInUrl === 'string' ? holder.linkedInUrl : null,
+    startedAt: typeof holder.startedAt === 'string' ? holder.startedAt : null,
+    careerPath: typeof holder.careerPath === 'string' ? holder.careerPath : null,
+    mentoringAvailable: Boolean(holder.mentoringAvailable),
+    messagesAvailable: Boolean(holder.messagesAvailable),
+    companyRoleId: roleId,
+  });
+  await prisma.$executeRaw`
+    UPDATE "CompanyRole" SET "positionHolderId" = ${memberId}, "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
+  `;
+  return memberId;
 }
 
 export async function upsertCompanyRole(
@@ -616,6 +724,9 @@ export async function upsertCompanyRole(
   await ensureCompanyPresenceTables();
   const id = typeof role.id === 'string' ? role.id : newId();
   const exists = typeof role.id === 'string';
+  const roleStatus = role.roleStatus === 'filled' || role.roleStatus === 'hiring' ? role.roleStatus : null;
+  const isFilled =
+    roleStatus === 'filled' ? true : roleStatus === 'hiring' ? false : Boolean(role.isFilled);
 
   const sql = exists
     ? prisma.$executeRaw`
@@ -636,7 +747,7 @@ export async function upsertCompanyRole(
           "remoteType" = ${String(role.remoteType ?? 'hybrid')},
           "location" = ${typeof role.location === 'string' ? role.location : null},
           "startDate" = ${role.startDate ? new Date(String(role.startDate)) : null},
-          "isFilled" = ${Boolean(role.isFilled)},
+          "isFilled" = ${isFilled},
           "status" = ${String(role.status ?? 'published')},
           "hiringPriority" = ${String(role.hiringPriority ?? 'normal')},
           "visibilitySettings" = ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
@@ -670,7 +781,7 @@ export async function upsertCompanyRole(
           ${String(role.remoteType ?? 'hybrid')},
           ${typeof role.location === 'string' ? role.location : null},
           ${role.startDate ? new Date(String(role.startDate)) : null},
-          ${Boolean(role.isFilled)},
+          ${isFilled},
           ${String(role.status ?? 'published')},
           ${String(role.hiringPriority ?? 'normal')},
           ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
@@ -680,6 +791,30 @@ export async function upsertCompanyRole(
       `;
 
   await sql;
+
+  if (isFilled && role.positionHolder && typeof role.positionHolder === 'object') {
+    const deptId = typeof role.departmentId === 'string' ? role.departmentId : null;
+    let departmentName = 'General';
+    if (deptId) {
+      const d = await prisma.$queryRaw<{ name: string }[]>`
+        SELECT "name" FROM "CompanyDepartment" WHERE "id" = ${deptId} LIMIT 1
+      `;
+      departmentName = d[0]?.name ?? departmentName;
+    }
+    await syncRolePositionHolder(
+      companyUserId,
+      id,
+      deptId,
+      departmentName,
+      String(role.title ?? 'Role'),
+      role.positionHolder as Record<string, unknown>
+    );
+  } else if (!isFilled) {
+    await prisma.$executeRaw`
+      UPDATE "CompanyRole" SET "positionHolderId" = NULL WHERE "id" = ${id}
+    `;
+  }
+
   await syncRoleToInternship(companyUserId, id);
   return id;
 }
@@ -731,33 +866,66 @@ export async function upsertCompanyTeamMember(
 ) {
   await ensureCompanyPresenceTables();
   const id = typeof member.id === 'string' ? member.id : newId();
+  const startedAt =
+    typeof member.startedAt === 'string' && member.startedAt
+      ? new Date(member.startedAt)
+      : null;
+  const common = {
+    name: String(member.name ?? ''),
+    photoUrl: typeof member.photoUrl === 'string' ? member.photoUrl : null,
+    age: typeof member.age === 'number' ? member.age : null,
+    roleTitle: typeof member.roleTitle === 'string' ? member.roleTitle : null,
+    memberType: String(member.memberType ?? 'employee'),
+    previousUniversity:
+      typeof member.previousUniversity === 'string' ? member.previousUniversity : null,
+    degree: typeof member.degree === 'string' ? member.degree : null,
+    bio: typeof member.bio === 'string' ? member.bio : null,
+    departmentId: typeof member.departmentId === 'string' ? member.departmentId : null,
+    graduationYear: typeof member.graduationYear === 'string' ? member.graduationYear : null,
+    linkedInUrl: typeof member.linkedInUrl === 'string' ? member.linkedInUrl : null,
+    portfolioUrl: typeof member.portfolioUrl === 'string' ? member.portfolioUrl : null,
+    startedAt,
+    careerPath: typeof member.careerPath === 'string' ? member.careerPath : null,
+    mentoringAvailable: Boolean(member.mentoringAvailable),
+    messagesAvailable: Boolean(member.messagesAvailable),
+    companyRoleId: typeof member.companyRoleId === 'string' ? member.companyRoleId : null,
+  };
   if (member.id) {
     await prisma.$executeRaw`
       UPDATE "CompanyTeamMember" SET
-        "name" = ${String(member.name ?? '')},
-        "photoUrl" = ${typeof member.photoUrl === 'string' ? member.photoUrl : null},
-        "age" = ${typeof member.age === 'number' ? member.age : null},
-        "roleTitle" = ${typeof member.roleTitle === 'string' ? member.roleTitle : null},
-        "memberType" = ${String(member.memberType ?? 'employee')},
-        "previousUniversity" = ${typeof member.previousUniversity === 'string' ? member.previousUniversity : null},
-        "degree" = ${typeof member.degree === 'string' ? member.degree : null},
-        "bio" = ${typeof member.bio === 'string' ? member.bio : null}
+        "name" = ${common.name},
+        "photoUrl" = ${common.photoUrl},
+        "age" = ${common.age},
+        "roleTitle" = ${common.roleTitle},
+        "memberType" = ${common.memberType},
+        "previousUniversity" = ${common.previousUniversity},
+        "degree" = ${common.degree},
+        "bio" = ${common.bio},
+        "departmentId" = ${common.departmentId},
+        "graduationYear" = ${common.graduationYear},
+        "linkedInUrl" = ${common.linkedInUrl},
+        "portfolioUrl" = ${common.portfolioUrl},
+        "startedAt" = ${common.startedAt},
+        "careerPath" = ${common.careerPath},
+        "mentoringAvailable" = ${common.mentoringAvailable},
+        "messagesAvailable" = ${common.messagesAvailable},
+        "companyRoleId" = ${common.companyRoleId}
       WHERE "id" = ${id} AND "companyUserId" = ${companyUserId}
     `;
   } else {
     await prisma.$executeRaw`
       INSERT INTO "CompanyTeamMember" (
         "id", "companyUserId", "name", "photoUrl", "age", "roleTitle",
-        "memberType", "previousUniversity", "degree", "bio"
+        "memberType", "previousUniversity", "degree", "bio", "departmentId",
+        "graduationYear", "linkedInUrl", "portfolioUrl", "startedAt", "careerPath",
+        "mentoringAvailable", "messagesAvailable", "companyRoleId"
       ) VALUES (
-        ${id}, ${companyUserId}, ${String(member.name ?? 'Team member')},
-        ${typeof member.photoUrl === 'string' ? member.photoUrl : null},
-        ${typeof member.age === 'number' ? member.age : null},
-        ${typeof member.roleTitle === 'string' ? member.roleTitle : null},
-        ${String(member.memberType ?? 'employee')},
-        ${typeof member.previousUniversity === 'string' ? member.previousUniversity : null},
-        ${typeof member.degree === 'string' ? member.degree : null},
-        ${typeof member.bio === 'string' ? member.bio : null}
+        ${id}, ${companyUserId}, ${common.name}, ${common.photoUrl}, ${common.age},
+        ${common.roleTitle}, ${common.memberType}, ${common.previousUniversity},
+        ${common.degree}, ${common.bio}, ${common.departmentId},
+        ${common.graduationYear}, ${common.linkedInUrl}, ${common.portfolioUrl},
+        ${common.startedAt}, ${common.careerPath}, ${common.mentoringAvailable},
+        ${common.messagesAvailable}, ${common.companyRoleId}
       )
     `;
   }

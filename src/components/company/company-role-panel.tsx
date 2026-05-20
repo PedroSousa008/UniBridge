@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, UserCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ImageUpload } from '@/components/ui/image-upload';
 import { SlidePanel } from '@/components/ui/slide-panel';
+import type { RoleStatus } from '@/lib/company/company-presence-shared';
 import { cn } from '@/lib/utils';
 import {
   ECOSYSTEM_REQUIREMENT_TAGS,
@@ -41,8 +43,22 @@ export function CompanyRolePanel({
     salaryMin: '',
     salaryMax: '',
     startDate: '',
-    isFilled: false,
+    roleStatus: 'hiring' as RoleStatus,
     hiringPriority: 'high',
+    holder: {
+      photoUrl: '',
+      name: '',
+      age: '',
+      previousUniversity: '',
+      degree: '',
+      graduationYear: '',
+      bio: '',
+      linkedInUrl: '',
+      startedAt: '',
+      careerPath: '',
+      mentoringAvailable: false,
+      messagesAvailable: false,
+    },
     description: '',
     responsibilities: '',
     expectations: '',
@@ -86,8 +102,22 @@ export function CompanyRolePanel({
           salaryMin: '',
           salaryMax: '',
           startDate: '',
-          isFilled: r.isFilled,
+          roleStatus: r.roleStatus ?? (r.isFilled ? 'filled' : 'hiring'),
           hiringPriority: r.hiringPriority,
+          holder: {
+            photoUrl: r.positionHolder?.photoUrl ?? '',
+            name: r.positionHolder?.name ?? '',
+            age: r.positionHolder?.age != null ? String(r.positionHolder.age) : '',
+            previousUniversity: r.positionHolder?.previousUniversity ?? '',
+            degree: r.positionHolder?.degree ?? '',
+            graduationYear: r.positionHolder?.graduationYear ?? '',
+            bio: r.positionHolder?.bio ?? '',
+            linkedInUrl: r.positionHolder?.linkedInUrl ?? '',
+            startedAt: r.positionHolder?.startedAt?.slice(0, 10) ?? '',
+            careerPath: r.positionHolder?.careerPath ?? '',
+            mentoringAvailable: r.positionHolder?.mentoringAvailable ?? false,
+            messagesAvailable: r.positionHolder?.messagesAvailable ?? false,
+          },
           description: r.description ?? '',
           responsibilities: r.responsibilities ?? '',
           expectations: r.expectations ?? '',
@@ -112,8 +142,22 @@ export function CompanyRolePanel({
         salaryMin: '',
         salaryMax: '',
         startDate: '',
-        isFilled: false,
+        roleStatus: 'hiring',
         hiringPriority: 'high',
+        holder: {
+          photoUrl: '',
+          name: '',
+          age: '',
+          previousUniversity: '',
+          degree: '',
+          graduationYear: '',
+          bio: '',
+          linkedInUrl: '',
+          startedAt: '',
+          careerPath: '',
+          mentoringAvailable: false,
+          messagesAvailable: false,
+        },
         description: '',
         responsibilities: '',
         expectations: '',
@@ -132,10 +176,10 @@ export function CompanyRolePanel({
   }, [open, roleId]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || form.roleStatus !== 'hiring') return;
     const t = setTimeout(() => void runEstimate(), 400);
     return () => clearTimeout(t);
-  }, [open, runEstimate]);
+  }, [open, runEstimate, form.roleStatus]);
 
   function toggleChip(list: ChipList, tag: string) {
     setForm((f) => {
@@ -148,22 +192,46 @@ export function CompanyRolePanel({
   }
 
   async function save() {
+    if (form.roleStatus === 'filled' && !form.holder.name.trim()) {
+      return;
+    }
     setSaving(true);
+    const title = form.title || 'New role';
     await fetch('/api/company/presence/roles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: roleId,
         departmentId,
-        title: form.title || 'New role',
+        title,
         roleType: form.roleType,
         location: form.location || null,
         remoteType: form.remoteType,
         salaryMin: form.salaryMin ? Number(form.salaryMin) : null,
         salaryMax: form.salaryMax ? Number(form.salaryMax) : null,
         startDate: form.startDate || null,
-        isFilled: form.isFilled,
+        roleStatus: form.roleStatus,
+        isFilled: form.roleStatus === 'filled',
         hiringPriority: form.hiringPriority,
+        positionHolder:
+          form.roleStatus === 'filled'
+            ? {
+                name: form.holder.name.trim(),
+                photoUrl: form.holder.photoUrl || null,
+                age: form.holder.age ? Number(form.holder.age) : null,
+                roleTitle: title,
+                departmentName,
+                previousUniversity: form.holder.previousUniversity || null,
+                degree: form.holder.degree || null,
+                graduationYear: form.holder.graduationYear || null,
+                bio: form.holder.bio || null,
+                linkedInUrl: form.holder.linkedInUrl || null,
+                startedAt: form.holder.startedAt || null,
+                careerPath: form.holder.careerPath || null,
+                mentoringAvailable: form.holder.mentoringAvailable,
+                messagesAvailable: form.holder.messagesAvailable,
+              }
+            : undefined,
         description: form.description,
         responsibilities: form.responsibilities,
         expectations: form.expectations,
@@ -201,6 +269,40 @@ export function CompanyRolePanel({
       subtitle={`${departmentName} department`}
     >
       <div className="space-y-8">
+        <section>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+            Role status
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              className={cn(
+                'rounded-2xl border p-4 text-left transition',
+                form.roleStatus === 'hiring' && 'border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/30'
+              )}
+              onClick={() => setForm({ ...form, roleStatus: 'hiring' })}
+            >
+              <p className="font-semibold">Hiring</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Open role with applications and full visibility settings.
+              </p>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'rounded-2xl border p-4 text-left transition',
+                form.roleStatus === 'filled' && 'border-muted-foreground/40 bg-muted/40 ring-1 ring-muted-foreground/20'
+              )}
+              onClick={() => setForm({ ...form, roleStatus: 'filled' })}
+            >
+              <p className="font-semibold">Filled</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Role is occupied — becomes an aspirational example for students.
+              </p>
+            </button>
+          </div>
+        </section>
+
         <section>
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
             Basic information
@@ -266,18 +368,6 @@ export function CompanyRolePanel({
               <label className="text-xs text-muted-foreground">Start date</label>
               <Input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
             </div>
-            <div className="flex items-end">
-              <button
-                type="button"
-                className={cn(
-                  'w-full rounded-xl border px-3 py-2.5 text-sm text-left transition',
-                  !form.isFilled && 'border-emerald-500/50 bg-emerald-500/10'
-                )}
-                onClick={() => setForm({ ...form, isFilled: !form.isFilled })}
-              >
-                {form.isFilled ? 'Position has someone (filled)' : 'Open seat — easier for students to apply'}
-              </button>
-            </div>
           </div>
         </section>
 
@@ -326,6 +416,133 @@ export function CompanyRolePanel({
           </div>
         </section>
 
+        {form.roleStatus === 'filled' ? (
+          <section className="rounded-2xl border border-muted-foreground/25 bg-muted/20 p-5 space-y-4">
+            <p className="text-sm font-semibold flex items-center gap-2">
+              <UserCircle className="h-5 w-5" />
+              Position holder / current employee
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Required for filled roles. This person appears on the role card, student views, and your
+              People section.
+            </p>
+            <ImageUpload
+              label="Employee photo"
+              value={form.holder.photoUrl}
+              onChange={(url) => setForm({ ...form, holder: { ...form.holder, photoUrl: url } })}
+              folder="company-team"
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs text-muted-foreground">Full name *</label>
+                <Input
+                  value={form.holder.name}
+                  onChange={(e) => setForm({ ...form, holder: { ...form.holder, name: e.target.value } })}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Age</label>
+                <Input
+                  type="number"
+                  value={form.holder.age}
+                  onChange={(e) => setForm({ ...form, holder: { ...form.holder, age: e.target.value } })}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Current role</label>
+                <Input value={form.title || '—'} disabled className="bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Department</label>
+                <Input value={departmentName} disabled className="bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Previous university</label>
+                <Input
+                  value={form.holder.previousUniversity}
+                  onChange={(e) =>
+                    setForm({ ...form, holder: { ...form.holder, previousUniversity: e.target.value } })
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Previous degree</label>
+                <Input
+                  value={form.holder.degree}
+                  onChange={(e) => setForm({ ...form, holder: { ...form.holder, degree: e.target.value } })}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Graduation year (optional)</label>
+                <Input
+                  value={form.holder.graduationYear}
+                  onChange={(e) =>
+                    setForm({ ...form, holder: { ...form.holder, graduationYear: e.target.value } })
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Started at company (optional)</label>
+                <Input
+                  type="date"
+                  value={form.holder.startedAt}
+                  onChange={(e) => setForm({ ...form, holder: { ...form.holder, startedAt: e.target.value } })}
+                />
+              </div>
+            </div>
+            <textarea
+              className="min-h-[60px] w-full rounded-xl border px-3 py-2 text-sm"
+              placeholder="Short professional bio (optional)"
+              value={form.holder.bio}
+              onChange={(e) => setForm({ ...form, holder: { ...form.holder, bio: e.target.value } })}
+            />
+            <Input
+              placeholder="LinkedIn or portfolio link (optional)"
+              value={form.holder.linkedInUrl}
+              onChange={(e) => setForm({ ...form, holder: { ...form.holder, linkedInUrl: e.target.value } })}
+            />
+            <textarea
+              className="min-h-[60px] w-full rounded-xl border px-3 py-2 text-sm"
+              placeholder="Career path inside the company (optional)"
+              value={form.holder.careerPath}
+              onChange={(e) => setForm({ ...form, holder: { ...form.holder, careerPath: e.target.value } })}
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-xs',
+                  form.holder.mentoringAvailable && 'bg-brand text-white border-brand'
+                )}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    holder: { ...form.holder, mentoringAvailable: !form.holder.mentoringAvailable },
+                  })
+                }
+              >
+                Mentoring: {form.holder.mentoringAvailable ? 'Yes' : 'No'}
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-xs',
+                  form.holder.messagesAvailable && 'bg-brand text-white border-brand'
+                )}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    holder: { ...form.holder, messagesAvailable: !form.holder.messagesAvailable },
+                  })
+                }
+              >
+                Student messages: {form.holder.messagesAvailable ? 'Yes' : 'No'}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {form.roleStatus === 'hiring' ? (
         <section>
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
             Visibility & applications
@@ -377,8 +594,14 @@ export function CompanyRolePanel({
             placeholder="Application deadline"
           />
         </section>
+        ) : null}
 
-        <Button className="w-full" variant="brand" disabled={saving} onClick={() => void save()}>
+        <Button
+          className="w-full"
+          variant="brand"
+          disabled={saving || (form.roleStatus === 'filled' && !form.holder.name.trim())}
+          onClick={() => void save()}
+        >
           {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           {roleId ? 'Save role' : 'Publish role'}
         </Button>

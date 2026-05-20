@@ -1,5 +1,13 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { ensureCompanyPresenceTables } from '@/lib/db/ensure-company-presence-schema';
+import {
+  batchInternshipApplicationCounts,
+  parsePositionHolder,
+  roleStatusFromFilled,
+  type PositionHolderData,
+  type RoleStatus,
+} from '@/lib/company/company-presence-shared';
 import {
   isVisibleToCompanies,
   studentOpenToRecruiting,
@@ -27,12 +35,14 @@ export interface DepartmentRoleCard {
   remoteType: string;
   location: string | null;
   isFilled: boolean;
+  roleStatus: RoleStatus;
   status: string;
   avgCompatibility: number;
   applicationCount: number;
   hiringPriority: string;
   hiringPriorityLabel: string;
   topSkills: string[];
+  positionHolder: PositionHolderData | null;
 }
 
 export interface DepartmentTeamMember {
@@ -94,6 +104,8 @@ export interface CompanyRoleIntelligenceView {
   remoteType: string;
   location: string | null;
   isFilled: boolean;
+  roleStatus: RoleStatus;
+  positionHolder: PositionHolderData | null;
   status: string;
   hiringPriority: string;
   description: string | null;
@@ -249,8 +261,11 @@ export async function loadCompanyDepartmentView(
   const dept = deptRows[0];
   if (!dept) return null;
 
-  const [profile, rolesRaw, teamRows, allDepts, matchCriteria] = await Promise.all([
-    prisma.companyProfile.findUnique({ where: { userId: companyUserId } }),
+  const [profile, rolesRaw, teamRows, allDepts] = await Promise.all([
+    prisma.companyProfile.findUnique({
+      where: { userId: companyUserId },
+      select: { companyName: true },
+    }),
     prisma.$queryRaw<
       {
         id: string;
@@ -263,10 +278,11 @@ export async function loadCompanyDepartmentView(
         hiringPriority: string | null;
         requiredSkills: unknown;
         internshipId: string | null;
+        positionHolderId: string | null;
       }[]
     >`
       SELECT "id", "title", "roleType", "remoteType", "location", "isFilled", "status",
-             "hiringPriority", "requiredSkills", "internshipId"
+             "hiringPriority", "requiredSkills", "internshipId", "positionHolderId"
       FROM "CompanyRole"
       WHERE "departmentId" = ${departmentId} AND "companyUserId" = ${companyUserId}
         AND "status" != 'archived'
@@ -284,43 +300,100 @@ export async function loadCompanyDepartmentView(
     prisma.$queryRaw<{ id: string; name: string }[]>`
       SELECT "id", "name" FROM "CompanyDepartment" WHERE "companyUserId" = ${companyUserId}
     `,
-    getCompanyPresenceMatchCriteria(companyUserId),
   ]);
 
-  const roles: DepartmentRoleCard[] = await Promise.all(
-    rolesRaw.map(async (r) => {
-      let applicationCount = 0;
-      if (r.internshipId) {
-        applicationCount = await prisma.internshipApplication.count({
-          where: { internshipId: r.internshipId },
-        });
-      }
-      const skills = parseJsonArray(r.requiredSkills);
-      const skillBoost = Math.min(12, skills.length * 2);
-      const appBoost = Math.min(8, applicationCount);
-      const avgCompatibility = r.isFilled
-        ? 70 + skillBoost
-        : 68 + skillBoost + appBoost;
+  const holderIds = rolesRaw
+    .map((r) => r.positionHolderId)
+    .filter((id): id is string => Boolean(id));
+  const holdersById = new Map<string, PositionHolderData>();
+  if (holderIds.length > 0) {
+    let holderRows: {
+      id: string;
+      name: string;
+      photoUrl: string | null;
+      age: number | null;
+      roleTitle: string | null;
+      previousUniversity: string | null;
+      degree: string | null;
+      bio: string | null;
+      graduationYear: string | null;
+      linkedInUrl: string | null;
+      portfolioUrl: string | null;
+      startedAt: Date | null;
+      careerPath: string | null;
+      mentoringAvailable: boolean | null;
+      messagesAvailable: boolean | null;
+      departmentId: string | null;
+    }[] = [];
+    try {
+      holderRows = await prisma.$queryRaw`
+        SELECT "id", "name", "photoUrl", "age", "roleTitle", "previousUniversity", "degree", "bio",
+               "graduationYear", "linkedInUrl", "portfolioUrl", "startedAt", "careerPath",
+               "mentoringAvailable", "messagesAvailable", "departmentId"
+        FROM "CompanyTeamMember"
+        WHERE "id" IN (${Prisma.join(holderIds)})
+      `;
+    } catch {
+      holderRows = [];
+    }
 
-      const priority = r.hiringPriority ?? 'normal';
-      return {
-        id: r.id,
-        title: r.title,
-        roleType: r.roleType,
-        roleTypeLabel: ROLE_TYPE_OPTIONS.find((t) => t.id === r.roleType)?.label ?? r.roleType,
-        remoteType: r.remoteType,
-        location: r.location,
-        isFilled: r.isFilled,
-        status: r.status,
-        avgCompatibility,
-        applicationCount,
-        hiringPriority: priority,
-        hiringPriorityLabel:
-          priority === 'high' ? 'High priority hiring' : priority === 'low' ? 'Standard' : 'Active hiring',
-        topSkills: skills.slice(0, 4).map(labelForRequirementTag),
-      };
-    })
-  );
+    for (const h of holderRows) {
+      const deptName = h.departmentId
+        ? allDepts.find((d) => d.id === h.departmentId)?.name ?? dept.name
+        : dept.name;
+      holdersById.set(h.id, {
+        id: h.id,
+        photoUrl: h.photoUrl,
+        name: h.name,
+        age: h.age,
+        roleTitle: h.roleTitle ?? '',
+        departmentName: deptName,
+        previousUniversity: h.previousUniversity,
+        degree: h.degree,
+        graduationYear: h.graduationYear,
+        bio: h.bio,
+        linkedInUrl: h.linkedInUrl ?? h.portfolioUrl,
+        startedAt: h.startedAt?.toISOString() ?? null,
+        careerPath: h.careerPath,
+        mentoringAvailable: Boolean(h.mentoringAvailable),
+        messagesAvailable: Boolean(h.messagesAvailable),
+      });
+    }
+  }
+
+  const internshipIds = rolesRaw.map((r) => r.internshipId).filter(Boolean) as string[];
+  const appCounts = await batchInternshipApplicationCounts(internshipIds);
+
+  const roles: DepartmentRoleCard[] = rolesRaw.map((r) => {
+    const applicationCount = r.internshipId ? (appCounts.get(r.internshipId) ?? 0) : 0;
+    const skills = parseJsonArray(r.requiredSkills);
+    const skillBoost = Math.min(12, skills.length * 2);
+    const appBoost = Math.min(8, applicationCount);
+    const avgCompatibility = r.isFilled ? 70 + skillBoost : 68 + skillBoost + appBoost;
+    const priority = r.hiringPriority ?? 'normal';
+    const positionHolder = r.positionHolderId
+      ? (holdersById.get(r.positionHolderId) ?? null)
+      : null;
+
+    return {
+      id: r.id,
+      title: r.title,
+      roleType: r.roleType,
+      roleTypeLabel: ROLE_TYPE_OPTIONS.find((t) => t.id === r.roleType)?.label ?? r.roleType,
+      remoteType: r.remoteType,
+      location: r.location,
+      isFilled: r.isFilled,
+      roleStatus: roleStatusFromFilled(r.isFilled),
+      status: r.status,
+      avgCompatibility,
+      applicationCount,
+      hiringPriority: priority,
+      hiringPriorityLabel:
+        priority === 'high' ? 'High priority hiring' : priority === 'low' ? 'Standard' : 'Active hiring',
+      topSkills: skills.slice(0, 4).map(labelForRequirementTag),
+      positionHolder,
+    };
+  });
 
   const skillFreq = new Map<string, number>();
   for (const r of roles) {
@@ -588,6 +661,58 @@ export async function loadCompanyRoleIntelligence(
 
   const priority = String(row.hiringPriority ?? 'normal');
   const isFilled = Boolean(row.isFilled);
+  let positionHolder: PositionHolderData | null = null;
+  const holderId = row.positionHolderId as string | null;
+  if (holderId) {
+    try {
+      const rows = await prisma.$queryRaw<
+        {
+          id: string;
+          name: string;
+          photoUrl: string | null;
+          age: number | null;
+          roleTitle: string | null;
+          previousUniversity: string | null;
+          degree: string | null;
+          bio: string | null;
+          graduationYear: string | null;
+          linkedInUrl: string | null;
+          portfolioUrl: string | null;
+          startedAt: Date | null;
+          careerPath: string | null;
+          mentoringAvailable: boolean | null;
+          messagesAvailable: boolean | null;
+        }[]
+      >`
+        SELECT "id", "name", "photoUrl", "age", "roleTitle", "previousUniversity", "degree", "bio",
+               "graduationYear", "linkedInUrl", "portfolioUrl", "startedAt", "careerPath",
+               "mentoringAvailable", "messagesAvailable"
+        FROM "CompanyTeamMember" WHERE "id" = ${holderId} LIMIT 1
+      `;
+      const h = rows[0];
+      if (h) {
+        positionHolder = {
+          id: h.id,
+          photoUrl: h.photoUrl,
+          name: h.name,
+          age: h.age,
+          roleTitle: h.roleTitle ?? title,
+          departmentName: departmentName ?? 'Department',
+          previousUniversity: h.previousUniversity,
+          degree: h.degree,
+          graduationYear: h.graduationYear,
+          bio: h.bio,
+          linkedInUrl: h.linkedInUrl ?? h.portfolioUrl,
+          startedAt: h.startedAt?.toISOString() ?? null,
+          careerPath: h.careerPath,
+          mentoringAvailable: Boolean(h.mentoringAvailable),
+          messagesAvailable: Boolean(h.messagesAvailable),
+        };
+      }
+    } catch {
+      positionHolder = null;
+    }
+  }
 
   return {
     id: roleId,
@@ -598,6 +723,8 @@ export async function loadCompanyRoleIntelligence(
     remoteType: String(row.remoteType ?? 'hybrid'),
     location: row.location as string | null,
     isFilled,
+    roleStatus: roleStatusFromFilled(isFilled),
+    positionHolder,
     status: String(row.status ?? 'published'),
     hiringPriority: priority,
     description: row.description as string | null,
@@ -633,5 +760,94 @@ export async function loadCompanyRoleIntelligence(
       statusLabel: companyStageLabel(companyStageFromApplication(app.status)),
       at: (app.appliedAt ?? app.updatedAt).toISOString(),
     })),
+  };
+}
+
+/** Instant department UI from presence hub data (no extra API wait). */
+export function buildDepartmentSnapshot(
+  dept: {
+    id: string;
+    name: string;
+    description: string | null;
+    occupiedCount: number;
+    openCount: number;
+    roles: {
+      id: string;
+      title: string;
+      roleType: string;
+      remoteType: string;
+      location: string | null;
+      isFilled: boolean;
+      applicationCount: number;
+      requiredSkills: string[];
+      hiringPriority?: string | null;
+    }[];
+  },
+  companyName: string,
+  allDepartments: { id: string; name: string }[]
+): CompanyDepartmentView {
+  const roles: DepartmentRoleCard[] = dept.roles.map((r) => {
+    const skills = r.requiredSkills;
+    const skillBoost = Math.min(12, skills.length * 2);
+    const appBoost = Math.min(8, r.applicationCount);
+    const priority = r.hiringPriority ?? 'normal';
+    return {
+      id: r.id,
+      title: r.title,
+      roleType: r.roleType,
+      roleTypeLabel: ROLE_TYPE_OPTIONS.find((t) => t.id === r.roleType)?.label ?? r.roleType,
+      remoteType: r.remoteType,
+      location: r.location,
+      isFilled: r.isFilled,
+      roleStatus: roleStatusFromFilled(r.isFilled),
+      status: 'published',
+      avgCompatibility: r.isFilled ? 70 + skillBoost : 68 + skillBoost + appBoost,
+      applicationCount: r.applicationCount,
+      hiringPriority: priority,
+      hiringPriorityLabel:
+        priority === 'high' ? 'High priority hiring' : priority === 'low' ? 'Standard' : 'Active hiring',
+      topSkills: skills.slice(0, 4).map(labelForRequirementTag),
+      positionHolder: null,
+    };
+  });
+
+  const openPositions = roles.filter((r) => !r.isFilled).length;
+  const occupiedPositions = roles.filter((r) => r.isFilled).length;
+  const totalApplications = roles.reduce((a, r) => a + r.applicationCount, 0);
+  const compatAvg =
+    roles.length > 0
+      ? Math.round(roles.reduce((a, r) => a + r.avgCompatibility, 0) / roles.length)
+      : 70;
+
+  const skillFreq = new Map<string, number>();
+  for (const r of roles) {
+    for (const sk of r.topSkills) skillFreq.set(sk, (skillFreq.get(sk) ?? 0) + 1);
+  }
+
+  return {
+    id: dept.id,
+    name: dept.name,
+    description: dept.description,
+    culture: null,
+    expectations: null,
+    leadershipStyle: null,
+    growthPhilosophy: null,
+    hiringActivity: hiringActivityLabel('active'),
+    hero: {
+      totalRoles: roles.length,
+      openPositions,
+      occupiedPositions,
+      totalApplications,
+      departmentGrowth: Math.min(28, openPositions * 4 + totalApplications),
+      compatibilityAverage: compatAvg,
+      topSkills: [...skillFreq.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([k]) => k),
+    },
+    roles,
+    team: [],
+    allDepartments,
+    companyName,
   };
 }

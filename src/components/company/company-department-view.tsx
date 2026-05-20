@@ -39,15 +39,17 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
 
 export function CompanyDepartmentView({
   departmentId,
+  initialView,
   onBack,
   onOpenRole,
 }: {
   departmentId: string;
+  initialView?: CompanyDepartmentView;
   onBack: () => void;
   onOpenRole: (roleId: string) => void;
 }) {
-  const [view, setView] = useState<CompanyDepartmentView | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<CompanyDepartmentView | null>(initialView ?? null);
+  const [loading, setLoading] = useState(!initialView);
   const [error, setError] = useState<string | null>(null);
   const [editDept, setEditDept] = useState(false);
   const [rolePanel, setRolePanel] = useState<{ open: boolean; roleId?: string }>({ open: false });
@@ -62,8 +64,8 @@ export function CompanyDepartmentView({
     growthPhilosophy: '',
   });
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent && !view) setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/company/presence/departments/${departmentId}`);
@@ -94,8 +96,8 @@ export function CompanyDepartmentView({
   }, [departmentId]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refresh(Boolean(initialView));
+  }, [refresh, initialView]);
 
   async function saveDept() {
     await fetch(`/api/company/presence/departments/${departmentId}`, {
@@ -134,8 +136,17 @@ export function CompanyDepartmentView({
     onBack();
   }
 
-  if (loading) {
-    return <p className="py-16 text-center text-sm text-muted-foreground">Loading department…</p>;
+  if (loading && !view) {
+    return (
+      <div className="py-16 space-y-4 animate-pulse">
+        <div className="h-8 w-48 rounded-lg bg-muted" />
+        <div className="h-40 rounded-3xl bg-muted" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="h-32 rounded-2xl bg-muted" />
+          <div className="h-32 rounded-2xl bg-muted" />
+        </div>
+      </div>
+    );
   }
 
   if (!view) {
@@ -236,7 +247,8 @@ export function CompanyDepartmentView({
               key={role.id}
               className={cn(
                 'group relative rounded-2xl border bg-card p-5 transition hover:border-brand/40 hover:shadow-lg cursor-pointer',
-                role.isFilled && 'opacity-75 bg-muted/20'
+                role.roleStatus === 'filled' &&
+                  'opacity-80 bg-muted/30 border-muted-foreground/20 grayscale-[0.15]'
               )}
               onClick={() => onOpenRole(role.id)}
               onKeyDown={(e) => e.key === 'Enter' && onOpenRole(role.id)}
@@ -277,11 +289,32 @@ export function CompanyDepartmentView({
                 {role.roleTypeLabel} · {role.remoteType}
                 {role.location ? ` · ${role.location}` : ''}
               </p>
+              {role.positionHolder ? (
+                <div className="mt-3 flex items-center gap-2 rounded-xl bg-muted/50 p-2">
+                  <div className="h-9 w-9 rounded-lg bg-muted overflow-hidden shrink-0">
+                    {role.positionHolder.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={role.positionHolder.photoUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Users className="h-5 w-5 m-2 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate">{role.positionHolder.name}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {role.positionHolder.previousUniversity ?? '—'}
+                      {role.positionHolder.degree ? ` · ${role.positionHolder.degree}` : ''}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
-                {role.isFilled ? (
-                  <Badge variant="outline">Filled</Badge>
+                {role.roleStatus === 'filled' ? (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    Filled · aspirational example
+                  </Badge>
                 ) : (
-                  <Badge className="bg-emerald-500/15 text-emerald-700">Open</Badge>
+                  <Badge className="bg-emerald-500/15 text-emerald-700">Hiring</Badge>
                 )}
                 {role.hiringPriority === 'high' ? (
                   <Badge variant="secondary">High priority</Badge>

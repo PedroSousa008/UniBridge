@@ -14,7 +14,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { CompanyDepartmentView } from '@/components/company/company-department-view';
+import { CompanyDepartmentView as CompanyDepartmentScreen } from '@/components/company/company-department-view';
 import { CompanyRoleFitIntelligenceView } from '@/components/company/company-role-fit-intelligence-view';
 import { CompanyRoleIntelligenceScreen } from '@/components/company/company-role-intelligence-view';
 import { CompanyRoleRequirementsHub } from '@/components/company/company-role-requirements-hub';
@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { CULTURE_TAG_OPTIONS } from '@/lib/company/company-presence-intelligence';
+import { buildDepartmentSnapshot, type CompanyDepartmentView } from '@/lib/company/company-department-hub';
 import type { CompanyPresenceHub } from '@/lib/company/company-presence-hub';
 
 function StatPill({ label, value }: { label: string; value: string | number }) {
@@ -54,7 +55,7 @@ type PresenceScreen =
   | { type: 'overview' }
   | { type: 'requirements_hub' }
   | { type: 'role_fit'; roleId: string }
-  | { type: 'department'; id: string }
+  | { type: 'department'; id: string; initial?: CompanyDepartmentView }
   | { type: 'role'; id: string; departmentId: string };
 
 export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: CompanyPresenceHub }) {
@@ -185,9 +186,20 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
   }
 
   if (screen.type === 'department') {
+    const deptFromHub = hub.departments.find((d) => d.id === screen.id);
+    const initial =
+      screen.initial ??
+      (deptFromHub
+        ? buildDepartmentSnapshot(
+            deptFromHub,
+            hub.hero.companyName,
+            hub.departments.map((d) => ({ id: d.id, name: d.name }))
+          )
+        : undefined);
     return (
-      <CompanyDepartmentView
+      <CompanyDepartmentScreen
         departmentId={screen.id}
+        initialView={initial}
         onBack={() => {
           setScreen({ type: 'overview' });
           void refresh();
@@ -529,7 +541,17 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
             <button
               key={dept.id}
               type="button"
-              onClick={() => setScreen({ type: 'department', id: dept.id })}
+              onClick={() =>
+                setScreen({
+                  type: 'department',
+                  id: dept.id,
+                  initial: buildDepartmentSnapshot(
+                    dept,
+                    hub.hero.companyName,
+                    hub.departments.map((d) => ({ id: d.id, name: d.name }))
+                  ),
+                })
+              }
               className="group text-left rounded-2xl border bg-gradient-to-br from-card to-muted/20 p-5 transition hover:border-brand/40 hover:shadow-md"
             >
               <div className="flex items-center justify-between">

@@ -14,6 +14,7 @@ const STATEMENTS: string[] = [
   `ALTER TABLE "Internship" ADD COLUMN IF NOT EXISTS "salaryMax" INTEGER`,
   `ALTER TABLE "Internship" ADD COLUMN IF NOT EXISTS "deadline" TIMESTAMP(3)`,
   `ALTER TABLE "Internship" ADD COLUMN IF NOT EXISTS "availabilityStatus" TEXT DEFAULT 'available'`,
+  `ALTER TABLE "Internship" ADD COLUMN IF NOT EXISTS "positionHolderJson" JSONB`,
   `ALTER TABLE "Internship" ADD COLUMN IF NOT EXISTS "recommendedSkills" TEXT[] DEFAULT ARRAY[]::TEXT[]`,
   `ALTER TABLE "Internship" ADD COLUMN IF NOT EXISTS "compatibilityCriteria" TEXT`,
   `ALTER TABLE "InternshipApplication" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP`,

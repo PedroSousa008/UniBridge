@@ -99,6 +99,15 @@ const MIGRATION_STATEMENTS: string[] = [
   `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "applicationSettings" JSONB`,
   `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "departmentId" TEXT`,
   `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "structuredRequirements" JSONB`,
+  `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "positionHolderId" TEXT`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "graduationYear" TEXT`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "linkedInUrl" TEXT`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "portfolioUrl" TEXT`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP(3)`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "careerPath" TEXT`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "mentoringAvailable" BOOLEAN DEFAULT false`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "messagesAvailable" BOOLEAN DEFAULT false`,
+  `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "companyRoleId" TEXT`,
 ];
 
 async function tableReady(): Promise<boolean> {
