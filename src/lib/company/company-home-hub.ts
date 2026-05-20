@@ -92,6 +92,7 @@ export async function loadCompanyHomeHub(userId: string): Promise<CompanyHomeHub
       href: '/company/opportunities',
     })),
     ecosystemLinks: [
+      { label: 'Company presence', href: '/company/presence' },
       { label: 'Discover talent', href: '/company/talent' },
       { label: 'Pipeline', href: '/company/pipeline' },
       { label: 'Opportunities', href: '/company/opportunities' },
