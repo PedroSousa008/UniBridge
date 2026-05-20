@@ -70,22 +70,38 @@ export function RegisterForm() {
       }),
     });
 
-    const data = await res.json();
+    let data: { error?: string } = {};
+    try {
+      data = await res.json();
+    } catch {
+      setLoading(false);
+      setError('Registration failed — server returned an unexpected response.');
+      return;
+    }
     if (!res.ok) {
       setLoading(false);
       setError(data.error || 'Registration failed');
       return;
     }
 
-    const signInRes = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
+    let signInRes: { error?: string | null; ok?: boolean } | undefined;
+    try {
+      signInRes = await signIn('credentials', {
+        email: email.toLowerCase().trim(),
+        password,
+        redirect: false,
+      });
+    } catch {
+      setLoading(false);
+      setError('Account created, but sign-in failed. Please log in manually.');
+      router.push('/login');
+      return;
+    }
 
     setLoading(false);
 
-    if (signInRes?.error) {
+    if (!signInRes?.ok || signInRes.error) {
+      setError('Account created. Please sign in with your email and password.');
       router.push('/login');
       return;
     }

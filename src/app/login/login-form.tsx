@@ -32,15 +32,36 @@ export function LoginForm({ initialAudience = 'student' }: { initialAudience?: C
     setError('');
     setLoading(true);
 
-    const res = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
+    let res: { error?: string | null; ok?: boolean; status?: number; url?: string | null } | undefined;
+    try {
+      res = await signIn('credentials', {
+        email: email.toLowerCase().trim(),
+        password,
+        redirect: false,
+      });
+    } catch {
+      setLoading(false);
+      setError('Sign-in failed. Please try again in a moment.');
+      return;
+    }
 
     setLoading(false);
 
-    if (res?.error) {
+    if (!res) {
+      setError('Sign-in failed. Please try again.');
+      return;
+    }
+
+    if (res.error) {
+      setError(
+        res.status === 500
+          ? 'Server error during sign-in. If this persists, contact support.'
+          : 'Invalid email or password.'
+      );
+      return;
+    }
+
+    if (res.ok === false) {
       setError('Invalid email or password.');
       return;
     }
