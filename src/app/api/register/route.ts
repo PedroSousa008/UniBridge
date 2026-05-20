@@ -53,6 +53,10 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const imageUrl =
+      typeof body.image === 'string' && body.image.trim().length > 0
+        ? body.image.trim()
+        : null;
 
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
@@ -62,6 +66,7 @@ export async function POST(request: Request) {
           name,
           role,
           locale,
+          ...(imageUrl ? { image: imageUrl } : {}),
         },
       });
 

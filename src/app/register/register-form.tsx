@@ -3,16 +3,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import type { UserRole } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { RegisterProfilePhoto } from '@/components/profile/register-profile-photo';
 import { useI18n } from '@/lib/i18n/context';
 import { PUBLIC_ROLES, ROLE_LABELS } from '@/lib/roles';
 import { cn } from '@/lib/utils';
+import { saveUserProfileImage, uploadProfilePhotoFile } from '@/lib/uploads/upload-profile-photo';
 
 export function RegisterForm() {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const searchParams = useSearchParams();
   const { tr, locale } = useI18n();
   const [name, setName] = useState('');
@@ -25,6 +28,18 @@ export function RegisterForm() {
   const [ownerAvailable, setOwnerAvailable] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!profilePhotoFile) {
+      setPhotoPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(profilePhotoFile);
+    setPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [profilePhotoFile]);
 
   useEffect(() => {
     fetch('/api/owner-available')
@@ -73,6 +88,19 @@ export function RegisterForm() {
     if (signInRes?.error) {
       router.push('/login');
       return;
+    }
+
+    if (profilePhotoFile) {
+      try {
+        const url = await uploadProfilePhotoFile(profilePhotoFile);
+        if (url) {
+          await saveUserProfileImage(url);
+          await updateSession();
+        }
+      } catch (photoErr) {
+        console.error('Profile photo upload after register:', photoErr);
+        /* account created — user can add photo in profile */
+      }
     }
 
     router.push('/login/redirect');
@@ -135,6 +163,12 @@ export function RegisterForm() {
           required
         />
       </div>
+
+      <RegisterProfilePhoto
+        file={profilePhotoFile}
+        onFileChange={setProfilePhotoFile}
+        previewUrl={photoPreview}
+      />
       <div>
         <label htmlFor="reg-email" className="mb-1.5 block text-sm font-medium">
           {tr('common.email')}

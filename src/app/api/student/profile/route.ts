@@ -30,14 +30,28 @@ export async function PATCH(req: NextRequest) {
   const dbReady = await ensureProfileIdentityTables();
   const studentRow = await getOrCreateStudentProfile(session.user.id);
 
-  if (body.name != null || body.headline != null || body.bio != null || body.image != null) {
+  if (
+    body.name != null ||
+    body.headline != null ||
+    body.bio != null ||
+    body.image !== undefined
+  ) {
     await prisma.user.update({
       where: { id: session.user.id },
       data: {
         ...(typeof body.name === 'string' ? { name: body.name } : {}),
         ...(typeof body.headline === 'string' ? { headline: body.headline } : {}),
         ...(typeof body.bio === 'string' ? { bio: body.bio } : {}),
-        ...(typeof body.image === 'string' ? { image: body.image } : {}),
+        ...(body.image !== undefined
+          ? {
+              image:
+                body.image === null || body.image === ''
+                  ? null
+                  : typeof body.image === 'string'
+                    ? body.image.trim() || null
+                    : undefined,
+            }
+          : {}),
       },
     });
   }

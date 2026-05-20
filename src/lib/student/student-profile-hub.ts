@@ -60,6 +60,7 @@ export interface ProfileHub {
   openToOptions: typeof OPEN_TO_OPTIONS;
   editable: {
     name: string;
+    image: string | null;
     age: number | null;
     bio: string;
     headline: string;
@@ -485,6 +486,7 @@ export async function loadStudentProfileHub(userId: string): Promise<ProfileHub>
     openToOptions: OPEN_TO_OPTIONS,
     editable: {
       name: user?.name ?? '',
+      image: user?.image ?? null,
       age: settings?.age ?? null,
       bio: user?.bio ?? '',
       headline: user?.headline ?? '',

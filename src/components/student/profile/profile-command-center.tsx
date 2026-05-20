@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   BadgeCheck,
   Briefcase,
@@ -32,14 +34,18 @@ import {
   type VisibilitySectionKey,
 } from '@/lib/career/profile-intelligence';
 import { ProgressRing } from '@/components/student/home/progress-ring';
+import { ImageUpload } from '@/components/ui/image-upload';
 
 export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub }) {
+  const router = useRouter();
+  const { update: updateSession } = useSession();
   const [hub, setHub] = useState(initialHub);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showProject, setShowProject] = useState(false);
   const [form, setForm] = useState({
     name: initialHub.editable.name,
+    image: initialHub.editable.image ?? '',
     headline: initialHub.editable.headline,
     bio: initialHub.editable.bio,
     age: initialHub.editable.age?.toString() ?? '',
@@ -78,6 +84,7 @@ export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: form.name,
+        image: form.image || null,
         headline: form.headline,
         bio: form.bio,
         age: form.age ? parseInt(form.age, 10) : null,
@@ -98,9 +105,11 @@ export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub })
     if (res.ok) {
       setHub(await res.json());
       setEditing(false);
+      await updateSession();
+      router.refresh();
     }
     setSaving(false);
-  }, [form, openTo, visibility]);
+  }, [form, openTo, visibility, router, updateSession]);
 
   async function addProject() {
     if (!newProject.title.trim()) return;
@@ -514,6 +523,13 @@ export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub })
               </button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-4 p-6">
+              <ImageUpload
+                label="Profile photo"
+                value={form.image}
+                onChange={(url) => setForm({ ...form, image: url })}
+                folder="profile"
+                hint="This photo appears on your profile, applications, and what companies see across UniBridge."
+              />
               <div>
                 <label className="text-xs text-muted-foreground">Name</label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
