@@ -103,12 +103,16 @@ export function resolveLifecycleStage(
     preparing: 'preparing',
     saved: 'saved',
     applied: 'applied',
+    under_review: 'applied',
+    reviewing: 'applied',
     interviewing: 'interviewing',
     interview: 'interviewing',
+    final_interview: 'interviewing',
     offer_received: 'offer_received',
     offer: 'offer_received',
     accepted: 'accepted',
     rejected: 'rejected',
+    closed: 'completed',
     completed: 'completed',
   };
   if (status && map[status]) return map[status];

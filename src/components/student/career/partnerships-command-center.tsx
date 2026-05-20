@@ -197,7 +197,14 @@ export function PartnershipsCommandCenter({ initialHub }: { initialHub: Partners
   async function applyToJob(jobId: string) {
     setActionLoading(true);
     const res = await fetch(`/api/student/career/jobs/${jobId}/apply`, { method: 'POST' });
-    if (res.ok) await fetchHub();
+    if (res.ok) {
+      const data = await res.json();
+      if (data.opportunitiesHref) {
+        window.location.href = data.opportunitiesHref;
+        return;
+      }
+      await fetchHub();
+    }
     setActionLoading(false);
   }
 

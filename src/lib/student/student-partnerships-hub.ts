@@ -348,10 +348,36 @@ export async function becomeJobCandidate(userId: string, internshipId: string) {
 }
 
 export async function applyToJob(userId: string, internshipId: string) {
+  const { syncApplicationDocuments } = await import('@/lib/career/opportunities-intelligence');
+  const { ensureOpportunityTables } = await import('@/lib/db/ensure-opportunities-schema');
+
+  await ensureOpportunityTables();
+
   const studentProfileId = await getStudentProfileId(userId);
   if (!studentProfileId) {
     throw new Error('Student profile required');
   }
+
+  const [profile, internship, studentUser] = await Promise.all([
+    buildStudentProfile(userId),
+    prisma.internship.findUnique({
+      where: { id: internshipId },
+      select: { title: true, companyUserId: true, employmentType: true },
+    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+  ]);
+
+  if (!internship) throw new Error('Role not found');
+
+  const documentsJson = syncApplicationDocuments(profile);
+  const interactionHistory = [
+    {
+      type: 'submitted',
+      label: 'Application submitted with synced CV & materials',
+      at: new Date().toISOString(),
+    },
+  ];
+
   const app = await prisma.internshipApplication.upsert({
     where: {
       internshipId_studentId: { internshipId, studentId: studentProfileId },
@@ -361,11 +387,38 @@ export async function applyToJob(userId: string, internshipId: string) {
       studentId: studentProfileId,
       status: 'applied',
       appliedAt: new Date(),
+      documentsJson: documentsJson as object,
+      interactionHistory: interactionHistory as object,
+      nextAction: 'Monitor application status in Opportunities pipeline',
+      category: internship.employmentType ?? 'internship',
     },
     update: {
       status: 'applied',
       appliedAt: new Date(),
+      documentsJson: documentsJson as object,
+      interactionHistory: interactionHistory as object,
+      nextAction: 'Monitor application status in Opportunities pipeline',
     },
   });
-  return { status: app.status };
+
+  try {
+    await prisma.notification.create({
+      data: {
+        userId: internship.companyUserId,
+        type: 'CAREER',
+        title: 'New application received',
+        message: `${studentUser?.name ?? 'A student'} applied to ${internship.title}. Materials synced via UniBridge.`,
+        link: '/company/home',
+      },
+    });
+  } catch {
+    /* notifications optional */
+  }
+
+  return {
+    status: app.status,
+    applicationId: app.id,
+    opportunitiesHref: `/student/career/opportunities/${internshipId}`,
+    syncedDocuments: documentsJson,
+  };
 }

@@ -151,7 +151,14 @@ export function InternshipsCommandCenter({ initialHub }: { initialHub: Internshi
 
   async function apply(jobId: string) {
     setLoading(true);
-    await fetch(`/api/student/career/jobs/${jobId}/apply`, { method: 'POST' });
+    const res = await fetch(`/api/student/career/jobs/${jobId}/apply`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.opportunitiesHref) {
+        window.location.href = data.opportunitiesHref;
+        return;
+      }
+    }
     await fetchHub();
     setLoading(false);
   }

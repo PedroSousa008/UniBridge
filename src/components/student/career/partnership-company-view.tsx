@@ -61,7 +61,14 @@ export function PartnershipCompanyView({
   async function applyToJob(jobId: string) {
     setActionLoading(true);
     const res = await fetch(`/api/student/career/jobs/${jobId}/apply`, { method: 'POST' });
-    if (res.ok) await fetchDetail();
+    if (res.ok) {
+      const data = await res.json();
+      if (data.opportunitiesHref) {
+        window.location.href = data.opportunitiesHref;
+        return;
+      }
+      await fetchDetail();
+    }
     setActionLoading(false);
   }
 
