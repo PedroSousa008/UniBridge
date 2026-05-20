@@ -98,7 +98,48 @@ const STATEMENTS: string[] = [
   EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
 ];
 
+const COMPANY_EVENT_BOOTSTRAP: string[] = [
+  `CREATE TABLE IF NOT EXISTS "CompanyEvent" (
+    "id" TEXT NOT NULL,
+    "companyUserId" TEXT NOT NULL,
+    "universityId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "coverUrl" TEXT,
+    "description" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'pending_approval',
+    "targetDegrees" JSONB,
+    "targetYears" JSONB,
+    "targetSkills" JSONB,
+    "capacity" INTEGER,
+    "location" TEXT,
+    "isOnline" BOOLEAN NOT NULL DEFAULT false,
+    "speakers" JSONB,
+    "sponsors" JSONB,
+    "scheduleJson" JSONB,
+    "startsAt" TIMESTAMP(3) NOT NULL,
+    "endsAt" TIMESTAMP(3) NOT NULL,
+    "rejectedReason" TEXT,
+    "approvedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CompanyEvent_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "CompanyEvent_companyUserId_idx" ON "CompanyEvent"("companyUserId")`,
+  `CREATE INDEX IF NOT EXISTS "CompanyEvent_universityId_status_idx" ON "CompanyEvent"("universityId", "status")`,
+  `CREATE TABLE IF NOT EXISTS "CompanyEventRsvp" (
+    "id" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "studentUserId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'rsvp',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CompanyEventRsvp_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "CompanyEventRsvp_eventId_studentUserId_key"
+    ON "CompanyEventRsvp"("eventId", "studentUserId")`,
+];
+
 const MIGRATION_STATEMENTS: string[] = [
+  ...COMPANY_EVENT_BOOTSTRAP,
   `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "isFollowed" BOOLEAN NOT NULL DEFAULT false`,
   `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "notesJson" JSONB`,
   `ALTER TABLE "CompanyPipelineCandidate" ADD COLUMN IF NOT EXISTS "timelineJson" JSONB`,

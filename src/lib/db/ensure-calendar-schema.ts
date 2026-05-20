@@ -73,15 +73,35 @@ async function tableReady(): Promise<boolean> {
   }
 }
 
-async function runEnsure(): Promise<boolean> {
-  if (await tableReady()) return true;
-  try {
-    await prisma.$executeRawUnsafe(CALENDAR_SCHEMA_SQL);
-    return await tableReady();
-  } catch (e) {
-    console.error('[ensure-calendar-schema]', e);
-    return false;
+const COLUMN_MIGRATIONS: string[] = [
+  `ALTER TABLE "StudentCalendarEvent" ADD COLUMN IF NOT EXISTS "sourceRef" TEXT`,
+  `ALTER TABLE "StudentCalendarEvent" ADD COLUMN IF NOT EXISTS "taggedEmails" TEXT[] DEFAULT ARRAY[]::TEXT[]`,
+  `ALTER TABLE "StudentCalendarEvent" ADD COLUMN IF NOT EXISTS "startupId" TEXT`,
+  `ALTER TABLE "StudentCalendarEvent" ADD COLUMN IF NOT EXISTS "recurrenceMeta" JSONB`,
+  `ALTER TABLE "StudentCalendarEvent" ADD COLUMN IF NOT EXISTS "room" TEXT`,
+  `ALTER TABLE "StudentCalendarEvent" ADD COLUMN IF NOT EXISTS "professor" TEXT`,
+];
+
+async function runColumnMigrations(): Promise<void> {
+  for (const sql of COLUMN_MIGRATIONS) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+    } catch (e) {
+      console.error('[ensure-calendar-schema:migrate]', e);
+    }
   }
+}
+
+async function runEnsure(): Promise<boolean> {
+  if (!(await tableReady())) {
+    try {
+      await prisma.$executeRawUnsafe(CALENDAR_SCHEMA_SQL);
+    } catch (e) {
+      console.error('[ensure-calendar-schema]', e);
+    }
+  }
+  await runColumnMigrations();
+  return tableReady();
 }
 
 export function ensureStudentCalendarTables(): Promise<boolean> {

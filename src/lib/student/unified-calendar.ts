@@ -413,7 +413,11 @@ export async function loadUnifiedCalendar(
   });
   const subjectIds = enrollments.filter((e) => e.subject.status === 'ACTIVE').map((e) => e.subjectId);
 
-  const [assignments, exams, universityEvents, customEvents, taggedEvents, milestones, partnerCompanyEvents] =
+  let partnerCompanyEvents: Awaited<
+    ReturnType<typeof loadApprovedCompanyEventsForCalendarView>
+  > = [];
+
+  const [assignments, exams, universityEvents, customEvents, taggedEvents, milestones] =
     await Promise.all([
       prisma.assignment.findMany({
         where: { subjectId: { in: subjectIds }, dueDate: { gte: rangeStart, lte: rangeEnd } },
@@ -465,12 +469,26 @@ export async function loadUnifiedCalendar(
         },
         include: { startup: { select: { name: true, id: true } } },
       }),
-      profile?.universityId
-        ? loadApprovedCompanyEventsForCalendarView(profile.universityId, rangeStart, rangeEnd)
-        : Promise.resolve([]),
     ]);
 
-  const { classes } = await loadStudentWeeklySchedule(userId);
+  if (profile?.universityId) {
+    try {
+      partnerCompanyEvents = await loadApprovedCompanyEventsForCalendarView(
+        profile.universityId,
+        rangeStart,
+        rangeEnd
+      );
+    } catch {
+      partnerCompanyEvents = [];
+    }
+  }
+
+  let classes: Awaited<ReturnType<typeof loadStudentWeeklySchedule>>['classes'] = [];
+  try {
+    ({ classes } = await loadStudentWeeklySchedule(userId));
+  } catch {
+    classes = [];
+  }
 
   const events: UnifiedCalendarEvent[] = [];
 

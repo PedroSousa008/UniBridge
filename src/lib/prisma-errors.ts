@@ -10,7 +10,9 @@ export function isPrismaSchemaMismatchError(error: unknown): boolean {
     return (
       msg.includes('does not exist') ||
       msg.includes('studentweeklyclass') ||
-      msg.includes('subjectscheduleslot')
+      msg.includes('subjectscheduleslot') ||
+      msg.includes('companyevent') ||
+      msg.includes('studentcalendarevent')
     );
   }
   return false;
