@@ -201,7 +201,7 @@ const ROADMAP_STAGE_META: Record<
   'Junior role': {
     description: 'Entry-level position where you apply skills and grow under mentorship.',
     focus: 'Close skill gaps and strengthen employability',
-    href: '/student/profile',
+    href: '/student/career/cv',
   },
   'Mid-level': {
     description: 'Independent contributor with growing responsibility and specialization.',
@@ -276,7 +276,7 @@ function buildMilestones(
       id: 'cv',
       text: 'Build a strong CV on your profile',
       done: profile.profileStrength >= 50,
-      href: '/student/profile',
+      href: '/student/career/cv',
     },
     {
       id: 'grades',
