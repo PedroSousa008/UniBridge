@@ -251,6 +251,8 @@ model User {
   startupInterests    StartupInterest[]      @relation("StartupInterestUser")
   startupFollows      StartupFollower[]      @relation("StartupFollowerUser")
   startupBookmarks    StartupBookmark[]      @relation("StartupBookmarkUser")
+  partnershipBookmarks CompanyPartnershipBookmark[]
+  internshipBookmarks InternshipBookmark[]
   careerTargets       CareerTarget[]
   subjects            SubjectEnrollment[]
   assignments         AssignmentSubmission[]
@@ -333,15 +335,16 @@ model UniversityProfile {
 }
 
 model CompanyProfile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyName String?
-  industry    String?
-  website     String?
-  logoUrl     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName  String?
+  industry     String?
+  website      String?
+  logoUrl      String?
+  headquarters String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Course {
@@ -966,12 +969,16 @@ model CompanyPartnership {
   companyUser     User              @relation("CompanyUser", fields: [companyUserId], references: [id], onDelete: Cascade)
   status          PartnershipStatus @default(PENDING)
   partnershipType String?
+  partnershipTier String?
+  hiringStatus    String            @default("active")
   contactName     String?
   contactEmail    String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  careerPaths CareerPath[]
+  careerPaths  CareerPath[]
+  internships  Internship[]
+  bookmarks    CompanyPartnershipBookmark[]
 
   @@unique([universityId, companyUserId])
   @@index([universityId])
@@ -1001,7 +1008,8 @@ model CareerPath {
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
-  targets CareerTarget[]
+  targets     CareerTarget[]
+  internships Internship[]
 
   @@index([universityId, status])
   @@index([companyUserId])
@@ -1026,23 +1034,36 @@ model CareerTarget {
 }
 
 model Internship {
-  id            String       @id @default(cuid())
-  universityId  String?
-  university    University?  @relation(fields: [universityId], references: [id])
-  subjectId     String?
-  subject       Subject?     @relation(fields: [subjectId], references: [id])
-  companyUserId String
-  companyUser   User         @relation("InternshipCompany", fields: [companyUserId], references: [id], onDelete: Cascade)
-  careerPathId  String?
-  title         String
-  description   String?      @db.Text
-  duration      String?
-  location      String?
-  status        RecordStatus @default(DRAFT)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                    String       @id @default(cuid())
+  universityId          String?
+  university            University?  @relation(fields: [universityId], references: [id])
+  subjectId             String?
+  subject               Subject?     @relation(fields: [subjectId], references: [id])
+  companyUserId         String
+  companyUser           User         @relation("InternshipCompany", fields: [companyUserId], references: [id], onDelete: Cascade)
+  partnershipId         String?
+  partnership           CompanyPartnership? @relation(fields: [partnershipId], references: [id])
+  careerPathId          String?
+  careerPath            CareerPath?  @relation(fields: [careerPathId], references: [id])
+  title                 String
+  description           String?      @db.Text
+  department            String?
+  duration              String?
+  location              String?
+  remoteType            String?      @default("on_site")
+  employmentType        String?      @default("internship")
+  salaryMin             Int?
+  salaryMax             Int?
+  deadline              DateTime?
+  availabilityStatus    String       @default("available")
+  recommendedSkills     String[]     @default([])
+  compatibilityCriteria String?      @db.Text
+  status                RecordStatus @default(DRAFT)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   applications InternshipApplication[]
+  bookmarks    InternshipBookmark[]
 }
 
 model InternshipApplication {
@@ -1051,10 +1072,35 @@ model InternshipApplication {
   internship   Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)
   studentId    String
   student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  status       String   @default("pending")
+  status       String   @default("candidate")
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([internshipId, studentId])
+}
+
+model CompanyPartnershipBookmark {
+  id            String             @id @default(cuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnershipId String
+  partnership   CompanyPartnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
+  createdAt     DateTime           @default(now())
+
+  @@unique([userId, partnershipId])
+  @@index([userId])
+}
+
+model InternshipBookmark {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  internshipId String
+  internship   Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, internshipId])
+  @@index([userId])
 }
 
 model CompanyChallenge {
