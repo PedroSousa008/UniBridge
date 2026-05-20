@@ -5,7 +5,9 @@ import {
   Building2,
   ChevronRight,
   MapPin,
+  Sparkles,
   Star,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -81,49 +83,195 @@ export function PartnershipCompanyView({
         .filter((d) => d.jobs.length > 0)
     : detail.departments;
 
+  const p = detail.presence;
+  const compat = p?.compatibility;
+
   return (
     <div className="space-y-10 pb-12">
-      {/* Company header */}
-      <section className="rounded-2xl border border-border/60 p-6 shadow-sm">
+      {/* Hero */}
+      <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-white">
         <div className="flex flex-wrap items-start gap-6">
-          <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="h-16 w-16 rounded-xl bg-white/10 flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-white/20">
             {detail.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={detail.logoUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <Building2 className="h-8 w-8 text-muted-foreground" />
+              <Building2 className="h-8 w-8 text-white/60" />
             )}
           </div>
           <div className="flex-1 min-w-[200px]">
-            <Badge variant="secondary" className="mb-2">
-              {detail.partnershipTier}
-            </Badge>
-            <h2 className="text-xl font-semibold">{detail.name}</h2>
-            {detail.industry ? <p className="text-sm text-muted-foreground">{detail.industry}</p> : null}
+            <Badge className="mb-2 border-white/20 bg-white/10">{detail.partnershipTier}</Badge>
+            <h2 className="text-2xl font-semibold">{detail.name}</h2>
+            {p?.cultureHeadline ? (
+              <p className="mt-2 text-white/80 italic">&ldquo;{p.cultureHeadline}&rdquo;</p>
+            ) : null}
+            {detail.industry ? <p className="text-sm text-white/70 mt-1">{detail.industry}</p> : null}
             {detail.headquarters ? (
-              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+              <p className="text-sm text-white/70 flex items-center gap-1 mt-1">
                 <MapPin className="h-3.5 w-3.5" />
                 {detail.headquarters}
               </p>
             ) : null}
-            <p className="text-sm mt-2">{detail.hiringStatus}</p>
+            <p className="text-sm mt-2 text-white/80">{detail.hiringStatus}</p>
           </div>
           <div className="flex gap-4 text-center">
             <div>
               <p className="text-2xl font-semibold">{detail.openPositions}</p>
-              <p className="text-xs text-muted-foreground">Open roles</p>
+              <p className="text-xs text-white/60">Open roles</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold text-brand">{detail.avgCompatibility}%</p>
-              <p className="text-xs text-muted-foreground">Your avg match</p>
+              <p className="text-2xl font-semibold text-brand-foreground">
+                {compat?.overall ?? detail.avgCompatibility}%
+              </p>
+              <p className="text-xs text-white/60">Your compatibility</p>
             </div>
+            {p ? (
+              <div>
+                <p className="text-2xl font-semibold">{p.attractivenessScore}</p>
+                <p className="text-xs text-white/60">Attractiveness</p>
+              </div>
+            ) : null}
           </div>
-          <Button variant="outline" disabled={actionLoading} onClick={() => void toggleBookmark()}>
+          <Button
+            variant="secondary"
+            className="bg-white/10 text-white hover:bg-white/20"
+            disabled={actionLoading}
+            onClick={() => void toggleBookmark()}
+          >
             <Star className={cn('mr-2 h-4 w-4', detail.isBookmarked && 'fill-amber-400 text-amber-500')} />
             {detail.isBookmarked ? 'Saved' : 'Save company'}
           </Button>
         </div>
       </section>
+
+      {compat ? (
+        <section className="grid gap-4 lg:grid-cols-2">
+          <Card className="border-brand/20">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-brand" />
+                Your compatibility with {detail.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                ['Skills match', compat.skillsMatch],
+                ['Leadership', compat.leadership],
+                ['Communication', compat.communication],
+                ['Startup activity', compat.startupActivity],
+                ['Academic alignment', compat.academicAlignment],
+              ].map(([label, val]) => (
+                <div key={String(label)}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span>{label}</span>
+                    <span className="font-medium">{val}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-brand rounded-full" style={{ width: `${val}%` }} />
+                  </div>
+                </div>
+              ))}
+              <ul className="text-xs text-muted-foreground pt-2 space-y-1">
+                {compat.recommendations.map((r, i) => (
+                  <li key={i}>· {r}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+          {p && (p.nonNegotiables.length > 0 || p.preferredQualities.length > 0) ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Fit requirements</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {p.nonNegotiables.length > 0 ? (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Non-negotiables</p>
+                    <ul className="text-sm space-y-1">
+                      {p.nonNegotiables.map((n) => (
+                        <li key={n} className="rounded-lg bg-muted/50 px-2 py-1">
+                          {n}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-1">
+                  {p.preferredQualities.map((q) => (
+                    <Badge key={q} variant="secondary" className="text-[10px]">
+                      {q}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+        </section>
+      ) : null}
+
+      {p?.departmentTeams && p.departmentTeams.length > 0 ? (
+        <section>
+          <h3 className="text-lg font-semibold mb-3">Active teams</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {p.departmentTeams.map((d) => (
+              <Card key={d.name}>
+                <CardContent className="py-4">
+                  <p className="font-medium">{d.name}</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {d.occupiedCount} occupied · {d.openCount} open positions
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {p?.whyJoin && p.whyJoin.length > 0 ? (
+        <section>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-brand" />
+            Why join {detail.name}
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {p.whyJoin.map((item, i) => (
+              <Card key={i}>
+                <CardContent className="py-4">
+                  <p className="font-medium">{item.title}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {p?.team && p.team.length > 0 ? (
+        <section>
+          <h3 className="text-lg font-semibold mb-3">People at {detail.name}</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {p.team.map((m) => (
+              <Card key={m.id}>
+                <CardContent className="flex gap-3 py-4">
+                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.roleTitle ?? m.memberType}</p>
+                    {m.previousUniversity ? (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {m.previousUniversity}
+                        {m.degree ? ` · ${m.degree}` : ''}
+                      </p>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* Career ladder */}
       {detail.careerLadder.length > 0 ? (

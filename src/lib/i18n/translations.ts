@@ -141,6 +141,7 @@ export const translations = {
     company: {
       nav: {
         home: 'Home',
+        presence: 'Presence',
         talent: 'Talent',
         pipeline: 'Pipeline',
         opportunities: 'Opportunities',
@@ -318,6 +319,7 @@ export const translations = {
     company: {
       nav: {
         home: 'Início',
+        presence: 'Presença',
         talent: 'Talento',
         pipeline: 'Pipeline',
         opportunities: 'Oportunidades',

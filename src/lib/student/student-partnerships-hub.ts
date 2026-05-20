@@ -38,11 +38,48 @@ export interface CareerLadderStage {
   order: number;
 }
 
+export interface PartnershipCompanyPresenceSlice {
+  cultureHeadline: string | null;
+  compatibility: {
+    overall: number;
+    skillsMatch: number;
+    leadership: number;
+    communication: number;
+    startupActivity: number;
+    academicAlignment: number;
+    recommendations: string[];
+  };
+  culture: {
+    mission: string | null;
+    vision: string | null;
+    values: string[];
+    leadershipStyles: string[];
+    whatWeLookFor: string | null;
+  };
+  nonNegotiables: string[];
+  preferredQualities: string[];
+  team: {
+    id: string;
+    name: string;
+    photoUrl: string | null;
+    roleTitle: string | null;
+    memberType: string;
+    previousUniversity: string | null;
+    degree: string | null;
+    bio: string | null;
+  }[];
+  departmentTeams: { name: string; occupiedCount: number; openCount: number }[];
+  attractivenessScore: number;
+  whyJoin: { title: string; description: string }[];
+  events: { id: string; title: string; startsAt: string }[];
+}
+
 export interface PartnershipCompanyDetail extends PartnershipCompanyCard {
   departments: { name: string; jobs: PartnershipJob[] }[];
   allJobs: PartnershipJob[];
   careerLadder: CareerLadderStage[];
   alumni: { roleTitle: string; note: string }[];
+  presence?: PartnershipCompanyPresenceSlice;
 }
 
 export interface PartnershipsHub {
@@ -279,6 +316,36 @@ export async function loadPartnershipCompanyDetail(
           )
         : 0;
 
+  let presence: PartnershipCompanyPresenceSlice | undefined;
+  try {
+    const { loadCompanyPresenceForStudent } = await import('@/lib/company/company-presence-hub');
+    const p = await loadCompanyPresenceForStudent(partnership.companyUserId, userId);
+    presence = {
+      cultureHeadline: p.hero.cultureHeadline,
+      compatibility: p.compatibility,
+      culture: {
+        mission: p.culture.mission,
+        vision: p.culture.vision,
+        values: p.culture.values,
+        leadershipStyles: p.culture.leadershipStyles,
+        whatWeLookFor: p.culture.whatWeLookFor,
+      },
+      nonNegotiables: p.nonNegotiables,
+      preferredQualities: p.preferredQualities,
+      team: p.team,
+      departmentTeams: p.departments.map((d) => ({
+        name: d.name,
+        occupiedCount: d.occupiedCount,
+        openCount: d.openCount,
+      })),
+      attractivenessScore: p.attractiveness.score,
+      whyJoin: p.whyJoin,
+      events: p.events.map((e) => ({ id: e.id, title: e.title, startsAt: e.startsAt })),
+    };
+  } catch {
+    /* presence tables optional */
+  }
+
   return {
     id: partnership.id,
     companyUserId: partnership.companyUserId,
@@ -297,6 +364,7 @@ export async function loadPartnershipCompanyDetail(
     allJobs,
     careerLadder,
     alumni: alumniPlaceholder(name),
+    presence,
   };
 }
 

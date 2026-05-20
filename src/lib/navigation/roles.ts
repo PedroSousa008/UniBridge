@@ -17,6 +17,7 @@ import {
   Globe,
   Sparkles,
   Settings,
+  LayoutTemplate,
 } from 'lucide-react';
 
 export interface RoleNavItem {
@@ -51,6 +52,7 @@ export const universityNav: RoleNavItem[] = [
 
 export const companyNav: RoleNavItem[] = [
   { href: '/company/home', labelKey: 'company.nav.home', icon: Home },
+  { href: '/company/presence', labelKey: 'company.nav.presence', icon: LayoutTemplate },
   { href: '/company/talent', labelKey: 'company.nav.talent', icon: Search },
   { href: '/company/pipeline', labelKey: 'company.nav.pipeline', icon: Kanban },
   { href: '/company/opportunities', labelKey: 'company.nav.opportunities', icon: Target },
