@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -14,6 +14,7 @@ import {
   Star,
   Target,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import {
   Area,
@@ -61,6 +62,7 @@ function PathCard({
       className={cn(
         'cursor-pointer border-border/60 transition-all hover:shadow-md',
         selected && 'ring-2 ring-brand/40 shadow-md',
+        compare && 'ring-2 ring-violet-400/50 shadow-md',
         path.isPrimaryTarget && 'border-brand/30'
       )}
       onClick={onSelect}
@@ -76,6 +78,14 @@ function PathCard({
               )}
               {path.isPrimaryTarget ? (
                 <Badge className="text-[10px] bg-brand/10 text-brand border-brand/20">Primary goal</Badge>
+              ) : null}
+              {path.isTarget && !path.isPrimaryTarget ? (
+                <Badge variant="outline" className="text-[10px]">Saved</Badge>
+              ) : null}
+              {compare ? (
+                <Badge className="text-[10px] bg-violet-500/10 text-violet-700 border-violet-200">
+                  Comparing
+                </Badge>
               ) : null}
             </div>
             <h3 className="mt-2 font-semibold tracking-tight">{path.roleTitle}</h3>
@@ -105,21 +115,20 @@ function PathCard({
           )}
         </div>
 
-        <div className="mt-4 flex items-center justify-between">
-          <button
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <Button
             type="button"
+            size="sm"
+            variant={compare ? 'default' : 'outline'}
+            className="h-8 text-xs"
             onClick={(e) => {
               e.stopPropagation();
               onToggleCompare();
             }}
-            className={cn(
-              'text-xs font-medium',
-              compare ? 'text-brand' : 'text-muted-foreground hover:text-foreground'
-            )}
           >
-            <GitCompare className="mr-1 inline h-3.5 w-3.5" />
-            Compare
-          </button>
+            <GitCompare className="mr-1.5 h-3.5 w-3.5" />
+            {compare ? 'In compare' : 'Compare'}
+          </Button>
           {path.monthlyTrend != null && path.monthlyTrend !== 0 ? (
             <span className={cn('text-xs font-medium', path.monthlyTrend > 0 ? 'text-emerald-600' : 'text-amber-600')}>
               {path.monthlyTrend > 0 ? '+' : ''}
@@ -132,31 +141,124 @@ function PathCard({
   );
 }
 
-function RoadmapViz({ stages }: { stages: CareerPathCard['roadmapStages'] }) {
+function salaryLabel(path: CareerPathCard): string {
+  if (path.salarySource === 'company_average' && path.salaryCompanyCount >= 2) {
+    return `Average of ${path.salaryCompanyCount} companies`;
+  }
+  if (path.salaryIsEstimate) {
+    return 'Estimate — updates when companies publish offers';
+  }
+  return 'Based on company data';
+}
+
+function RoadmapViz({
+  stages,
+  selectedStageId,
+  onSelectStage,
+}: {
+  stages: CareerPathCard['roadmapStages'];
+  selectedStageId: string | null;
+  onSelectStage: (id: string) => void;
+}) {
+  const active =
+    stages.find((s) => s.id === selectedStageId) ??
+    stages.find((s) => s.status === 'current') ??
+    stages[0];
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {stages.map((s, i) => (
-        <div key={s.stage} className="flex items-center gap-2">
-          <div
-            className={cn(
-              'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium',
-              s.status === 'done' && 'bg-emerald-500/10 text-emerald-700',
-              s.status === 'current' && 'bg-brand/10 text-brand ring-1 ring-brand/20',
-              s.status === 'upcoming' && 'bg-muted text-muted-foreground'
-            )}
-          >
-            {s.status === 'done' ? (
-              <CheckCircle2 className="h-3.5 w-3.5" />
-            ) : (
-              <Circle className="h-3.5 w-3.5" />
-            )}
-            {s.stage}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {stages.map((s, i) => (
+          <div key={s.id} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onSelectStage(s.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all',
+                s.status === 'done' && 'bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20',
+                s.status === 'current' && 'bg-brand/10 text-brand ring-1 ring-brand/20 hover:bg-brand/15',
+                s.status === 'upcoming' && 'bg-muted text-muted-foreground hover:bg-muted/80',
+                selectedStageId === s.id && 'ring-2 ring-brand/40 scale-[1.02]'
+              )}
+            >
+              {s.status === 'done' ? (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              ) : (
+                <Circle className="h-3.5 w-3.5" />
+              )}
+              {s.stage}
+            </button>
+            {i < stages.length - 1 ? (
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+            ) : null}
           </div>
-          {i < stages.length - 1 ? (
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+        ))}
+      </div>
+      {active ? (
+        <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+          <p className="font-medium text-sm">{active.stage}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{active.description}</p>
+          <p className="mt-2 text-sm">
+            <span className="font-medium">Focus: </span>
+            {active.focus}
+          </p>
+          {active.href ? (
+            <Button variant="ghost" size="sm" className="mt-2 h-auto px-0 text-brand" asChild>
+              <Link href={active.href}>Go to related section →</Link>
+            </Button>
           ) : null}
         </div>
-      ))}
+      ) : null}
+    </div>
+  );
+}
+
+function PathComparisonTable({ paths }: { paths: CareerPathCard[] }) {
+  if (paths.length < 2) return null;
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border/60">
+      <table className="w-full min-w-[640px] text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/30">
+            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Metric</th>
+            {paths.map((p) => (
+              <th key={p.id} className="px-4 py-3 text-left font-medium">
+                {p.roleTitle}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            { label: 'Compatibility', get: (p: CareerPathCard) => `${p.compatibility}%` },
+            {
+              label: 'Starting salary',
+              get: (p: CareerPathCard) =>
+                p.salaryStarting ? `€${p.salaryStarting.toLocaleString()}` : '—',
+            },
+            {
+              label: '10-yr projection',
+              get: (p: CareerPathCard) =>
+                p.salaryTenYear ? `€${p.salaryTenYear.toLocaleString()}` : '—',
+            },
+            { label: 'Salary basis', get: (p: CareerPathCard) => salaryLabel(p) },
+            { label: 'Difficulty', get: (p: CareerPathCard) => DIFFICULTY_LABEL[p.pathDifficulty] },
+            { label: 'Demand', get: (p: CareerPathCard) => DEMAND_LABEL[p.demandLevel] },
+            { label: 'Growth', get: (p: CareerPathCard) => p.growthTrend },
+            { label: 'Skills gap', get: (p: CareerPathCard) => `${p.missingSkills.length} areas` },
+          ].map((row) => (
+            <tr key={row.label} className="border-b border-border/60 last:border-0">
+              <td className="px-4 py-3 text-muted-foreground">{row.label}</td>
+              {paths.map((p) => (
+                <td key={p.id} className="px-4 py-3">
+                  {row.get(p)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -164,11 +266,14 @@ function RoadmapViz({ stages }: { stages: CareerPathCard['roadmapStages'] }) {
 export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPathsHub }) {
   const [hub, setHub] = useState(initialHub);
   const [selectedId, setSelectedId] = useState(initialHub.bestFit?.id ?? null);
-  const [compareIds, setCompareIds] = useState<string[]>(initialHub.comparisonDefaults);
+  const [compareIds, setCompareIds] = useState<string[]>(initialHub.comparisonDefaults.slice(0, 3));
+  const [roadmapStageId, setRoadmapStageId] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiReply, setAiReply] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const compareRef = useRef<HTMLElement>(null);
 
   const selected = useMemo(
     () => hub.paths.find((p) => p.id === selectedId) ?? hub.bestFit,
@@ -176,9 +281,19 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
   );
 
   const comparePaths = useMemo(
-    () => hub.paths.filter((p) => compareIds.includes(p.id)),
+    () =>
+      compareIds
+        .map((id) => hub.paths.find((p) => p.id === id))
+        .filter((p): p is CareerPathCard => !!p),
     [hub.paths, compareIds]
   );
+
+  useEffect(() => {
+    if (selected?.roadmapStages.length) {
+      const current = selected.roadmapStages.find((s) => s.status === 'current');
+      setRoadmapStageId(current?.id ?? selected.roadmapStages[0]?.id ?? null);
+    }
+  }, [selected?.id, selected?.roadmapStages]);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -198,20 +313,68 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
 
   async function setAsTarget(path: CareerPathCard, primary = false) {
     setSaving(true);
-    await fetch('/api/career/targets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        roleTitle: path.roleTitle,
-        companyName: path.isProfileInsight ? null : path.companyName,
-        careerPathId: path.isProfileInsight ? null : path.id,
-        compatibility: path.compatibility,
-        missingRequirements: path.missingSkills,
-        setPrimary: primary,
-      }),
+    setActionMessage(null);
+    try {
+      const res = await fetch('/api/career/targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roleTitle: path.roleTitle,
+          companyName: path.isProfileInsight ? 'Profile insight' : path.companyName,
+          careerPathId: path.isProfileInsight ? null : path.id,
+          profileInsightId: path.profileInsightId,
+          isProfileInsight: path.isProfileInsight,
+          compatibility: path.compatibility,
+          missingRequirements: path.missingSkills,
+          setPrimary: primary,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionMessage(data.error || 'Could not save career goal.');
+        return;
+      }
+
+      setHub((prev) => ({
+        ...prev,
+        paths: prev.paths.map((p) => ({
+          ...p,
+          isTarget: p.id === path.id ? true : p.isTarget,
+          isPrimaryTarget: primary ? p.id === path.id : p.isPrimaryTarget,
+          targetId: p.id === path.id ? data.target.id : p.targetId,
+        })),
+      }));
+
+      setActionMessage(
+        primary
+          ? `${path.roleTitle} set as your primary career goal.`
+          : `${path.roleTitle} saved to your career targets.`
+      );
+      await refresh();
+    } catch {
+      setActionMessage('Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleCompare(id: string) {
+    setCompareIds((prev) => {
+      let next: string[];
+      if (prev.includes(id)) {
+        next = prev.filter((x) => x !== id);
+      } else if (prev.length >= 3) {
+        next = [...prev.slice(1), id];
+      } else {
+        next = [...prev, id];
+      }
+      if (next.length >= 2) {
+        setTimeout(() => {
+          compareRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+      }
+      return next;
     });
-    setSaving(false);
-    await refresh();
   }
 
   async function askAi(prompt: string) {
@@ -238,14 +401,6 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
     'Most realistic high-income path for me?',
     'Compare my top career paths',
   ];
-
-  function toggleCompare(id: string) {
-    setCompareIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 3) return prev;
-      return [...prev, id];
-    });
-  }
 
   return (
     <div className="space-y-10 pb-12">
@@ -315,6 +470,60 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
         </div>
       </section>
 
+      {/* Compare panel — directly under path cards */}
+      <section ref={compareRef}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <GitCompare className="h-5 w-5" />
+              Path comparison
+            </h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Select up to 3 paths using Compare on each card
+            </p>
+          </div>
+          {compareIds.length > 0 ? (
+            <Button variant="ghost" size="sm" onClick={() => setCompareIds([])}>
+              Clear all
+            </Button>
+          ) : null}
+        </div>
+
+        {compareIds.length > 0 ? (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {comparePaths.map((p) => (
+              <Badge
+                key={p.id}
+                variant="secondary"
+                className="gap-1 pl-2 pr-1 py-1.5 text-xs font-normal"
+              >
+                {p.roleTitle} · {p.compatibility}%
+                <button
+                  type="button"
+                  className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                  onClick={() => toggleCompare(p.id)}
+                  aria-label={`Remove ${p.roleTitle} from comparison`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+
+        {comparePaths.length >= 2 ? (
+          <PathComparisonTable paths={comparePaths} />
+        ) : compareIds.length === 1 ? (
+          <p className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+            Add one more path to compare side by side.
+          </p>
+        ) : (
+          <p className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+            Click Compare on any career path card to start.
+          </p>
+        )}
+      </section>
+
       {/* Selected path detail */}
       {selected ? (
         <section className="grid gap-6 lg:grid-cols-3">
@@ -327,20 +536,37 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
                     {selected.isProfileInsight ? 'Profile-based direction' : selected.companyName}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={saving}
-                    onClick={() => setAsTarget(selected, false)}
-                  >
-                    <Star className="mr-1.5 h-4 w-4" />
-                    Save
-                  </Button>
-                  <Button size="sm" disabled={saving} onClick={() => setAsTarget(selected, true)}>
-                    <Target className="mr-1.5 h-4 w-4" />
-                    Set as goal
-                  </Button>
+                <div className="flex flex-col items-end gap-2">
+                  {actionMessage ? (
+                    <p className="text-xs text-emerald-700 max-w-[220px] text-right">{actionMessage}</p>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={saving || selected.isTarget}
+                      onClick={() => setAsTarget(selected, false)}
+                    >
+                      {saving ? (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Star className="mr-1.5 h-4 w-4" />
+                      )}
+                      {selected.isTarget ? 'Saved' : 'Save'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={saving || selected.isPrimaryTarget}
+                      onClick={() => setAsTarget(selected, true)}
+                    >
+                      {saving ? (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Target className="mr-1.5 h-4 w-4" />
+                      )}
+                      {selected.isPrimaryTarget ? 'Primary goal' : 'Set as goal'}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -362,7 +588,14 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
 
               <div>
                 <p className="text-sm font-medium mb-3">Career roadmap</p>
-                <RoadmapViz stages={selected.roadmapStages} />
+                <p className="text-xs text-muted-foreground mb-3">
+                  Click any stage to explore what it means for your trajectory.
+                </p>
+                <RoadmapViz
+                  stages={selected.roadmapStages}
+                  selectedStageId={roadmapStageId}
+                  onSelectStage={setRoadmapStageId}
+                />
               </div>
 
               <div>
@@ -418,6 +651,9 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
             <Card className="border-border/60">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Salary projection</CardTitle>
+                <p className="text-[11px] text-muted-foreground font-normal mt-1">
+                  {salaryLabel(selected)}
+                </p>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -432,49 +668,13 @@ export function CareerPathsCommandCenter({ initialHub }: { initialHub: CareerPat
                   <span className="text-muted-foreground">10-year</span>
                   <span>{selected.salaryTenYear ? `€${selected.salaryTenYear.toLocaleString()}` : '—'}</span>
                 </div>
+                {selected.salaryIsEstimate ? (
+                  <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/40">
+                    These figures will refine automatically as companies publish real offers for this role.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Comparison */}
-      {comparePaths.length >= 2 ? (
-        <section>
-          <h3 className="text-lg font-semibold mb-4">Path comparison</h3>
-          <div className="overflow-x-auto rounded-xl border border-border/60">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Metric</th>
-                  {comparePaths.map((p) => (
-                    <th key={p.id} className="px-4 py-3 text-left font-medium">
-                      {p.roleTitle}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  { label: 'Compatibility', get: (p: CareerPathCard) => `${p.compatibility}%` },
-                  { label: 'Starting salary', get: (p: CareerPathCard) => p.salaryStarting ? `€${p.salaryStarting.toLocaleString()}` : '—' },
-                  { label: '10-yr projection', get: (p: CareerPathCard) => p.salaryTenYear ? `€${p.salaryTenYear.toLocaleString()}` : '—' },
-                  { label: 'Difficulty', get: (p: CareerPathCard) => DIFFICULTY_LABEL[p.pathDifficulty] },
-                  { label: 'Demand', get: (p: CareerPathCard) => DEMAND_LABEL[p.demandLevel] },
-                  { label: 'Growth', get: (p: CareerPathCard) => p.growthTrend },
-                  { label: 'Skills gap', get: (p: CareerPathCard) => `${p.missingSkills.length} areas` },
-                ].map((row) => (
-                  <tr key={row.label} className="border-b border-border/60 last:border-0">
-                    <td className="px-4 py-3 text-muted-foreground">{row.label}</td>
-                    {comparePaths.map((p) => (
-                      <td key={p.id} className="px-4 py-3">
-                        {row.get(p)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </section>
       ) : null}

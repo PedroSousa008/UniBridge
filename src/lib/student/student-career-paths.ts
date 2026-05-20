@@ -25,12 +25,23 @@ export interface CareerPathCard {
   salaryStarting: number | null;
   salaryFiveYear: number | null;
   salaryTenYear: number | null;
+  salaryIsEstimate: boolean;
+  salarySource: 'profile_estimate' | 'company' | 'company_average';
+  salaryCompanyCount: number;
+  profileInsightId: string | null;
   requiredSkills: string[];
   missingSkills: { name: string; gapPercent: number; importance: number }[];
   matchedSkills: { name: string; score: number; matched: boolean }[];
   whyMatches: string[];
   subjectConnections: { subjectName: string; message: string; contributionPercent: number }[];
-  roadmapStages: { stage: string; status: 'done' | 'current' | 'upcoming' }[];
+  roadmapStages: {
+    id: string;
+    stage: string;
+    status: 'done' | 'current' | 'upcoming';
+    description: string;
+    focus: string;
+    href: string | null;
+  }[];
   milestones: { id: string; text: string; done: boolean; href: string | null }[];
   simulation: {
     workStyle: string;
@@ -141,6 +152,10 @@ function pathToCard(
     salaryStarting: result.salaryProjection.starting,
     salaryFiveYear: result.salaryProjection.fiveYear,
     salaryTenYear: result.salaryProjection.tenYear,
+    salaryIsEstimate: result.salaryProjection.isEstimate,
+    salarySource: result.salaryProjection.source,
+    salaryCompanyCount: result.salaryProjection.companyCount,
+    profileInsightId: opts.isProfileInsight ? path.id : null,
     requiredSkills: path.recommendedSkills,
     missingSkills: result.missingSkills,
     matchedSkills: result.matchedSkills,
@@ -151,6 +166,49 @@ function pathToCard(
     simulation: result.simulation,
     recommendedInternships: path.recommendedInternships,
     href: opts.isProfileInsight ? '/student/career/paths' : '/student/career/paths',
+  };
+}
+
+function computeRoleSalaryAverages(paths: { roleTitle: string; companyName: string; salaryMin: number | null; salaryMax: number | null }[]) {
+  const byRole = new Map<string, { values: number[]; companies: Set<string> }>();
+  for (const p of paths) {
+    const key = p.roleTitle.toLowerCase().trim();
+    if (!byRole.has(key)) byRole.set(key, { values: [], companies: new Set() });
+    const group = byRole.get(key)!;
+    if (p.salaryMin != null) group.values.push(p.salaryMin);
+    if (p.salaryMax != null) group.values.push(p.salaryMax);
+    group.companies.add(p.companyName);
+  }
+  const averages = new Map<string, { start: number | null; companyCount: number }>();
+  for (const [key, group] of byRole) {
+    const start =
+      group.values.length > 0
+        ? Math.round(group.values.reduce((a, b) => a + b, 0) / group.values.length)
+        : null;
+    averages.set(key, { start, companyCount: group.companies.size });
+  }
+  return averages;
+}
+
+function applySalaryAverage(
+  result: ReturnType<typeof computePathCompatibility>,
+  roleTitle: string,
+  averages: Map<string, { start: number | null; companyCount: number }>
+) {
+  const avg = averages.get(roleTitle.toLowerCase().trim());
+  if (!avg?.start) return result;
+  const start = avg.start;
+  return {
+    ...result,
+    salaryProjection: {
+      starting: start,
+      fiveYear: Math.round(start * 1.45),
+      tenYear: Math.round(start * 2.1),
+      currency: 'EUR',
+      isEstimate: avg.companyCount < 2,
+      source: avg.companyCount >= 2 ? ('company_average' as const) : ('company' as const),
+      companyCount: avg.companyCount,
+    },
   };
 }
 
@@ -174,9 +232,11 @@ export async function loadStudentCareerPathsHub(userId: string): Promise<CareerP
 
   const hasCompanyPaths = publishedPaths.length > 0;
   const cards: CareerPathCard[] = [];
+  const salaryAverages = hasCompanyPaths ? computeRoleSalaryAverages(publishedPaths) : new Map();
 
   for (const path of publishedPaths) {
-    const result = computePathCompatibility(path, profile);
+    let result = computePathCompatibility(path, profile);
+    result = applySalaryAverage(result, path.roleTitle, salaryAverages);
     const target = targets.find((t) => t.careerPathId === path.id);
 
     if (target && Math.round(target.compatibility) !== result.compatibility) {
@@ -203,7 +263,12 @@ export async function loadStudentCareerPathsHub(userId: string): Promise<CareerP
   if (!hasCompanyPaths) {
     const archetypes = scoreArchetypes(profile, universityId);
     for (const { path, result } of archetypes) {
-      const target = targets.find((t) => t.roleTitle === path.roleTitle && !t.careerPathId);
+      const target = targets.find(
+        (t) =>
+          t.roleTitle === path.roleTitle &&
+          !t.careerPathId &&
+          (t.companyName === 'Profile insight' || t.companyName === null)
+      );
       cards.push(
         pathToCard(path, result, {
           isProfileInsight: true,

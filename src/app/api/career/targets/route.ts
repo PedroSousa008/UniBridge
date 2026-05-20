@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
+const PROFILE_INSIGHT_LABEL = 'Profile insight';
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id || session.user.role !== 'STUDENT') {
@@ -25,8 +27,16 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const roleTitle = String(body.roleTitle || '').trim();
-  const companyName = String(body.companyName || '').trim() || null;
-  const careerPathId = body.careerPathId ? String(body.careerPathId) : null;
+  const profileInsightId = body.profileInsightId ? String(body.profileInsightId) : null;
+  const isProfileInsight = body.isProfileInsight === true || !!profileInsightId;
+  const companyName = isProfileInsight
+    ? PROFILE_INSIGHT_LABEL
+    : String(body.companyName || '').trim() || null;
+  const careerPathId =
+    body.careerPathId &&
+    !String(body.careerPathId).startsWith('archetype-')
+      ? String(body.careerPathId)
+      : null;
   const compatibility = body.compatibility != null ? Number(body.compatibility) : 0;
   const missingRequirements =
     body.missingRequirements != null ? JSON.stringify(body.missingRequirements) : null;
@@ -35,13 +45,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Role title is required' }, { status: 400 });
   }
 
-  const existing = careerPathId
-    ? await prisma.careerTarget.findFirst({
-        where: { userId: session.user.id, careerPathId },
-      })
-    : await prisma.careerTarget.findFirst({
-        where: { userId: session.user.id, roleTitle, companyName },
-      });
+  let existing = null;
+  if (careerPathId) {
+    existing = await prisma.careerTarget.findFirst({
+      where: { userId: session.user.id, careerPathId },
+    });
+  } else if (isProfileInsight) {
+    existing = await prisma.careerTarget.findFirst({
+      where: {
+        userId: session.user.id,
+        roleTitle,
+        careerPathId: null,
+        OR: [{ companyName: PROFILE_INSIGHT_LABEL }, { companyName: null }],
+      },
+    });
+  } else {
+    existing = await prisma.careerTarget.findFirst({
+      where: { userId: session.user.id, roleTitle, companyName },
+    });
+  }
 
   if (existing) {
     const updated = await prisma.careerTarget.update({
@@ -49,6 +71,7 @@ export async function POST(request: Request) {
       data: {
         compatibility,
         missingRequirements,
+        companyName: isProfileInsight ? PROFILE_INSIGHT_LABEL : companyName,
         isPrimary: body.setPrimary === true ? true : existing.isPrimary,
       },
     });
@@ -58,7 +81,7 @@ export async function POST(request: Request) {
         data: { isPrimary: false },
       });
     }
-    return NextResponse.json({ target: updated });
+    return NextResponse.json({ target: updated, action: 'updated' });
   }
 
   const count = await prisma.careerTarget.count({
@@ -70,7 +93,7 @@ export async function POST(request: Request) {
       userId: session.user.id,
       roleTitle,
       companyName,
-      careerPathId: careerPathId && !careerPathId.startsWith('archetype-') ? careerPathId : null,
+      careerPathId,
       compatibility,
       missingRequirements,
       isPrimary: body.setPrimary === true || count === 0,
@@ -84,7 +107,7 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ target }, { status: 201 });
+  return NextResponse.json({ target, action: 'created' }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {

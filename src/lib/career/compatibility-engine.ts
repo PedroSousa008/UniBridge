@@ -34,6 +34,15 @@ export interface SkillMatch {
   matched: boolean;
 }
 
+export interface RoadmapStage {
+  id: string;
+  stage: string;
+  status: 'done' | 'current' | 'upcoming';
+  description: string;
+  focus: string;
+  href: string | null;
+}
+
 export interface CompatibilityResult {
   compatibility: number;
   matchedSkills: SkillMatch[];
@@ -49,6 +58,9 @@ export interface CompatibilityResult {
     fiveYear: number | null;
     tenYear: number | null;
     currency: string;
+    isEstimate: boolean;
+    source: 'profile_estimate' | 'company' | 'company_average';
+    companyCount: number;
   };
   simulation: {
     workStyle: string;
@@ -56,7 +68,7 @@ export interface CompatibilityResult {
     remoteFlex: string;
     meetingLoad: string;
   };
-  roadmapStages: { stage: string; status: 'done' | 'current' | 'upcoming' }[];
+  roadmapStages: RoadmapStage[];
   milestones: { id: string; text: string; done: boolean; href: string | null }[];
 }
 
@@ -153,17 +165,66 @@ function inferDifficulty(compatibility: number, requirements: PathRequirements):
   return 'challenging';
 }
 
-function salaryProjection(path: Pick<CareerPath, 'salaryMin' | 'salaryMax'>) {
+function salaryProjection(
+  path: Pick<CareerPath, 'salaryMin' | 'salaryMax'>,
+  opts?: { isEstimate?: boolean; source?: 'profile_estimate' | 'company' | 'company_average'; companyCount?: number }
+) {
   const start = path.salaryMin ?? path.salaryMax ?? null;
+  const isEstimate = opts?.isEstimate ?? false;
+  const source = opts?.source ?? (isEstimate ? 'profile_estimate' : 'company');
+  const companyCount = opts?.companyCount ?? (isEstimate ? 0 : 1);
   return {
     starting: start,
     fiveYear: start != null ? Math.round(start * 1.45) : null,
     tenYear: start != null ? Math.round(start * 2.1) : null,
     currency: 'EUR',
+    isEstimate,
+    source,
+    companyCount,
   };
 }
 
-function buildRoadmap(profile: StudentCareerProfile, compatibility: number) {
+const ROADMAP_STAGE_META: Record<
+  string,
+  { description: string; focus: string; href: string | null }
+> = {
+  'Current student': {
+    description: 'Build foundations — grades, attendance, and profile strength shape every path forward.',
+    focus: 'Excel academically and complete your profile',
+    href: '/student/academics/gradebook',
+  },
+  Internship: {
+    description: 'First professional experience — bridges university and your target role.',
+    focus: 'Apply to internships aligned with this career',
+    href: '/student/career/internships',
+  },
+  'Junior role': {
+    description: 'Entry-level position where you apply skills and grow under mentorship.',
+    focus: 'Close skill gaps and strengthen employability',
+    href: '/student/profile',
+  },
+  'Mid-level': {
+    description: 'Independent contributor with growing responsibility and specialization.',
+    focus: 'Deepen expertise and expand your network',
+    href: '/student/career/paths',
+  },
+  Senior: {
+    description: 'Recognized expert driving outcomes and mentoring others.',
+    focus: 'Lead projects and demonstrate consistent impact',
+    href: '/student/career/paths',
+  },
+  Leadership: {
+    description: 'Strategic influence — leading teams, initiatives, or your own venture.',
+    focus: 'Build leadership track record and visibility',
+    href: '/student/startup',
+  },
+};
+
+function buildRoadmap(
+  profile: StudentCareerProfile,
+  compatibility: number,
+  roleTitle: string
+): RoadmapStage[] {
   const stages = ['Current student', 'Internship', 'Junior role', 'Mid-level', 'Senior', 'Leadership'];
   let currentIdx = 0;
   if (profile.gradeAverage != null && profile.gradeAverage >= 12) currentIdx = 0;
@@ -171,13 +232,38 @@ function buildRoadmap(profile: StudentCareerProfile, compatibility: number) {
   if (compatibility >= 55) currentIdx = Math.max(currentIdx, 1);
   if (compatibility >= 70 && profile.profileStrength >= 60) currentIdx = Math.max(currentIdx, 2);
 
-  return stages.map((stage, i) => ({
-    stage,
-    status: (i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming') as
-      | 'done'
-      | 'current'
-      | 'upcoming',
-  }));
+  const isFounder = roleTitle.toLowerCase().includes('founder');
+  if (isFounder && profile.hasStartup) currentIdx = Math.max(currentIdx, 1);
+
+  return stages.map((stage, i) => {
+    const meta = ROADMAP_STAGE_META[stage]!;
+    let description = meta.description;
+    let focus = meta.focus;
+    let href = meta.href;
+
+    if (stage === 'Internship' && isFounder) {
+      description = 'Validate your idea through programs, accelerators, or early traction milestones.';
+      focus = 'Upload startup milestones and seek incubator support';
+      href = '/student/startup';
+    }
+    if (stage === 'Leadership' && isFounder) {
+      description = 'Scale your venture — team, funding, and market expansion.';
+      focus = 'Grow startup readiness and founder visibility';
+      href = '/student/startup';
+    }
+
+    return {
+      id: stage.toLowerCase().replace(/\s+/g, '-'),
+      stage,
+      status: (i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming') as
+        | 'done'
+        | 'current'
+        | 'upcoming',
+      description,
+      focus,
+      href,
+    };
+  });
 }
 
 function buildMilestones(
@@ -424,6 +510,9 @@ export function computePathCompatibility(
 
   missingSkills.sort((a, b) => b.importance - a.importance);
 
+  const isProfileEstimate =
+    path.id.startsWith('archetype-') || path.companyName === 'Profile insight';
+
   return {
     compatibility,
     matchedSkills,
@@ -434,9 +523,12 @@ export function computePathCompatibility(
     demandLevel: inferDemand(path.industry),
     growthTrend: inferGrowth(path.roleTitle),
     pathDifficulty: inferDifficulty(compatibility, requirements),
-    salaryProjection: salaryProjection(path),
+    salaryProjection: salaryProjection(path, {
+      isEstimate: isProfileEstimate,
+      source: isProfileEstimate ? 'profile_estimate' : 'company',
+    }),
     simulation: simulationForRole(path.roleTitle, path.industry),
-    roadmapStages: buildRoadmap(profile, compatibility),
+    roadmapStages: buildRoadmap(profile, compatibility, path.roleTitle),
     milestones: buildMilestones(profile, path, missingSkills),
   };
 }
