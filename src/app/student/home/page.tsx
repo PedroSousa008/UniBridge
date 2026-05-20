@@ -1,45 +1,21 @@
+import { Suspense } from 'react';
 import { requireSession } from '@/lib/session';
-import { prisma } from '@/lib/db';
-import { StudentHomeClient } from './student-home-client';
+import { loadStudentHomeHub } from '@/lib/student/student-home-hub';
+import { StudentCommandCenter } from '@/components/student/home/student-command-center';
 
-export default async function StudentHomePage() {
+async function HomeContent() {
   const session = await requireSession('STUDENT');
-
-  const [profile, careerTargets, startups, assignments, notifications] =
-    await Promise.all([
-      prisma.studentProfile.findUnique({ where: { userId: session.user.id } }),
-      prisma.careerTarget.findMany({
-        where: { userId: session.user.id },
-        orderBy: { compatibility: 'desc' },
-        take: 3,
-      }),
-      prisma.startup.findMany({
-        where: { founderId: session.user.id },
-        take: 3,
-      }),
-      prisma.assignmentSubmission.findMany({
-        where: {
-          studentId: session.user.id,
-          submittedAt: null,
-        },
-        include: { assignment: true },
-        take: 5,
-      }),
-      prisma.notification.findMany({
-        where: { userId: session.user.id, read: false },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      }),
-    ]);
+  const hub = await loadStudentHomeHub(session.user.id, session.user.name ?? null);
 
   return (
-    <StudentHomeClient
-      userName={session.user.name}
-      profileStrength={profile?.profileStrength ?? 0}
-      careerTargets={careerTargets}
-      startups={startups}
-      pendingAssignments={assignments}
-      notifications={notifications}
-    />
+    <StudentCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
+  );
+}
+
+export default function StudentHomePage() {
+  return (
+    <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">Loading your command center…</p>}>
+      <HomeContent />
+    </Suspense>
   );
 }
