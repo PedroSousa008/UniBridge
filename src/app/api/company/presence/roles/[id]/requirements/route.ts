@@ -6,7 +6,7 @@ import {
   saveRoleStructuredRequirements,
   type StructuredRequirement,
 } from '@/lib/company/company-role-requirements';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
   _req: NextRequest,
@@ -15,7 +15,7 @@ export async function GET(
   try {
     const session = await requireSession('COMPANY');
     const { id } = await params;
-    const view = await loadRoleFitIntelligence(session.user.id, id);
+    const view = await loadRoleFitIntelligence(getCompanyWorkspaceUserId(session), id);
     if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(view);
   } catch (e) {
@@ -36,7 +36,7 @@ export async function PATCH(
     if (body.action === 'preview' && Array.isArray(body.requirements)) {
       const requirements = parseStructuredRequirements(body.requirements);
       const preview = await computeRoleCompatibilityPreview(
-        session.user.id,
+        getCompanyWorkspaceUserId(session),
         requirements,
         body.visibilitySettings
       );
@@ -48,8 +48,8 @@ export async function PATCH(
     }
 
     const requirements = parseStructuredRequirements(body.requirements) as StructuredRequirement[];
-    await saveRoleStructuredRequirements(session.user.id, id, requirements);
-    const view = await loadRoleFitIntelligence(session.user.id, id);
+    await saveRoleStructuredRequirements(getCompanyWorkspaceUserId(session), id, requirements);
+    const view = await loadRoleFitIntelligence(getCompanyWorkspaceUserId(session), id);
     return NextResponse.json(view);
   } catch (e) {
     console.error('[roles/[id]/requirements PATCH]', e);

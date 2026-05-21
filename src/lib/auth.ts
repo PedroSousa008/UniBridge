@@ -52,6 +52,21 @@ export const authOptions: NextAuthOptions = {
               .update({ where: { id: user.id }, data: { image: null } })
               .catch(() => undefined);
           }
+          if (user.role === 'COMPANY') {
+            const { logWorkspaceActivity, resolveCompanyWorkspace } = await import(
+              '@/lib/company/company-workspace'
+            );
+            const ws = await resolveCompanyWorkspace(user.id);
+            if (ws) {
+              await logWorkspaceActivity(
+                ws.workspaceOwnerId,
+                'login',
+                `Signed in as ${user.email}`,
+                user.id
+              );
+            }
+          }
+
           return {
             id: user.id,
             email: user.email,
@@ -75,6 +90,22 @@ export const authOptions: NextAuthOptions = {
           token.locale = user.locale;
           token.name = user.name ?? undefined;
           delete token.picture;
+          if (user.role === 'COMPANY') {
+            const { resolveCompanyWorkspace } = await import('@/lib/company/company-workspace');
+            const ws = await resolveCompanyWorkspace(user.id);
+            if (ws) {
+              token.companyWorkspaceId = ws.workspaceOwnerId;
+              token.companyPermission = ws.permission;
+            }
+          }
+        }
+        if (token.role === 'COMPANY' && token.id) {
+          const { resolveCompanyWorkspace } = await import('@/lib/company/company-workspace');
+          const ws = await resolveCompanyWorkspace(token.id as string);
+          if (ws) {
+            token.companyWorkspaceId = ws.workspaceOwnerId;
+            token.companyPermission = ws.permission;
+          }
         }
         if (trigger === 'update' && token.id) {
           const row = await prisma.user.findUnique({
@@ -93,6 +124,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role;
         session.user.locale = token.locale;
+        session.user.companyWorkspaceId = token.companyWorkspaceId as string | undefined;
+        session.user.companyPermission = token.companyPermission as string | undefined;
         try {
           const row = await prisma.user.findUnique({
             where: { id: token.id as string },

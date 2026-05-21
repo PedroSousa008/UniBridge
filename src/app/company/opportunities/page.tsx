@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 import { loadCompanyOpportunitiesEcosystemHub } from '@/lib/company/company-opportunities-ecosystem-hub';
 import { CompanyOpportunitiesCommandCenter } from '@/components/company/company-opportunities-command-center';
 
 async function OpportunitiesContent() {
   const session = await requireSession('COMPANY');
-  const hub = await loadCompanyOpportunitiesEcosystemHub(session.user.id);
+  const hub = await loadCompanyOpportunitiesEcosystemHub(getCompanyWorkspaceUserId(session));
 
   return (
     <CompanyOpportunitiesCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />

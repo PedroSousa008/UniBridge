@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadCompanyTeamMemberProfile } from '@/lib/company/company-presence-people';
 import { loadCompanyPresenceHub, upsertCompanyTeamMember } from '@/lib/company/company-presence-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
   _req: NextRequest,
@@ -10,7 +10,7 @@ export async function GET(
   try {
     const session = await requireSession('COMPANY');
     const { id } = await params;
-    const profile = await loadCompanyTeamMemberProfile(session.user.id, id);
+    const profile = await loadCompanyTeamMemberProfile(getCompanyWorkspaceUserId(session), id);
     if (!profile) return NextResponse.json({ error: 'Person not found' }, { status: 404 });
     return NextResponse.json(profile);
   } catch (e) {
@@ -26,8 +26,8 @@ export async function PATCH(
   const session = await requireSession('COMPANY');
   const { id } = await params;
   const body = await req.json();
-  await upsertCompanyTeamMember(session.user.id, { ...body, id });
-  const profile = await loadCompanyTeamMemberProfile(session.user.id, id);
+  await upsertCompanyTeamMember(getCompanyWorkspaceUserId(session), { ...body, id });
+  const profile = await loadCompanyTeamMemberProfile(getCompanyWorkspaceUserId(session), id);
   if (!profile) return NextResponse.json({ error: 'Person not found' }, { status: 404 });
   return NextResponse.json(profile);
 }

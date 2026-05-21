@@ -296,6 +296,57 @@ async function activatePartnership(input: {
   return { partnershipId: partnership.id, companyName, universityName };
 }
 
+export async function withdrawPartnershipConnection(input: {
+  viewer: 'company' | 'university';
+  actorUserId: string;
+  universityId: string;
+  companyUserId: string;
+  archive?: boolean;
+}) {
+  await ensurePartnershipLiveTables();
+  const conn = await getConnection(input.universityId, input.companyUserId);
+  if (!conn) return { ok: false };
+
+  const now = new Date();
+  const archive = input.archive ?? false;
+
+  if (input.viewer === 'company') {
+    await prisma.$executeRaw`
+      UPDATE "PartnershipConnection"
+      SET "companyInterested" = false,
+          "archived" = ${archive},
+          "updatedAt" = ${now}
+      WHERE "id" = ${conn.id}
+    `;
+  } else {
+    await prisma.$executeRaw`
+      UPDATE "PartnershipConnection"
+      SET "universityInterested" = false,
+          "archived" = ${archive},
+          "updatedAt" = ${now}
+      WHERE "id" = ${conn.id}
+    `;
+  }
+
+  await recordActivity({
+    universityId: input.universityId,
+    companyUserId: input.companyUserId,
+    actorUserId: input.actorUserId,
+    kind: archive ? 'archived' : 'withdrawn',
+    message: archive
+      ? 'Partnership request archived'
+      : 'Partnership interest withdrawn',
+  });
+
+  publishPartnershipLive([input.companyUserId], {
+    type: 'hub_refresh',
+    at: now.toISOString(),
+    payload: { universityId: input.universityId, companyUserId: input.companyUserId },
+  });
+
+  return { ok: true };
+}
+
 export async function expressPartnershipInterest(input: {
   viewer: 'company' | 'university';
   actorUserId: string;

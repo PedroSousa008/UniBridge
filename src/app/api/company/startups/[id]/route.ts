@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadCompanyStartupDetail } from '@/lib/company/company-startups-ecosystem-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
   _req: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const session = await requireSession('COMPANY');
   const { id } = await params;
-  const detail = await loadCompanyStartupDetail(session.user.id, id);
+  const detail = await loadCompanyStartupDetail(getCompanyWorkspaceUserId(session), id);
   if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(detail);
 }

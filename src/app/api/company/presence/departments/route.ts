@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 import {
   loadCompanyPresenceHub,
   upsertCompanyDepartment,
@@ -8,7 +8,7 @@ import {
 export async function POST(req: NextRequest) {
   const session = await requireSession('COMPANY');
   const body = await req.json();
-  await upsertCompanyDepartment(session.user.id, body);
-  const hub = await loadCompanyPresenceHub(session.user.id);
+  await upsertCompanyDepartment(getCompanyWorkspaceUserId(session), body);
+  const hub = await loadCompanyPresenceHub(getCompanyWorkspaceUserId(session));
   return NextResponse.json(hub);
 }

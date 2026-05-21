@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { markEventAttendance } from '@/lib/company/company-events-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function POST(
   req: NextRequest,
@@ -13,7 +13,7 @@ export async function POST(
     return NextResponse.json({ error: 'studentUserId required' }, { status: 400 });
   }
   const detail = await markEventAttendance(
-    session.user.id,
+    getCompanyWorkspaceUserId(session),
     id,
     body.studentUserId,
     body.attended !== false

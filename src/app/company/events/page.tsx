@@ -1,4 +1,4 @@
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 import { prisma } from '@/lib/db';
 import { loadCompanyEventsHub } from '@/lib/company/company-events-hub';
 import { CompanyEventsCommandCenter } from '@/components/company/company-events-command-center';
@@ -6,9 +6,9 @@ import { CompanyEventsCommandCenter } from '@/components/company/company-events-
 export default async function CompanyEventsPage() {
   const session = await requireSession('COMPANY');
   const [hub, partnerships] = await Promise.all([
-    loadCompanyEventsHub(session.user.id),
+    loadCompanyEventsHub(getCompanyWorkspaceUserId(session)),
     prisma.companyPartnership.findMany({
-      where: { companyUserId: session.user.id, status: 'ACTIVE' },
+      where: { companyUserId: getCompanyWorkspaceUserId(session), status: 'ACTIVE' },
       include: { university: { select: { id: true, name: true } } },
     }),
   ]);

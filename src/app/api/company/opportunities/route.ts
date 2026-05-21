@@ -3,11 +3,11 @@ import {
   loadCompanyOpportunitiesEcosystemHub,
   updateCompanyApplication,
 } from '@/lib/company/company-opportunities-ecosystem-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET() {
   const session = await requireSession('COMPANY');
-  const hub = await loadCompanyOpportunitiesEcosystemHub(session.user.id);
+  const hub = await loadCompanyOpportunitiesEcosystemHub(getCompanyWorkspaceUserId(session));
   return NextResponse.json(hub);
 }
 
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'applicationId required' }, { status: 400 });
   }
 
-  const updated = await updateCompanyApplication(session.user.id, body.applicationId, {
+  const updated = await updateCompanyApplication(getCompanyWorkspaceUserId(session), body.applicationId, {
     status: body.status,
     companyResponse: body.companyResponse,
     priority: body.priority,
@@ -34,6 +34,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Application not found' }, { status: 404 });
   }
 
-  const hub = await loadCompanyOpportunitiesEcosystemHub(session.user.id);
+  const hub = await loadCompanyOpportunitiesEcosystemHub(getCompanyWorkspaceUserId(session));
   return NextResponse.json(hub);
 }

@@ -5,7 +5,7 @@ import {
   loadTalentEcosystem,
   loadTalentUniversities,
 } from '@/lib/company/company-talent-ecosystem-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
   const session = await requireSession('COMPANY');
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const degree = sp.get('degree');
 
   if (universityId && degree) {
-    const ecosystem = await loadTalentEcosystem(session.user.id, universityId, degree, {
+    const ecosystem = await loadTalentEcosystem(getCompanyWorkspaceUserId(session), universityId, degree, {
       graduation: sp.get('graduation') ?? 'all',
       minCompatibility: sp.get('minCompatibility')
         ? Number(sp.get('minCompatibility'))
@@ -32,17 +32,17 @@ export async function GET(req: NextRequest) {
   }
 
   if (universityId) {
-    const data = await loadTalentDegrees(session.user.id, universityId);
+    const data = await loadTalentDegrees(getCompanyWorkspaceUserId(session), universityId);
     if (!data) return NextResponse.json({ error: 'University not found' }, { status: 404 });
     return NextResponse.json({ step: 'degrees' as const, ...data });
   }
 
-  const data = await loadTalentUniversities(session.user.id);
+  const data = await loadTalentUniversities(getCompanyWorkspaceUserId(session));
 
   await prisma.analyticsEvent
     .create({
       data: {
-        userId: session.user.id,
+        userId: getCompanyWorkspaceUserId(session),
         event: 'recruiter_view',
         metadata: JSON.stringify({ source: 'talent_hub', step: 'universities' }),
       },

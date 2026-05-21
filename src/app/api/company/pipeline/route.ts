@@ -10,7 +10,7 @@ import {
   upsertPipelineCandidate,
 } from '@/lib/company/company-pipeline-hub';
 import type { PipelineFilters, PipelineStageId } from '@/lib/company/company-pipeline-intelligence';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 function parseFilters(searchParams: URLSearchParams): PipelineFilters {
   const filters: PipelineFilters = {};
@@ -35,11 +35,11 @@ export async function GET(req: NextRequest) {
   const compareIds = req.nextUrl.searchParams.get('compare')?.split(',').filter(Boolean);
 
   if (compareIds && compareIds.length >= 2) {
-    const cards = await loadPipelineCompare(session.user.id, compareIds.slice(0, 4));
+    const cards = await loadPipelineCompare(getCompanyWorkspaceUserId(session), compareIds.slice(0, 4));
     return NextResponse.json({ compare: cards });
   }
 
-  const hub = await loadCompanyPipelineHub(session.user.id, {
+  const hub = await loadCompanyPipelineHub(getCompanyWorkspaceUserId(session), {
     query: q,
     filters: parseFilters(req.nextUrl.searchParams),
     includeArchived,
@@ -71,46 +71,46 @@ export async function POST(req: NextRequest) {
   };
 
   const companyUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: getCompanyWorkspaceUserId(session) },
     select: { name: true },
   });
   const authorName = companyUser?.name ?? 'Recruiter';
 
   if (body.action === 'message' && body.pipelineId && body.message) {
-    await sendPipelineMessage(session.user.id, body.pipelineId, body.message);
+    await sendPipelineMessage(getCompanyWorkspaceUserId(session), body.pipelineId, body.message);
   } else if (body.action === 'interview' && body.pipelineId && body.interview) {
-    await schedulePipelineInterview(session.user.id, body.pipelineId, {
+    await schedulePipelineInterview(getCompanyWorkspaceUserId(session), body.pipelineId, {
       startAt: new Date(body.interview.startAt),
       endAt: new Date(body.interview.endAt),
       meetingLink: body.interview.meetingLink,
     });
   } else if (body.action === 'add_note' && body.pipelineId && body.note) {
-    await addPipelineNote(session.user.id, body.pipelineId, body.note, authorName);
+    await addPipelineNote(getCompanyWorkspaceUserId(session), body.pipelineId, body.note, authorName);
   } else if (body.action === 'update_note' && body.pipelineId && body.noteId) {
-    await updatePipelineNote(session.user.id, body.pipelineId, body.noteId, {
+    await updatePipelineNote(getCompanyWorkspaceUserId(session), body.pipelineId, body.noteId, {
       body: body.note,
       pinned: body.pinned,
     });
   } else if (body.action === 'archive' && body.pipelineId) {
     const existing = await prisma.companyPipelineCandidate.findFirst({
-      where: { id: body.pipelineId, companyUserId: session.user.id },
+      where: { id: body.pipelineId, companyUserId: getCompanyWorkspaceUserId(session) },
     });
     if (existing) {
-      await upsertPipelineCandidate(session.user.id, existing.studentUserId, { stage: 'archived' });
+      await upsertPipelineCandidate(getCompanyWorkspaceUserId(session), existing.studentUserId, { stage: 'archived' });
     }
   } else if (body.action === 'restore' && body.pipelineId) {
     const existing = await prisma.companyPipelineCandidate.findFirst({
-      where: { id: body.pipelineId, companyUserId: session.user.id },
+      where: { id: body.pipelineId, companyUserId: getCompanyWorkspaceUserId(session) },
     });
     if (existing) {
-      await upsertPipelineCandidate(session.user.id, existing.studentUserId, { stage: 'saved' });
+      await upsertPipelineCandidate(getCompanyWorkspaceUserId(session), existing.studentUserId, { stage: 'saved' });
     }
   } else if (body.pipelineId) {
     const existing = await prisma.companyPipelineCandidate.findFirst({
-      where: { id: body.pipelineId, companyUserId: session.user.id },
+      where: { id: body.pipelineId, companyUserId: getCompanyWorkspaceUserId(session) },
     });
     if (existing) {
-      await upsertPipelineCandidate(session.user.id, existing.studentUserId, {
+      await upsertPipelineCandidate(getCompanyWorkspaceUserId(session), existing.studentUserId, {
         stage: body.stage,
         rating: body.rating,
         tags: body.tags,
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
       });
     }
   } else if (body.studentUserId) {
-    await upsertPipelineCandidate(session.user.id, body.studentUserId, {
+    await upsertPipelineCandidate(getCompanyWorkspaceUserId(session), body.studentUserId, {
       stage: body.stage ?? 'saved',
       rating: body.rating,
       tags: body.tags,
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const hub = await loadCompanyPipelineHub(session.user.id, {
+  const hub = await loadCompanyPipelineHub(getCompanyWorkspaceUserId(session), {
     query: body.query,
     filters: body.filters,
     includeArchived: body.includeArchived,

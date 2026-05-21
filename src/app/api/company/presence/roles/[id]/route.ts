@@ -5,7 +5,7 @@ import {
   loadCompanyRoleIntelligence,
 } from '@/lib/company/company-department-hub';
 import { upsertCompanyRole } from '@/lib/company/company-presence-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
   _req: NextRequest,
@@ -14,7 +14,7 @@ export async function GET(
   try {
     const session = await requireSession('COMPANY');
     const { id } = await params;
-    const view = await loadCompanyRoleIntelligence(session.user.id, id);
+    const view = await loadCompanyRoleIntelligence(getCompanyWorkspaceUserId(session), id);
     if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(view);
   } catch (e) {
@@ -31,17 +31,17 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json();
   if (body.action === 'archive') {
-    await archiveCompanyRole(session.user.id, id);
+    await archiveCompanyRole(getCompanyWorkspaceUserId(session), id);
   } else if (body.action === 'duplicate') {
-    const newId = await duplicateCompanyRole(session.user.id, id);
+    const newId = await duplicateCompanyRole(getCompanyWorkspaceUserId(session), id);
     if (newId) {
-      const view = await loadCompanyRoleIntelligence(session.user.id, newId);
+      const view = await loadCompanyRoleIntelligence(getCompanyWorkspaceUserId(session), newId);
       return NextResponse.json(view ?? { newId });
     }
     return NextResponse.json({ newId });
   } else {
-    await upsertCompanyRole(session.user.id, { ...body, id });
+    await upsertCompanyRole(getCompanyWorkspaceUserId(session), { ...body, id });
   }
-  const view = await loadCompanyRoleIntelligence(session.user.id, id);
+  const view = await loadCompanyRoleIntelligence(getCompanyWorkspaceUserId(session), id);
   return NextResponse.json(view);
 }

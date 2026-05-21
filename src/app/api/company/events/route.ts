@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCompanyEvent, loadCompanyEventsHub } from '@/lib/company/company-events-hub';
 import type { EventSpeakerCard } from '@/lib/company/company-events-intelligence';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET() {
   const session = await requireSession('COMPANY');
-  const hub = await loadCompanyEventsHub(session.user.id);
+  const hub = await loadCompanyEventsHub(getCompanyWorkspaceUserId(session));
   return NextResponse.json(hub);
 }
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  await createCompanyEvent(session.user.id, {
+  await createCompanyEvent(getCompanyWorkspaceUserId(session), {
     universityId: body.universityId,
     title: body.title,
     eventType: body.eventType,
@@ -59,6 +59,6 @@ export async function POST(req: NextRequest) {
     endsAt: new Date(body.endsAt),
   });
 
-  const hub = await loadCompanyEventsHub(session.user.id);
+  const hub = await loadCompanyEventsHub(getCompanyWorkspaceUserId(session));
   return NextResponse.json(hub);
 }

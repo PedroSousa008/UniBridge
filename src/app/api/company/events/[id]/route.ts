@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadCompanyEventDetail } from '@/lib/company/company-events-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
   _req: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const session = await requireSession('COMPANY');
   const { id } = await params;
-  const detail = await loadCompanyEventDetail(session.user.id, id);
+  const detail = await loadCompanyEventDetail(getCompanyWorkspaceUserId(session), id);
   if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(detail);
 }

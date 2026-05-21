@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchStudentsForEventInvite } from '@/lib/company/company-events-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
   const session = await requireSession('COMPANY');
@@ -9,6 +9,6 @@ export async function GET(req: NextRequest) {
   if (!universityId) {
     return NextResponse.json({ error: 'universityId required' }, { status: 400 });
   }
-  const results = await searchStudentsForEventInvite(session.user.id, universityId, q);
+  const results = await searchStudentsForEventInvite(getCompanyWorkspaceUserId(session), universityId, q);
   return NextResponse.json({ results });
 }

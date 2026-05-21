@@ -1,11 +1,11 @@
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 import { loadCompanyPresenceHub } from '@/lib/company/company-presence-hub';
 import { CompanyPresenceCommandCenter } from '@/components/company/company-presence-command-center';
 import { PageHeader } from '@/components/layout/page-header';
 
 export default async function CompanyPresencePage() {
   const session = await requireSession('COMPANY');
-  const hub = await loadCompanyPresenceHub(session.user.id);
+  const hub = await loadCompanyPresenceHub(getCompanyWorkspaceUserId(session));
 
   return (
     <div>

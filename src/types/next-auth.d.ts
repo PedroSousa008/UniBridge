@@ -7,6 +7,9 @@ declare module 'next-auth' {
       id: string;
       role: UserRole;
       locale: Locale;
+      /** Canonical company owner user id (shared workspace) for COMPANY role */
+      companyWorkspaceId?: string;
+      companyPermission?: string;
     } & DefaultSession['user'];
   }
 
@@ -22,5 +25,7 @@ declare module 'next-auth/jwt' {
     role: UserRole;
     locale: Locale;
     picture?: string | null;
+    companyWorkspaceId?: string;
+    companyPermission?: string;
   }
 }

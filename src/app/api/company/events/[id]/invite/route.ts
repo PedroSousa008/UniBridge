@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { inviteStudentsToEvent } from '@/lib/company/company-events-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function POST(
   req: NextRequest,
@@ -17,7 +17,7 @@ export async function POST(
     return NextResponse.json({ error: 'No students selected' }, { status: 400 });
   }
   const detail = await inviteStudentsToEvent(
-    session.user.id,
+    getCompanyWorkspaceUserId(session),
     id,
     ids,
     body.inviteType ?? 'student'

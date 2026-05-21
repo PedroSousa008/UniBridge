@@ -1,11 +1,11 @@
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 import { loadCompanyPipelineHub } from '@/lib/company/company-pipeline-hub';
 import { CompanyPipelineCommandCenter } from '@/components/company/company-pipeline-command-center';
 import { PageHeader } from '@/components/layout/page-header';
 
 export default async function CompanyPipelinePage() {
   const session = await requireSession('COMPANY');
-  const hub = await loadCompanyPipelineHub(session.user.id);
+  const hub = await loadCompanyPipelineHub(getCompanyWorkspaceUserId(session));
 
   return (
     <div>

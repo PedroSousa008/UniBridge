@@ -1,16 +1,19 @@
-import { requireSession } from '@/lib/session';
-import { loadCompanyProfileHub } from '@/lib/company/company-profile-hub';
-import { CompanyProfileCommandCenter } from '@/components/company/company-profile-command-center';
-import { PageHeader } from '@/components/layout/page-header';
+import { requireCompanyWorkspace } from '@/lib/session';
+import { loadCompanyProfileEcosystemHub } from '@/lib/company/company-profile-ecosystem-hub';
+import { CompanyProfileEcosystemCommandCenter } from '@/components/company/company-profile-ecosystem-command-center';
 
 export default async function CompanyProfilePage() {
-  const session = await requireSession('COMPANY');
-  const hub = await loadCompanyProfileHub(session.user.id);
+  const { session } = await requireCompanyWorkspace();
+  const hub = await loadCompanyProfileEcosystemHub(session.user.id);
+  if (!hub) {
+    return (
+      <div className="rounded-2xl border border-dashed p-12 text-center text-muted-foreground">
+        Company workspace not found.
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <PageHeader title="Company profile" subtitle="Your identity across partnerships, roles, and student-facing modules." />
-      <CompanyProfileCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
-    </div>
+    <CompanyProfileEcosystemCommandCenter initialHub={JSON.parse(JSON.stringify(hub))} />
   );
 }

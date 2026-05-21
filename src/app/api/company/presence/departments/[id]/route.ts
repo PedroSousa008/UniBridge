@@ -4,7 +4,7 @@ import {
   loadCompanyDepartmentView,
   saveCompanyDepartment,
 } from '@/lib/company/company-department-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
   _req: NextRequest,
@@ -13,7 +13,7 @@ export async function GET(
   try {
     const session = await requireSession('COMPANY');
     const { id } = await params;
-    const view = await loadCompanyDepartmentView(session.user.id, id);
+    const view = await loadCompanyDepartmentView(getCompanyWorkspaceUserId(session), id);
     if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(view);
   } catch (e) {
@@ -32,8 +32,8 @@ export async function PATCH(
   const session = await requireSession('COMPANY');
   const { id } = await params;
   const body = await req.json();
-  await saveCompanyDepartment(session.user.id, id, body);
-  const view = await loadCompanyDepartmentView(session.user.id, id);
+  await saveCompanyDepartment(getCompanyWorkspaceUserId(session), id, body);
+  const view = await loadCompanyDepartmentView(getCompanyWorkspaceUserId(session), id);
   return NextResponse.json(view);
 }
 
@@ -45,7 +45,7 @@ export async function DELETE(
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   await deleteCompanyDepartment(
-    session.user.id,
+    getCompanyWorkspaceUserId(session),
     id,
     body.mode ?? 'archive_roles',
     body.targetDepartmentId

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 import {
   deleteCompanyTeamMember,
   loadCompanyPresenceHub,
@@ -23,10 +23,10 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const memberId = await upsertCompanyTeamMember(session.user.id, { ...body, name });
+  const memberId = await upsertCompanyTeamMember(getCompanyWorkspaceUserId(session), { ...body, name });
   const [hub, profile] = await Promise.all([
-    loadCompanyPresenceHub(session.user.id),
-    loadCompanyTeamMemberProfile(session.user.id, memberId),
+    loadCompanyPresenceHub(getCompanyWorkspaceUserId(session)),
+    loadCompanyTeamMemberProfile(getCompanyWorkspaceUserId(session), memberId),
   ]);
   return NextResponse.json({ ...hub, createdMemberId: memberId, createdProfile: profile });
 }
@@ -35,7 +35,7 @@ export async function DELETE(req: NextRequest) {
   const session = await requireSession('COMPANY');
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
-  await deleteCompanyTeamMember(session.user.id, id);
-  const hub = await loadCompanyPresenceHub(session.user.id);
+  await deleteCompanyTeamMember(getCompanyWorkspaceUserId(session), id);
+  const hub = await loadCompanyPresenceHub(getCompanyWorkspaceUserId(session));
   return NextResponse.json(hub);
 }

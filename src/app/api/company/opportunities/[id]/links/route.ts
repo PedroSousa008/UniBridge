@@ -4,7 +4,7 @@ import {
   updateOpportunityLink,
   moveLinkedStudentToPipeline,
 } from '@/lib/company/company-opportunities-ecosystem-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function POST(
   req: NextRequest,
@@ -22,16 +22,16 @@ export async function POST(
   };
 
   if (body.action === 'pipeline' && body.studentUserId) {
-    await moveLinkedStudentToPipeline(session.user.id, body.studentUserId);
+    await moveLinkedStudentToPipeline(getCompanyWorkspaceUserId(session), body.studentUserId);
     const { loadOpportunityDetail } = await import(
       '@/lib/company/company-opportunities-ecosystem-hub'
     );
-    const detail = await loadOpportunityDetail(session.user.id, id);
+    const detail = await loadOpportunityDetail(getCompanyWorkspaceUserId(session), id);
     return NextResponse.json(detail);
   }
 
   if (body.linkId) {
-    const detail = await updateOpportunityLink(session.user.id, body.linkId, {
+    const detail = await updateOpportunityLink(getCompanyWorkspaceUserId(session), body.linkId, {
       linkType: body.linkType,
       notes: body.notes,
       archive: body.archive,
@@ -45,7 +45,7 @@ export async function POST(
   }
 
   const detail = await linkStudentToOpportunity(
-    session.user.id,
+    getCompanyWorkspaceUserId(session),
     id,
     body.studentUserId,
     body.linkType ?? 'preview',
@@ -70,7 +70,7 @@ export async function PATCH(
   if (!body.linkId) {
     return NextResponse.json({ error: 'linkId required' }, { status: 400 });
   }
-  const detail = await updateOpportunityLink(session.user.id, body.linkId, body);
+  const detail = await updateOpportunityLink(getCompanyWorkspaceUserId(session), body.linkId, body);
   if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(detail);
 }

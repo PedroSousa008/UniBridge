@@ -3,7 +3,7 @@ import {
   loadOpportunityDetail,
   patchOpportunityEcosystem,
 } from '@/lib/company/company-opportunities-ecosystem-hub';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
   _req: NextRequest,
@@ -11,7 +11,7 @@ export async function GET(
 ) {
   const session = await requireSession('COMPANY');
   const { id } = await params;
-  const detail = await loadOpportunityDetail(session.user.id, id);
+  const detail = await loadOpportunityDetail(getCompanyWorkspaceUserId(session), id);
   if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(detail);
 }
@@ -29,7 +29,7 @@ export async function PATCH(
     opensAt?: string | null;
     ecosystemJson?: Record<string, unknown>;
   };
-  const detail = await patchOpportunityEcosystem(session.user.id, id, body);
+  const detail = await patchOpportunityEcosystem(getCompanyWorkspaceUserId(session), id, body);
   if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(detail);
 }

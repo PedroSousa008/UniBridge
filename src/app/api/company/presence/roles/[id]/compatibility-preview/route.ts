@@ -3,7 +3,7 @@ import {
   computeRoleCompatibilityPreview,
   parseStructuredRequirements,
 } from '@/lib/company/company-role-requirements';
-import { requireSession } from '@/lib/session';
+import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 /** Full ecosystem compatibility scan (deferred after fast role load). */
 export async function POST(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const requirements = parseStructuredRequirements(body.requirements ?? []);
     const preview = await computeRoleCompatibilityPreview(
-      session.user.id,
+      getCompanyWorkspaceUserId(session),
       requirements,
       body.visibilitySettings,
       undefined,
