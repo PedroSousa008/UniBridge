@@ -553,6 +553,7 @@ model CompanyProfile {
   industry     String?
   website      String?
   logoUrl      String?
+  bannerUrl    String?
   headquarters String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

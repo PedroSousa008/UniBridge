@@ -13,6 +13,7 @@ import {
   type CompanyPermission,
 } from '@/lib/company/company-permissions';
 import { ensureCompanyPresenceTables } from '@/lib/db/ensure-company-presence-schema';
+import { ensureCompanyProfileSchema } from '@/lib/db/ensure-company-profile-schema';
 import { ensurePartnershipLiveTables } from '@/lib/db/ensure-partnership-live-schema';
 
 export interface MyRepresentativeProfile {
@@ -32,6 +33,8 @@ export interface MyRepresentativeProfile {
 export interface PartnershipRequestCard {
   id: string;
   universityId: string;
+  universitySlug: string;
+  profileHref: string;
   name: string;
   logoUrl: string | null;
   location: string | null;
@@ -100,6 +103,7 @@ export interface CompanyProfileEcosystemHub {
     industry: string | null;
     website: string | null;
     logoUrl: string | null;
+    bannerUrl: string | null;
     headquarters: string | null;
   };
   partnerships: PartnershipEcosystemHub;
@@ -128,6 +132,7 @@ export interface CompanyProfileEcosystemHub {
     canManagePartnerships: boolean;
     canManagePermissions: boolean;
     canChangePassword: boolean;
+    canEditBanner: boolean;
   };
   serverTime: string;
 }
@@ -138,6 +143,7 @@ export async function loadCompanyProfileEcosystemHub(
   await Promise.all([
     ensureCompanyWorkspaceTables(),
     ensureCompanyPresenceTables(),
+    ensureCompanyProfileSchema(),
     ensurePartnershipLiveTables(),
   ]);
 
@@ -264,7 +270,7 @@ export async function loadCompanyProfileEcosystemHub(
     });
     const uni = await prisma.university.findUnique({
       where: { id: c.universityId },
-      select: { name: true, logoUrl: true, location: true },
+      select: { name: true, slug: true, logoUrl: true, location: true },
     });
     if (!uni) continue;
 
@@ -284,6 +290,8 @@ export async function loadCompanyProfileEcosystemHub(
     partnershipRequests.push({
       id: c.id,
       universityId: c.universityId,
+      universitySlug: uni.slug,
+      profileHref: `/universities/${uni.slug}`,
       name: uni.name,
       logoUrl: uni.logoUrl,
       location: uni.location,
@@ -445,6 +453,7 @@ export async function loadCompanyProfileEcosystemHub(
       industry: ownerProfile?.industry ?? null,
       website: ownerProfile?.website ?? null,
       logoUrl: ownerProfile?.logoUrl ?? null,
+      bannerUrl: ownerProfile?.bannerUrl ?? null,
       headquarters: ownerProfile?.headquarters ?? null,
     },
     partnerships,
@@ -475,6 +484,7 @@ export async function loadCompanyProfileEcosystemHub(
       canManagePartnerships: canCompany(workspace.permission, 'manage_partnerships'),
       canManagePermissions: canCompany(workspace.permission, 'manage_permissions'),
       canChangePassword: true,
+      canEditBanner: workspace.permission === 'OWNER',
     },
     serverTime: new Date().toISOString(),
   };
@@ -523,6 +533,34 @@ export async function updateMyRepresentativeProfile(
       "updatedAt" = CURRENT_TIMESTAMP
     WHERE "userId" = ${actorUserId} AND "workspaceOwnerId" = ${workspace.workspaceOwnerId}
   `;
+
+  return loadCompanyProfileEcosystemHub(actorUserId);
+}
+
+export async function updateCompanySharedBranding(
+  actorUserId: string,
+  input: { bannerUrl?: string | null }
+) {
+  const workspace = await resolveCompanyWorkspace(actorUserId);
+  if (!workspace || workspace.permission !== 'OWNER') return null;
+
+  await ensureCompanyProfileSchema();
+
+  const ownerId = workspace.workspaceOwnerId;
+  const bannerUrl =
+    input.bannerUrl === undefined
+      ? undefined
+      : input.bannerUrl?.trim()
+        ? input.bannerUrl.trim()
+        : null;
+
+  if (bannerUrl !== undefined) {
+    await prisma.companyProfile.upsert({
+      where: { userId: ownerId },
+      create: { userId: ownerId, bannerUrl },
+      update: { bannerUrl },
+    });
+  }
 
   return loadCompanyProfileEcosystemHub(actorUserId);
 }

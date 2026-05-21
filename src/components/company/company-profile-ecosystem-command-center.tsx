@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { CompanyTeamMemberAvatar } from '@/components/company/company-team-member-avatar';
+import { ImageUpload } from '@/components/ui/image-upload';
 import {
   Building2,
   KeyRound,
@@ -172,6 +173,24 @@ export function CompanyProfileEcosystemCommandCenter({
     setLoading(false);
   }
 
+  async function saveBanner(url: string) {
+    setLoading(true);
+    setMsg(null);
+    const res = await fetch('/api/company/profile/company', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bannerUrl: url || null }),
+    });
+    if (res.ok) {
+      setHub(await res.json());
+      setMsg('Company banner updated.');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setMsg((data as { error?: string }).error ?? 'Could not update banner.');
+    }
+    setLoading(false);
+  }
+
   async function deactivateTeamAccess(workspaceMemberId: string) {
     if (!confirm('Deactivate this team login? They will lose access until a new account is created.')) {
       return;
@@ -189,9 +208,33 @@ export function CompanyProfileEcosystemCommandCenter({
 
   return (
     <div className="space-y-10 pb-20">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 px-6 py-10 text-white">
-        <div className="relative">
+      {/* Hero / company banner */}
+      <section className="relative overflow-hidden rounded-3xl min-h-[200px] text-white">
+        {hub.company.bannerUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={hub.company.bannerUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-slate-900/75 to-violet-950/80" />
+        <div className="relative px-6 py-10">
+          {hub.permissions.canEditBanner ? (
+            <div className="mb-6 max-w-md rounded-xl border border-white/15 bg-black/35 p-3 backdrop-blur-sm">
+              <ImageUpload
+                label="Company banner"
+                value={hub.company.bannerUrl ?? ''}
+                onChange={(url) => void saveBanner(url)}
+                folder="company-banners"
+                aspect="banner"
+                hint="Wide banner for your company profile · visible to your whole team"
+                className="[&_label]:text-white/80 [&_p]:text-white/50"
+              />
+            </div>
+          ) : null}
           <p className="text-xs uppercase tracking-[0.25em] text-white/45">Ecosystem control</p>
           <h1 className="mt-2 text-3xl font-bold">{hub.company.companyName ?? hub.workspace.companyName}</h1>
           <p className="mt-2 text-sm text-white/65 max-w-2xl">
@@ -369,7 +412,7 @@ export function CompanyProfileEcosystemCommandCenter({
                     </Button>
                   ) : null}
                   <Button size="sm" variant="ghost" asChild>
-                    <Link href={`/university/profile`}>View university</Link>
+                    <Link href={p.profileHref}>View university</Link>
                   </Button>
                 </div>
               </div>
