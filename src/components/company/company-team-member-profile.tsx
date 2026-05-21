@@ -9,8 +9,8 @@ import {
   Mail,
   MessageCircle,
   Trash2,
-  UserCircle,
 } from 'lucide-react';
+import { CompanyTeamMemberAvatar } from '@/components/company/company-team-member-avatar';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -197,14 +197,7 @@ export function CompanyTeamMemberProfileScreen({
 
       <section className="rounded-3xl border bg-gradient-to-br from-card via-card to-muted/30 p-8">
         <div className="flex flex-col sm:flex-row gap-6">
-          <div className="h-24 w-24 rounded-2xl bg-muted overflow-hidden shrink-0 flex items-center justify-center">
-            {profile.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.photoUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <UserCircle className="h-12 w-12 text-muted-foreground" />
-            )}
-          </div>
+          <CompanyTeamMemberAvatar name={profile.name} photoUrl={profile.photoUrl} size="lg" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap gap-2 mb-2">
               <Badge variant="secondary" className="capitalize">

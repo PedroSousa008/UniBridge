@@ -19,6 +19,7 @@ import { CompanyRoleFitIntelligenceView } from '@/components/company/company-rol
 import { CompanyRoleIntelligenceScreen } from '@/components/company/company-role-intelligence-view';
 import { CompanyRoleRequirementsHub } from '@/components/company/company-role-requirements-hub';
 import { CompanyRolePanel } from '@/components/company/company-role-panel';
+import { CompanyTeamMemberAvatar } from '@/components/company/company-team-member-avatar';
 import { CompanyTeamMemberProfileScreen } from '@/components/company/company-team-member-profile';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -717,14 +718,7 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
               }
             >
               <CardContent className="flex gap-3 pt-5">
-                <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                  {m.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.photoUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Users className="h-6 w-6 text-muted-foreground" />
-                  )}
-                </div>
+                <CompanyTeamMemberAvatar name={m.name} photoUrl={m.photoUrl} />
                 <div className="min-w-0">
                   <p className="font-medium truncate">{m.name}</p>
                   <p className="text-xs text-muted-foreground">{m.roleTitle ?? m.memberType}</p>

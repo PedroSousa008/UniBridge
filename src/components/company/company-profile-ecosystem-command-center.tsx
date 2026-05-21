@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { CompanyTeamMemberAvatar } from '@/components/company/company-team-member-avatar';
 import {
   Building2,
   KeyRound,
@@ -411,9 +412,7 @@ export function CompanyProfileEcosystemCommandCenter({
               return (
                 <div key={m.teamMemberId} className="rounded-2xl border p-4 space-y-3">
                   <div className="flex gap-3">
-                    <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-600 to-cyan-600 flex items-center justify-center text-white text-sm font-bold">
-                      {m.name.slice(0, 2).toUpperCase()}
-                    </div>
+                    <CompanyTeamMemberAvatar name={m.name} photoUrl={m.photoUrl} />
                     <div>
                       <p className="font-semibold">{m.name}</p>
                       <p className="text-sm text-muted-foreground">{m.roleTitle ?? 'Team member'}</p>
