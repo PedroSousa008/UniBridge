@@ -27,6 +27,9 @@ interface ImageUploadProps {
   aspect?: 'square' | 'banner';
   hint?: string;
   enableCrop?: boolean;
+  /** Corner control only — for full-bleed hero backgrounds */
+  variant?: 'default' | 'overlay';
+  overlayClassName?: string;
 }
 
 export function ImageUpload({
@@ -38,6 +41,8 @@ export function ImageUpload({
   aspect = 'square',
   hint = 'JPEG, PNG or WebP · up to 15 MB · crop after upload',
   enableCrop = true,
+  variant = 'default',
+  overlayClassName,
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -164,6 +169,66 @@ export function ImageUpload({
   }
 
   const busy = uploading || cropPreparing || cropOpen;
+
+  if (variant === 'overlay') {
+    return (
+      <div className={cn('relative', className)}>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleRawFile(file);
+          }}
+        />
+        <div className={cn('flex flex-wrap items-center gap-2', overlayClassName)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            className="bg-white/90 text-foreground shadow-md hover:bg-white"
+            onClick={() => inputRef.current?.click()}
+          >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <ImagePlus className="h-4 w-4 mr-2" />
+            )}
+            {value ? 'Change banner' : 'Add banner'}
+          </Button>
+          {value ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              className="bg-white/90 text-foreground shadow-md hover:bg-white"
+              onClick={() => onChange('')}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Remove
+            </Button>
+          ) : null}
+        </div>
+        {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
+        <ImageCropDialog
+          open={cropOpen}
+          onOpenChange={(open) => {
+            setCropOpen(open);
+            if (!open) setCropSource('');
+          }}
+          imageSrc={cropSource}
+          aspect={cropAspect}
+          title={aspect === 'banner' ? 'Crop cover image' : 'Crop image'}
+          maxOutputWidth={maxOutputWidth}
+          onConfirm={handleCroppedBlob}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={cn('space-y-2', className)}>

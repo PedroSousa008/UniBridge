@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { CompanyTeamMemberAvatar } from '@/components/company/company-team-member-avatar';
-import { ImageUpload } from '@/components/ui/image-upload';
+import { CompanyProfileHeroBanner } from '@/components/company/company-profile-hero-banner';
 import {
   Building2,
   KeyRound,
@@ -208,42 +208,15 @@ export function CompanyProfileEcosystemCommandCenter({
 
   return (
     <div className="space-y-10 pb-20">
-      {/* Hero / company banner */}
-      <section className="relative overflow-hidden rounded-3xl min-h-[200px] text-white">
-        {hub.company.bannerUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={hub.company.bannerUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-slate-900/75 to-violet-950/80" />
-        <div className="relative px-6 py-10">
-          {hub.permissions.canEditBanner ? (
-            <div className="mb-6 max-w-md rounded-xl border border-white/15 bg-black/35 p-3 backdrop-blur-sm">
-              <ImageUpload
-                label="Company banner"
-                value={hub.company.bannerUrl ?? ''}
-                onChange={(url) => void saveBanner(url)}
-                folder="company-banners"
-                aspect="banner"
-                hint="Wide banner for your company profile · visible to your whole team"
-                className="[&_label]:text-white/80 [&_p]:text-white/50"
-              />
-            </div>
-          ) : null}
-          <p className="text-xs uppercase tracking-[0.25em] text-white/45">Ecosystem control</p>
-          <h1 className="mt-2 text-3xl font-bold">{hub.company.companyName ?? hub.workspace.companyName}</h1>
-          <p className="mt-2 text-sm text-white/65 max-w-2xl">
-            Identity, team access, partnerships, and security — one workspace for{' '}
-            {hub.workspace.companyName}. You are signed in as {hub.myProfile.fullName ?? 'representative'}{' '}
-            ({hub.myProfile.permissionLabel}).
-          </p>
-        </div>
-      </section>
+      <CompanyProfileHeroBanner
+        bannerUrl={hub.company.bannerUrl}
+        canEditBanner={hub.permissions.canEditBanner}
+        companyName={hub.company.companyName ?? hub.workspace.companyName}
+        workspaceName={hub.workspace.companyName}
+        representativeName={hub.myProfile.fullName}
+        permissionLabel={hub.myProfile.permissionLabel}
+        onBannerChange={(url) => void saveBanner(url)}
+      />
 
       {msg ? (
         <p className="text-sm rounded-xl border bg-muted/50 px-4 py-2">{msg}</p>
