@@ -9,15 +9,16 @@ import { requireCompanyWorkspace } from '@/lib/session';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { workspaceMemberId: string } }
+  { params }: { params: Promise<{ workspaceMemberId: string }> }
 ) {
+  const { workspaceMemberId } = await params;
   const { session, workspace } = await requireCompanyWorkspace();
   const body = (await req.json()) as { permission?: string };
   const permission = normalizePermission(body.permission);
 
   const result = await updateWorkspaceMemberPermission(
     workspace,
-    params.workspaceMemberId,
+    workspaceMemberId,
     permission
   );
   if (!result.ok) {
@@ -30,11 +31,12 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { workspaceMemberId: string } }
+  { params }: { params: Promise<{ workspaceMemberId: string }> }
 ) {
+  const { workspaceMemberId } = await params;
   const { session, workspace } = await requireCompanyWorkspace();
 
-  const result = await deactivateWorkspaceMember(workspace, params.workspaceMemberId);
+  const result = await deactivateWorkspaceMember(workspace, workspaceMemberId);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 403 });
   }

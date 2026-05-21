@@ -6,16 +6,10 @@ import {
   resolveCompanyWorkspace,
   type CompanyWorkspaceContext,
 } from '@/lib/company/company-workspace';
+import type { Session } from 'next-auth';
 import type { UserRole } from '@prisma/client';
 
-export type AppSession = Awaited<ReturnType<typeof getServerSession>> & {
-  user: {
-    id: string;
-    role: UserRole;
-    companyWorkspaceId?: string;
-    companyPermission?: string;
-  };
-};
+export type AppSession = NonNullable<Session>;
 
 /** Data queries for company modules — owner id for sub-accounts. */
 export function getCompanyWorkspaceUserId(session: {
