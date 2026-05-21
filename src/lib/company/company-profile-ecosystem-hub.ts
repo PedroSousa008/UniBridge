@@ -327,7 +327,7 @@ export async function loadCompanyProfileEcosystemHub(
             stage: true,
             industry: true,
             founder: { select: { name: true } },
-            members: { include: { user: { select: { name: true } } } }, take: 3 },
+            members: { take: 3, include: { user: { select: { name: true } } } },
           },
         },
       },
