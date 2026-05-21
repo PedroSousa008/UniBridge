@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   addDays,
@@ -884,6 +885,13 @@ function HeatmapGrid({ days }: { days: HeatmapDay[] }) {
   );
 }
 
+function eventOpenHref(event: UnifiedCalendarEvent): string | null {
+  if (event.source === 'company-event' && event.sourceId) {
+    return `/student/academics/events/${event.sourceId}`;
+  }
+  return event.href;
+}
+
 function EventDetailSheet({
   event,
   onClose,
@@ -893,6 +901,9 @@ function EventDetailSheet({
   onClose: () => void;
   onHide: () => void;
 }) {
+  const openHref = eventOpenHref(event);
+  const isPartnerEvent = event.source === 'company-event';
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
       <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
@@ -912,15 +923,25 @@ function EventDetailSheet({
         </div>
         {event.description ? <p className="mt-3 text-sm">{event.description}</p> : null}
         {event.location ? <p className="mt-1 text-sm text-muted-foreground">{event.location}</p> : null}
+        {isPartnerEvent ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            See how this ecosystem event works, who you will meet, and RSVP.
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-2">
-          {!event.editable && event.sourceId ? (
+          {!event.editable && event.sourceId && !isPartnerEvent ? (
             <Button size="sm" variant="outline" onClick={onHide}>
               Remove from my calendar
             </Button>
           ) : null}
-          {event.href ? (
-            <Button size="sm" asChild>
-              <a href={event.href}>Open</a>
+          {isPartnerEvent && event.sourceId ? (
+            <Button size="sm" variant="outline" onClick={onHide}>
+              Remove from my calendar
+            </Button>
+          ) : null}
+          {openHref ? (
+            <Button size="sm" asChild onClick={onClose}>
+              <Link href={openHref}>Open event page</Link>
             </Button>
           ) : null}
         </div>

@@ -535,6 +535,27 @@ export async function markEventAttendance(
   return loadCompanyEventDetail(companyUserId, eventId);
 }
 
+export async function loadApprovedCompanyEventCard(
+  eventId: string,
+  universityId: string
+): Promise<CompanyEventEcosystemCard | null> {
+  const event = await prisma.companyEvent.findFirst({
+    where: { id: eventId, universityId, status: 'approved' },
+    include: {
+      university: { select: { name: true } },
+      rsvps: true,
+    },
+  });
+  if (!event) return null;
+
+  const companyProfile = await prisma.companyProfile.findUnique({
+    where: { userId: event.companyUserId },
+    select: { companyName: true },
+  });
+  const companyName = companyProfile?.companyName ?? 'Partner company';
+  return mapEventRow(event as EventRow, companyName);
+}
+
 export async function searchStudentsForEventInvite(
   companyUserId: string,
   universityId: string,

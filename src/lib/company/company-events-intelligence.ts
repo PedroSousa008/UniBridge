@@ -149,6 +149,109 @@ export function buildEventAiRecommendations(input: {
   return lines.slice(0, 2);
 }
 
+export function buildStudentEventHowItWorks(input: {
+  eventType: EventTypeId;
+  eventFormat: string;
+  attendanceMode?: string;
+}): { step: number; title: string; description: string }[] {
+  const meta = eventTypeMeta(input.eventType);
+  const format =
+    input.eventFormat === 'online'
+      ? 'Join online — link shared before the session.'
+      : input.eventFormat === 'hybrid'
+        ? 'Hybrid — attend in person or online.'
+        : 'In person — arrive a few minutes early to network.';
+
+  const checkIn =
+    input.attendanceMode === 'qr'
+      ? 'Check in with QR at the venue to confirm participation.'
+      : input.attendanceMode === 'checkin'
+        ? 'Live check-in opens when the event starts.'
+        : 'Your RSVP counts as registration; attendance may be confirmed on the day.';
+
+  return [
+    {
+      step: 1,
+      title: 'RSVP on UniBridge',
+      description:
+        'Save your spot here. Your Academics calendar and notifications stay in sync automatically.',
+    },
+    {
+      step: 2,
+      title: `Prepare for a ${meta.label}`,
+      description: `${meta.description} ${format}`,
+    },
+    {
+      step: 3,
+      title: 'Pre-event networking',
+      description:
+        'Meet speakers and other students in Messages before the session — connections count toward your ecosystem profile.',
+    },
+    {
+      step: 4,
+      title: 'Participate & grow',
+      description: `${checkIn} Attendance can boost compatibility, leadership, and networking indicators on your profile.`,
+    },
+  ];
+}
+
+export function buildStudentEventExperienceTips(eventType: EventTypeId): string[] {
+  const tips: Record<EventTypeId, string[]> = {
+    recruiting: [
+      'Bring an updated profile — recruiters may view your UniBridge compatibility.',
+      'Prepare 2–3 questions about roles and culture.',
+    ],
+    networking: [
+      'Introduce yourself with your program and what you are building toward.',
+      'Follow up with new connections in Messages within 48 hours.',
+    ],
+    workshop: [
+      'Complete any pre-reads listed in the agenda.',
+      'Take notes — skills from workshops feed your employability score.',
+    ],
+    career_fair: [
+      'Prioritize 3–5 companies you want deep conversations with.',
+      'Dress for the format (business casual unless stated otherwise).',
+    ],
+    startup_pitch: [
+      'If you are a founder, have your pitch deck link ready.',
+      'Ask about mentorship and follow-on programs.',
+    ],
+    hackathon: [
+      'Form or join a team early via event chat.',
+      'Charge devices and check tooling requirements.',
+    ],
+    mentorship: [
+      'List specific goals you want from the mentor.',
+      'Be ready to share your career path progress.',
+    ],
+    live_qa: [
+      'Submit questions early if the host opens a thread.',
+      'Listen for hiring or internship signals.',
+    ],
+    leadership: [
+      'Reflect on a leadership moment you can share.',
+      'Connect program learnings to your profile indicators.',
+    ],
+    product_demo: [
+      'Research the company product beforehand.',
+      'Note features that align with your skills.',
+    ],
+    founder_meetup: [
+      'Share what you are building and what help you need.',
+      'Explore Startup OS profiles of other attendees.',
+    ],
+    partnership: [
+      'Understand how university × company collaboration affects opportunities.',
+    ],
+    conference: [
+      'Plan which sessions matter most for your goals.',
+      'Balance talks with hallway networking time.',
+    ],
+  };
+  return tips[eventType] ?? tips.networking;
+}
+
 export function statusLabel(status: string): string {
   if (status === 'approved') return 'Live · Ecosystem visible';
   if (status === 'pending_approval') return 'Pending university approval';
