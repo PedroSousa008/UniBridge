@@ -1,5 +1,5 @@
 import { requireSession } from '@/lib/session';
-import { TeacherSubjectGradebookPanel } from '@/components/teacher/teacher-subject-panels';
+import { TeacherSubjectGradebookPanel } from '@/components/teacher/teacher-subject-gradebook-panel';
 
 export default async function TeacherSubjectGradebookPage({
   params,

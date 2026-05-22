@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import {
-  buildTeacherGradeTable,
   deleteGradeCategory,
-  getSubjectGradingPlan,
-  listGradeCategories,
+  getGradebookPayload,
   saveSubjectGradingPlan,
   upsertGradeCategory,
-  validateCategoryWeights,
   type GradingMode,
 } from '@/lib/teacher/teacher-gradebook';
+import type { GradeBlockKey } from '@/lib/teacher/gradebook-structure';
 import { requireTeacherSubject } from '@/lib/teacher/subject-auth';
 
 export async function GET(
@@ -19,15 +17,8 @@ export async function GET(
   const auth = await requireTeacherSubject(subjectId);
   if (auth.error) return auth.error;
 
-  const [plan, categories, table] = await Promise.all([
-    getSubjectGradingPlan(subjectId),
-    listGradeCategories(subjectId),
-    buildTeacherGradeTable(subjectId),
-  ]);
-
-  const weights = validateCategoryWeights(categories.map((c) => c.weight));
-
-  return NextResponse.json({ plan, categories, weights, table });
+  const payload = await getGradebookPayload(subjectId);
+  return NextResponse.json(payload);
 }
 
 export async function PATCH(
@@ -56,14 +47,16 @@ export async function PATCH(
       id: body.category.id,
       name: String(body.category.name || '').trim(),
       weight: Number(body.category.weight),
+      kind: body.category.kind,
+      parentId: body.category.parentId ?? null,
+      blockKey: body.category.blockKey as GradeBlockKey | undefined,
       description: body.category.description ?? null,
       minGrade: body.category.minGrade != null ? Number(body.category.minGrade) : null,
       sortOrder: body.category.sortOrder,
     });
     if (!result.ok) {
-      return NextResponse.json({ error: result.error, weights: result.check }, { status: 400 });
+      return NextResponse.json({ error: result.error }, { status: 400 });
     }
-    return NextResponse.json({ category: result.category, weights: result.check });
   }
 
   if (body.deleteCategoryId) {
@@ -71,12 +64,6 @@ export async function PATCH(
     if (!del.ok) return NextResponse.json({ error: del.error }, { status: 404 });
   }
 
-  const [plan, categories, table] = await Promise.all([
-    getSubjectGradingPlan(subjectId),
-    listGradeCategories(subjectId),
-    buildTeacherGradeTable(subjectId),
-  ]);
-  const weights = validateCategoryWeights(categories.map((c) => c.weight));
-
-  return NextResponse.json({ plan, categories, weights, table });
+  const payload = await getGradebookPayload(subjectId);
+  return NextResponse.json(payload);
 }

@@ -1,12 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
-  ClipboardList,
   FileText,
   Loader2,
   Megaphone,
@@ -14,20 +13,16 @@ import {
   Plus,
   Radio,
   Send,
-  Trash2,
-  TrendingUp,
   Users,
 } from 'lucide-react';
 import type { TeacherSubjectWorkspace } from '@/lib/teacher/teacher-subject-context';
-import { EVALUATION_COMPONENT_PRESETS, validateCategoryWeights } from '@/lib/teacher/teacher-gradebook';
 import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
+import { AcademicFileUpload } from '@/components/ui/academic-file-upload';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
 import { EmptyState } from '@/components/ui/empty-state';
-import { cn } from '@/lib/utils';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -164,10 +159,19 @@ export function TeacherSubjectContentPanel({
   const [weekTitle, setWeekTitle] = useState('Week 1');
   const [itemTitle, setItemTitle] = useState('');
   const [fileUrl, setFileUrl] = useState('');
+  const [contentType, setContentType] = useState('PDF');
+  const [linkUrl, setLinkUrl] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function addItem() {
+    const url = fileUrl.trim() || linkUrl.trim();
     if (!itemTitle.trim()) return;
+    if (!url) {
+      setUploadError('Upload a file from your device or paste a link.');
+      return;
+    }
+    setUploadError(null);
     setSaving(true);
     const res = await fetch(`/api/teacher/subjects/${subjectId}/content`, {
       method: 'POST',
@@ -176,9 +180,9 @@ export function TeacherSubjectContentPanel({
         weekNumber: parseInt(weekNum, 10),
         weekTitle,
         itemTitle: itemTitle.trim(),
-        type: 'PDF',
-        fileUrl: fileUrl.trim() || null,
-        url: fileUrl.trim() || null,
+        type: contentType,
+        fileUrl: fileUrl.trim() || url,
+        url,
       }),
     });
     if (res.ok) {
@@ -194,6 +198,7 @@ export function TeacherSubjectContentPanel({
       });
       setItemTitle('');
       setFileUrl('');
+      setLinkUrl('');
     }
     setSaving(false);
   }
@@ -214,7 +219,24 @@ export function TeacherSubjectContentPanel({
           <Input placeholder="Week number" value={weekNum} onChange={(e) => setWeekNum(e.target.value)} />
           <Input placeholder="Week title" value={weekTitle} onChange={(e) => setWeekTitle(e.target.value)} />
           <Input placeholder="Material title" value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} className="sm:col-span-2" />
-          <Input placeholder="File or link URL" value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className="sm:col-span-2" />
+          <div className="sm:col-span-2">
+            <AcademicFileUpload
+              folder={`subject-content/${subjectId}`}
+              onUploaded={({ url, fileName, contentType: ct }) => {
+                setFileUrl(url);
+                setContentType(ct);
+                if (!itemTitle.trim()) setItemTitle(fileName.replace(/\.[^.]+$/, ''));
+                setUploadError(null);
+              }}
+            />
+          </div>
+          <Input
+            placeholder="Or paste a link (optional if you uploaded a file)"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            className="sm:col-span-2"
+          />
+          {uploadError ? <p className="text-sm text-rose-600 sm:col-span-2">{uploadError}</p> : null}
           <Button onClick={() => void addItem()} disabled={saving} className="sm:col-span-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Add to subject content
@@ -318,183 +340,6 @@ export function TeacherSubjectAnnouncementsPanel({
           </Card>
         ))}
       </div>
-    </div>
-  );
-}
-
-type GradebookState = {
-  plan: { mode: string; scaleMax: number };
-  categories: { id: string; name: string; weight: number; minGrade: number | null }[];
-  weights: { total: number; valid: boolean; remaining: number };
-};
-
-export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string }) {
-  const [data, setData] = useState<GradebookState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState('');
-  const [newWeight, setNewWeight] = useState('10');
-  const [mode, setMode] = useState<'single' | 'continuous_final'>('continuous_final');
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/teacher/subjects/${subjectId}/gradebook`);
-    if (res.ok) {
-      const json = await res.json();
-      setData({
-        plan: json.plan,
-        categories: json.categories,
-        weights: json.weights,
-      });
-      setMode(json.plan.mode);
-    }
-    setLoading(false);
-  }, [subjectId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function patch(body: Record<string, unknown>) {
-    setMsg(null);
-    const res = await fetch(`/api/teacher/subjects/${subjectId}/gradebook`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setMsg(json.error || 'Could not save');
-      return;
-    }
-    setData({
-      plan: json.plan,
-      categories: json.categories,
-      weights: json.weights,
-    });
-    setMode(json.plan.mode);
-  }
-
-  const localWeights = useMemo(() => {
-    if (!data) return { total: 0, valid: false, remaining: 100 };
-    return validateCategoryWeights(data.categories.map((c) => c.weight));
-  }, [data]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Evaluation structure
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={mode === 'single' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => void patch({ plan: { mode: 'single' } })}
-            >
-              Single evaluation
-            </Button>
-            <Button
-              variant={mode === 'continuous_final' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => void patch({ plan: { mode: 'continuous_final' } })}
-            >
-              Continuous + final exam
-            </Button>
-          </div>
-          <div className="flex items-center gap-3">
-            <Progress value={Math.min(localWeights.total, 100)} className="h-2 flex-1" />
-            <span
-              className={cn(
-                'text-sm font-medium tabular-nums',
-                localWeights.valid ? 'text-emerald-600' : 'text-amber-600'
-              )}
-            >
-              {localWeights.total}% / 100%
-              {!localWeights.valid ? ` · ${localWeights.remaining}% left` : ''}
-            </span>
-          </div>
-          {msg ? <p className="text-sm text-rose-600">{msg}</p> : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Evaluation components</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {EVALUATION_COMPONENT_PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className="rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
-                onClick={() => setNewName(p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Input placeholder="Component name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-            <Input type="number" placeholder="Weight %" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} />
-            <Button
-              onClick={() =>
-                void patch({
-                  category: { name: newName.trim(), weight: parseFloat(newWeight) },
-                })
-              }
-            >
-              <Plus className="h-4 w-4" />
-              Add component
-            </Button>
-          </div>
-          {data?.categories.map((c) => (
-            <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-              <span className="text-sm font-medium">
-                {c.name} — {c.weight}%
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => void patch({ deleteCategoryId: c.id })}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ClipboardList className="h-4 w-4" />
-            Grade & publish
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            Published grades sync live to each student&apos;s gradebook and dashboard. Students only see their own results.
-          </p>
-          <Button asChild>
-            <Link href={`/teacher/workspace?view=grading&subject=${subjectId}`}>
-              Open grading workspace
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }

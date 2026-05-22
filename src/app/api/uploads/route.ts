@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { authOptions } from '@/lib/auth';
+import { saveUploadedAcademicFile } from '@/lib/uploads/save-academic-file';
 import { saveUploadedImage } from '@/lib/uploads/save-file';
+import {
+  ACADEMIC_UPLOAD_CONTENT_TYPES,
+  MAX_ACADEMIC_BYTES,
+} from '@/lib/uploads/validate-academic-file';
 import { MAX_IMAGE_BYTES } from '@/lib/uploads/validate-image';
 
 const IMAGE_TYPES = [
@@ -41,10 +46,12 @@ export async function POST(request: Request): Promise<NextResponse> {
           }
 
           const safeName = pathname.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const isAcademic =
+            folder === 'subject-content' || folder === 'academic' || folder.startsWith('subject');
           return {
             pathname: `uploads/${session.user.id}/${folder}/${safeName}`,
-            allowedContentTypes: IMAGE_TYPES,
-            maximumSizeInBytes: MAX_IMAGE_BYTES,
+            allowedContentTypes: isAcademic ? ACADEMIC_UPLOAD_CONTENT_TYPES : IMAGE_TYPES,
+            maximumSizeInBytes: isAcademic ? MAX_ACADEMIC_BYTES : MAX_IMAGE_BYTES,
             addRandomSuffix: true,
           };
         },
@@ -79,7 +86,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const url = await saveUploadedImage(file, `${session.user.id}/${folder}`);
+    const isAcademic =
+      folder === 'subject-content' || folder === 'academic' || folder.startsWith('subject');
+    const url = isAcademic
+      ? await saveUploadedAcademicFile(file, `${session.user.id}/${folder}`)
+      : await saveUploadedImage(file, `${session.user.id}/${folder}`);
     return NextResponse.json({ url });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Upload failed';
