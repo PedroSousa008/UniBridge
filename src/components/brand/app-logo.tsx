@@ -10,19 +10,22 @@ export const APP_LOGO_PATH = '/logo.png';
 const SIZES = {
   sm: 32,
   md: 36,
-  lg: 40,
+  lg: 44,
+  auth: 52,
 } as const;
 
 export function AppLogo({
   href,
   showName = true,
   size = 'md',
+  tone = 'default',
   className,
   imageClassName,
 }: {
   href?: string;
   showName?: boolean;
   size?: keyof typeof SIZES;
+  tone?: 'default' | 'light';
   className?: string;
   imageClassName?: string;
 }) {
@@ -36,11 +39,18 @@ export function AppLogo({
         alt={tr('common.appName')}
         width={dim}
         height={dim}
+        unoptimized
         className={cn('shrink-0 rounded-xl object-contain', imageClassName)}
-        priority={size !== 'sm'}
+        priority
       />
       {showName ? (
-        <span className={cn('font-semibold tracking-tight', size === 'lg' ? 'text-lg' : 'text-base')}>
+        <span
+          className={cn(
+            'font-semibold tracking-tight',
+            size === 'auth' || size === 'lg' ? 'text-lg' : 'text-base',
+            tone === 'light' ? 'text-white' : 'text-foreground'
+          )}
+        >
           {tr('common.appName')}
         </span>
       ) : null}

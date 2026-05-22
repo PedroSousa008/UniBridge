@@ -1,18 +1,12 @@
-import Link from 'next/link';
 import { Suspense } from 'react';
-import { AppLogo } from '@/components/brand/app-logo';
+import { AuthBrandHeader } from '@/components/brand/auth-brand-header';
 import { LoginForm } from './login-form';
 
 export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-background">
       <div className="hidden w-1/2 flex-col justify-between bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-12 text-white lg:flex">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-sm font-bold text-slate-900">
-            U
-          </div>
-          <span className="text-lg font-semibold">UniBridge</span>
-        </Link>
+        <AuthBrandHeader onDark />
         <div className="max-w-md space-y-4">
           <p className="text-sm font-medium uppercase tracking-widest text-white/60">For companies</p>
           <h2 className="text-3xl font-semibold tracking-tight">
@@ -28,9 +22,7 @@ export default function LoginPage() {
 
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-md animate-fade-in">
-          <div className="mb-8 lg:hidden">
-            <AppLogo href="/" size="lg" />
-          </div>
+          <AuthBrandHeader className="mb-8 lg:hidden" />
           <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
           <p className="mt-2 text-sm text-muted-foreground">Choose your path in the ecosystem.</p>
           <div className="mt-8 rounded-2xl border border-border/60 bg-card p-6 shadow-card">
