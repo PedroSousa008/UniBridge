@@ -260,6 +260,7 @@ model User {
   subjectAnnouncements SubjectAnnouncement[] @relation("SubjectAnnouncementAuthor")
   subjectMessages     SubjectMessage[]      @relation("SubjectMessageAuthor")
   subjectContentNotes SubjectContentNote[]
+  subjectCalendarEvents SubjectCalendarEvent[]
   attendanceRecords   SubjectAttendanceRecord[]
   analyticsEvents     AnalyticsEvent[]
   companyPartnerships CompanyPartnership[]   @relation("CompanyUser")
@@ -632,8 +633,33 @@ model Subject {
   internships     Internship[]
   challenges      CompanyChallenge[]
   studentWeeklyClasses StudentWeeklyClass[]
+  calendarEvents       SubjectCalendarEvent[]
 
   @@index([courseId])
+}
+
+model SubjectCalendarEvent {
+  id              String   @id @default(cuid())
+  subjectId       String
+  subject         Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  title           String
+  eventType       String
+  startAt         DateTime
+  endAt           DateTime
+  location        String?
+  room            String?
+  description     String?  @db.Text
+  color           String   @default("#3b82f6")
+  repeatWeekly    Boolean  @default(false)
+  repeatUntil     DateTime?
+  excludeDates    String[] @default([])
+  notifyOnChange  Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([subjectId, startAt])
 }
 
 model SubjectEnrollment {
