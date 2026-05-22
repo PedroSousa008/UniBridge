@@ -2,16 +2,20 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import {
   CheckCircle2,
   ClipboardList,
   Loader2,
   Lock,
+  Pencil,
   Plus,
   Trash2,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import type { GradebookStructure, GradeCategoryRow } from '@/lib/teacher/gradebook-structure';
+import { isExamStyleComponent } from '@/lib/teacher/gradebook-structure';
 import { EVALUATION_COMPONENT_PRESETS } from '@/lib/teacher/teacher-gradebook';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,10 +67,29 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
   const [payload, setPayload] = useState<GradebookPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
-  const [newName, setNewName] = useState('');
-  const [newWeight, setNewWeight] = useState('10');
+  const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formWeight, setFormWeight] = useState('10');
+  const [formExamDate, setFormExamDate] = useState('');
+  const [formStartTime, setFormStartTime] = useState('09:00');
+  const [formEndTime, setFormEndTime] = useState('11:00');
+  const [formRoom, setFormRoom] = useState('');
   const [scaleMax, setScaleMax] = useState('20');
   const [activeParentId, setActiveParentId] = useState<string | null>(null);
+
+  const showExamFields = isExamStyleComponent(formName);
+
+  function resetComponentForm() {
+    setFormMode('add');
+    setEditingId(null);
+    setFormName('');
+    setFormWeight('10');
+    setFormExamDate('');
+    setFormStartTime('09:00');
+    setFormEndTime('11:00');
+    setFormRoom('');
+  }
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/teacher/subjects/${subjectId}/gradebook`);
@@ -110,7 +133,7 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
       operational: json.operational,
       canAddComponents: json.canAddComponents,
     });
-    setNewName('');
+    resetComponentForm();
     return true;
   }
 
@@ -127,25 +150,59 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
   const { plan, structure } = payload;
   const isSingle = plan.mode === 'single';
 
-  async function addComponent() {
-    const name = newName.trim();
+  function startEditComponent(c: ListedComponent) {
+    setFormMode('edit');
+    setEditingId(c.id);
+    setFormName(c.name);
+    setFormWeight(String(c.weight));
+    if (c.examAt) {
+      setFormExamDate(c.examAt.slice(0, 10));
+      setFormStartTime(format(new Date(c.examAt), 'HH:mm'));
+      setFormEndTime(c.examEndAt ? format(new Date(c.examEndAt), 'HH:mm') : '11:00');
+    } else {
+      setFormExamDate('');
+      setFormStartTime('09:00');
+      setFormEndTime('11:00');
+    }
+    setFormRoom(c.room ?? '');
+    if (!isSingle && c.meta.parentId) setActiveParentId(c.meta.parentId);
+    setMsg(null);
+  }
+
+  async function saveComponent() {
+    const name = formName.trim();
     if (!name) {
       setMsg('Enter a component name');
       return;
     }
-    const weight = parseFloat(newWeight);
+    const weight = parseFloat(formWeight);
     if (Number.isNaN(weight) || weight <= 0) {
       setMsg('Enter a valid weight %');
       return;
     }
     await patch({
       category: {
+        ...(formMode === 'edit' && editingId ? { id: editingId } : {}),
         name,
         weight,
         kind: 'component',
         parentId: isSingle ? null : activeParentId,
+        examDate: showExamFields && formExamDate ? formExamDate : null,
+        examStartTime: showExamFields ? formStartTime : null,
+        examEndTime: showExamFields ? formEndTime : null,
+        room: showExamFields ? formRoom || null : null,
       },
     });
+  }
+
+  function formatExamSummary(c: ListedComponent) {
+    if (!c.examAt) return null;
+    const start = new Date(c.examAt);
+    const end = c.examEndAt ? new Date(c.examEndAt) : null;
+    const when = `${format(start, 'd MMM yyyy')} · ${format(start, 'HH:mm')}${
+      end ? `–${format(end, 'HH:mm')}` : ''
+    }`;
+    return c.room ? `${when} · Room ${c.room}` : when;
   }
 
   type ListedComponent = GradeCategoryRow & { blockName?: string };
@@ -320,13 +377,17 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
                 </div>
               ) : null}
 
+              {formMode === 'edit' ? (
+                <p className="text-sm font-medium text-brand">Editing component — save or cancel below.</p>
+              ) : null}
+
               <div className="flex flex-wrap gap-2">
                 {EVALUATION_COMPONENT_PRESETS.map((p) => (
                   <button
                     key={p}
                     type="button"
                     className="rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
-                    onClick={() => setNewName(p)}
+                    onClick={() => setFormName(p)}
                   >
                     {p}
                   </button>
@@ -336,20 +397,76 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
               <div className="grid gap-2 sm:grid-cols-3">
                 <Input
                   placeholder="Component name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
                 />
                 <Input
                   type="number"
                   placeholder="Weight %"
-                  value={newWeight}
-                  onChange={(e) => setNewWeight(e.target.value)}
+                  value={formWeight}
+                  onChange={(e) => setFormWeight(e.target.value)}
                 />
-                <Button type="button" onClick={() => void addComponent()}>
-                  <Plus className="h-4 w-4" />
-                  Add component
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" className="flex-1" onClick={() => void saveComponent()}>
+                    {formMode === 'edit' ? (
+                      <>Save changes</>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" />
+                        Add component
+                      </>
+                    )}
+                  </Button>
+                  {formMode === 'edit' ? (
+                    <Button type="button" variant="outline" size="icon" onClick={resetComponentForm}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
+
+              {showExamFields ? (
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+                  <p className="text-sm font-medium">Exam / test schedule</p>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Date</p>
+                      <Input
+                        type="date"
+                        value={formExamDate}
+                        onChange={(e) => setFormExamDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Start time</p>
+                      <Input
+                        type="time"
+                        value={formStartTime}
+                        onChange={(e) => setFormStartTime(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">End time</p>
+                      <Input
+                        type="time"
+                        value={formEndTime}
+                        onChange={(e) => setFormEndTime(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Room (optional)</p>
+                      <Input
+                        placeholder="e.g. A101"
+                        value={formRoom}
+                        onChange={(e) => setFormRoom(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Syncs to student calendars and the subject calendar when saved.
+                  </p>
+                </div>
+              ) : null}
             </>
           ) : null}
 
@@ -361,27 +478,49 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
               {listedComponents.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2"
+                  className={cn(
+                    'flex items-center justify-between gap-2 rounded-lg border px-3 py-2',
+                    editingId === c.id ? 'border-brand bg-brand/5' : 'bg-muted/20'
+                  )}
                 >
-                  <span className="text-sm font-medium">
-                    {c.blockName ? (
-                      <span className="text-muted-foreground">{c.blockName} → </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {c.blockName ? (
+                        <span className="text-muted-foreground">{c.blockName} → </span>
+                      ) : null}
+                      {c.name} — {c.weight}%
+                      {c.minGrade != null ? (
+                        <span className="text-muted-foreground text-xs ml-1">
+                          (min {c.minGrade})
+                        </span>
+                      ) : null}
+                    </p>
+                    {formatExamSummary(c) ? (
+                      <p className="text-xs text-muted-foreground mt-0.5">{formatExamSummary(c)}</p>
+                    ) : c.isExamStyle ? (
+                      <p className="text-xs text-amber-600 mt-0.5">No exam date set — click edit</p>
                     ) : null}
-                    {c.name} — {c.weight}%
-                    {c.minGrade != null ? (
-                      <span className="text-muted-foreground text-xs ml-1">
-                        (min {c.minGrade})
-                      </span>
-                    ) : null}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    onClick={() => void patch({ deleteCategoryId: c.id })}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      title="Edit component"
+                      onClick={() => startEditComponent(c)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      title="Delete component"
+                      onClick={() => void patch({ deleteCategoryId: c.id })}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

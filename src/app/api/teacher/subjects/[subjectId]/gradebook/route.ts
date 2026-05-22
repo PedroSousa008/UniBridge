@@ -54,6 +54,10 @@ export async function PATCH(
       description: body.category.description ?? null,
       minGrade: body.category.minGrade != null ? Number(body.category.minGrade) : null,
       sortOrder: body.category.sortOrder,
+      examDate: body.category.examDate ?? null,
+      examStartTime: body.category.examStartTime ?? null,
+      examEndTime: body.category.examEndTime ?? null,
+      room: body.category.room ?? null,
     });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });

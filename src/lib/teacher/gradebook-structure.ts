@@ -8,7 +8,16 @@ export type GradeCategoryMeta = {
   kind: GradeCategoryKind;
   blockKey?: GradeBlockKey;
   parentId?: string;
+  examId?: string;
+  examAt?: string;
+  examEndAt?: string;
+  room?: string;
 };
+
+/** Components that support scheduled date, time, and room on the gradebook. */
+export function isExamStyleComponent(name: string): boolean {
+  return /exam|test|mini test|oral presentation|quiz|presentation/i.test(name.trim());
+}
 
 export type GradeCategoryRow = {
   id: string;
@@ -17,6 +26,10 @@ export type GradeCategoryRow = {
   minGrade: number | null;
   sortOrder: number;
   meta: GradeCategoryMeta;
+  examAt: string | null;
+  examEndAt: string | null;
+  room: string | null;
+  isExamStyle: boolean;
 };
 
 export type WeightSummary = {
@@ -53,17 +66,26 @@ export function parseCategoryMeta(rulesJson: unknown): GradeCategoryMeta {
   const blockKey =
     r.blockKey === 'continuous' || r.blockKey === 'final' ? r.blockKey : undefined;
   const parentId = typeof r.parentId === 'string' ? r.parentId : undefined;
-  return { kind, blockKey, parentId };
+  const examId = typeof r.examId === 'string' ? r.examId : undefined;
+  const examAt = typeof r.examAt === 'string' ? r.examAt : undefined;
+  const examEndAt = typeof r.examEndAt === 'string' ? r.examEndAt : undefined;
+  const room = typeof r.room === 'string' ? r.room : undefined;
+  return { kind, blockKey, parentId, examId, examAt, examEndAt, room };
 }
 
 export function toCategoryRow(cat: GradeCategory): GradeCategoryRow {
+  const meta = parseCategoryMeta(cat.rulesJson);
   return {
     id: cat.id,
     name: cat.name,
     weight: cat.weight,
     minGrade: cat.minGrade,
     sortOrder: cat.sortOrder,
-    meta: parseCategoryMeta(cat.rulesJson),
+    meta,
+    examAt: meta.examAt ?? null,
+    examEndAt: meta.examEndAt ?? null,
+    room: meta.room ?? null,
+    isExamStyle: isExamStyleComponent(cat.name),
   };
 }
 

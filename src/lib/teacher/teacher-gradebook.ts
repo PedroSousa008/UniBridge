@@ -13,6 +13,11 @@ import {
   validateBlockWeights,
   validateNewComponentWeight,
 } from '@/lib/teacher/gradebook-structure';
+import {
+  buildExamTimesFromForm,
+  removeGradeComponentExam,
+  syncGradeComponentExam,
+} from '@/lib/teacher/component-exam-sync';
 import { syncEvaluationAssignments } from '@/lib/teacher/teacher-evaluation-sync';
 import { isPendingGradePublish, studentVisibleScore } from '@/lib/teacher/teacher-grading';
 
@@ -143,6 +148,10 @@ export async function upsertGradeCategory(
     description?: string | null;
     minGrade?: number | null;
     sortOrder?: number;
+    examDate?: string | null;
+    examStartTime?: string | null;
+    examEndTime?: string | null;
+    room?: string | null;
   }
 ) {
   await ensureGradebookTables();
@@ -217,6 +226,13 @@ export async function upsertGradeCategory(
     }
   }
 
+  const { examAt, examEndAt } = buildExamTimesFromForm({
+    date: input.examDate,
+    startTime: input.examStartTime,
+    endTime: input.examEndTime,
+  });
+  const room = input.room?.trim() || null;
+
   if (input.id) {
     const updated = await prisma.gradeCategory.update({
       where: { id: input.id },
@@ -229,6 +245,15 @@ export async function upsertGradeCategory(
         rulesJson: metaToJson(meta),
       },
     });
+    if (kind === 'component') {
+      await syncGradeComponentExam(subjectId, updated.id, {
+        name: input.name,
+        examAt,
+        examEndAt,
+        room,
+      });
+      await syncEvaluationAssignments(subjectId);
+    }
     return { ok: true as const, category: updated };
   }
 
@@ -243,6 +268,14 @@ export async function upsertGradeCategory(
       rulesJson: metaToJson(meta),
     },
   });
+  if (kind === 'component') {
+    await syncGradeComponentExam(subjectId, created.id, {
+      name: input.name,
+      examAt,
+      examEndAt,
+      room,
+    });
+  }
   return { ok: true as const, category: created };
 }
 
@@ -253,12 +286,18 @@ export async function deleteGradeCategory(subjectId: string, categoryId: string)
   if (!cat) return { ok: false as const, error: 'Category not found' };
 
   const meta = parseCategoryMeta(cat.rulesJson);
+  if (meta.kind === 'component') {
+    await removeGradeComponentExam(categoryId);
+  }
   if (meta.kind === 'block') {
     const children = await prisma.gradeCategory.findMany({ where: { subjectId } });
     const childIds = children
       .filter((c) => parseCategoryMeta(c.rulesJson).parentId === categoryId)
       .map((c) => c.id);
     if (childIds.length > 0) {
+      for (const childId of childIds) {
+        await removeGradeComponentExam(childId);
+      }
       await prisma.gradeCategory.deleteMany({ where: { id: { in: childIds } } });
     }
   }

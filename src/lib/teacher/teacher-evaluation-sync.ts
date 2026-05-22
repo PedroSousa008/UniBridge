@@ -42,9 +42,12 @@ export async function syncEvaluationAssignments(subjectId: string): Promise<{
   );
 
   const assignmentIds: string[] = [];
-  const dueDate = new Date(Date.now() + 90 * 86400000);
+  const defaultDueDate = new Date(Date.now() + 90 * 86400000);
 
   for (const cat of components) {
+    const meta = parseCategoryMeta(cat.rulesJson);
+    const dueDate = meta.examAt ? new Date(meta.examAt) : defaultDueDate;
+
     let assignment = await prisma.assignment.findFirst({
       where: { subjectId, gradeCategoryId: cat.id },
     });
@@ -70,6 +73,7 @@ export async function syncEvaluationAssignments(subjectId: string): Promise<{
           title: cat.name,
           maxScore: plan.scaleMax,
           weightPercent: cat.weight,
+          dueDate,
         },
       });
     }
