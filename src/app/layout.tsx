@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: 'UniBridge — Build your future',
   description:
     'The Operating System for Academic and Professional Growth. Connect universities, students, teachers, companies, and founders.',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

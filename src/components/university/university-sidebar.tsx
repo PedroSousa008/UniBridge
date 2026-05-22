@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { AppLogo } from '@/components/brand/app-logo';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n/context';
 import { universityNav } from '@/lib/navigation/roles';
@@ -18,9 +19,7 @@ export function UniversitySidebar({ universityName }: UniversitySidebarProps) {
     <aside className="hidden w-64 shrink-0 border-r border-border/60 bg-card/50 md:flex md:flex-col">
       <div className="flex h-16 flex-col justify-center px-6">
         <Link href="/university/overview" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-foreground text-sm font-bold text-background">
-            U
-          </div>
+          <AppLogo showName={false} size="sm" />
           <div className="min-w-0">
             <span className="block truncate text-sm font-semibold tracking-tight">
               {tr('common.appName')}

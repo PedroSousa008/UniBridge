@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, Sparkles } from 'lucide-react';
+import { AppLogo } from '@/components/brand/app-logo';
 import { Button } from '@/components/ui/button';
 
 export default function LandingPage() {
@@ -7,12 +8,7 @@ export default function LandingPage() {
     <div className="relative min-h-screen overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(59,99,235,0.08),_transparent_50%)]" />
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-sm font-bold text-background">
-            U
-          </div>
-          <span className="text-lg font-semibold tracking-tight">UniBridge</span>
-        </div>
+        <AppLogo href="/" size="lg" />
         <div className="flex items-center gap-3">
           <Button variant="ghost" asChild>
             <Link href="/login">Sign in</Link>

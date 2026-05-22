@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { AppLogo } from '@/components/brand/app-logo';
 import { getInitials } from '@/lib/utils';
 import { ROLE_LABELS } from '@/lib/roles';
 import type { UserRole } from '@prisma/client';
@@ -38,7 +39,7 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border/60 bg-background/80 px-6 backdrop-blur-xl">
       <div className="md:hidden">
-        <span className="text-sm font-semibold">{tr('common.appName')}</span>
+        <AppLogo showName size="sm" />
       </div>
       <div className="hidden md:block" />
       <div className="flex items-center gap-2">
