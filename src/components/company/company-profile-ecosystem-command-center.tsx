@@ -600,7 +600,7 @@ export function CompanyProfileEcosystemCommandCenter({
       </Card>
 
       <ProfileSecuritySection
-        userEmail={hub.identity.email}
+        userEmail={hub.myProfile.email}
         accessHistory={hub.security.map((a) => ({
           id: a.id,
           action: a.action,
