@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  confirmSubjectGradingBlocks,
   deleteGradeCategory,
   getGradebookPayload,
   saveSubjectGradingPlan,
@@ -56,6 +57,13 @@ export async function PATCH(
     });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+  }
+
+  if (body.confirmBlocks) {
+    const confirmed = await confirmSubjectGradingBlocks(subjectId);
+    if (!confirmed.ok) {
+      return NextResponse.json({ error: confirmed.error }, { status: 400 });
     }
   }
 

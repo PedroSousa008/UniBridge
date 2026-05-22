@@ -1,11 +1,13 @@
 import { prisma } from '@/lib/db';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
+import { recalculateSubjectFinalGrades } from '@/lib/teacher/final-grade-calculator';
 
 export type SubmissionGradeRow = {
   id: string;
   studentId: string;
   studentName: string;
   studentEmail: string;
+  studentRef: string;
   submittedAt: string | null;
   draftScore: number | null;
   score: number | null;
@@ -81,6 +83,21 @@ export async function saveTeacherSubmissionGrade(input: {
     return { ok: false, error: 'Enter a grade before publishing' };
   }
 
+  await prisma.assignmentSubmission.upsert({
+    where: {
+      assignmentId_studentId: {
+        assignmentId: sub.assignmentId,
+        studentId: sub.studentId,
+      },
+    },
+    create: {
+      assignmentId: sub.assignmentId,
+      studentId: sub.studentId,
+      submittedAt: new Date(),
+    },
+    update: {},
+  });
+
   await prisma.$executeRaw`
     UPDATE "AssignmentSubmission"
     SET
@@ -94,6 +111,8 @@ export async function saveTeacherSubmissionGrade(input: {
   `;
 
   if (publish) {
+    await recalculateSubjectFinalGrades(sub.assignment.subjectId);
+
     await prisma.studentAssignmentProgress.upsert({
       where: {
         assignmentId_studentId: {
@@ -140,6 +159,8 @@ export async function saveTeacherSubmissionGrade(input: {
       studentId: updated.studentId,
       studentName: updated.student?.name ?? 'Student',
       studentEmail: updated.student?.email ?? '',
+      studentRef:
+        updated.student?.email?.split('@')[0] ?? updated.studentId.slice(-8),
       submittedAt: updated.submittedAt?.toISOString() ?? null,
       draftScore: row.draftScore ?? null,
       score: row.score,

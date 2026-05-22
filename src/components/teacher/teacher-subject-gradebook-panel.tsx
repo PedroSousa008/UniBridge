@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  CheckCircle2,
   ClipboardList,
   Loader2,
+  Lock,
   Plus,
   Trash2,
   TrendingUp,
@@ -18,16 +20,25 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 type GradebookPayload = {
-  plan: { mode: 'single' | 'continuous_final'; scaleMax: number };
+  plan: {
+    mode: 'single' | 'continuous_final';
+    scaleMax: number;
+    blocksConfirmed: boolean;
+  };
   structure: GradebookStructure;
+  complete: boolean;
+  operational: boolean;
+  canAddComponents: boolean;
 };
 
 function WeightBar({
   summary,
   label,
+  target = 100,
 }: {
   summary: { total: number; remaining: number; valid: boolean };
   label: string;
+  target?: number;
 }) {
   return (
     <div className="space-y-1">
@@ -39,11 +50,11 @@ function WeightBar({
             summary.valid ? 'text-emerald-600' : 'text-amber-600'
           )}
         >
-          {summary.total}% / 100%
+          {summary.total}% / {target}%
           {!summary.valid ? ` · ${summary.remaining}% left` : ' · complete'}
         </span>
       </div>
-      <Progress value={Math.min(summary.total, 100)} className="h-2" />
+      <Progress value={Math.min((summary.total / target) * 100, 100)} className="h-2" />
     </div>
   );
 }
@@ -54,17 +65,23 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
   const [msg, setMsg] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newWeight, setNewWeight] = useState('10');
+  const [scaleMax, setScaleMax] = useState('20');
   const [activeParentId, setActiveParentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/teacher/subjects/${subjectId}/gradebook`);
     if (res.ok) {
       const json = await res.json();
-      setPayload({ plan: json.plan, structure: json.structure });
+      setPayload({
+        plan: json.plan,
+        structure: json.structure,
+        complete: json.complete,
+        operational: json.operational,
+        canAddComponents: json.canAddComponents,
+      });
+      setScaleMax(String(json.plan.scaleMax ?? 20));
       if (json.plan.mode === 'continuous_final' && json.structure.continuous.blocks[0]) {
         setActiveParentId((prev) => prev ?? json.structure.continuous.blocks[0].id);
-      } else {
-        setActiveParentId(null);
       }
     }
     setLoading(false);
@@ -86,7 +103,13 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
       setMsg(json.error || 'Could not save');
       return false;
     }
-    setPayload({ plan: json.plan, structure: json.structure });
+    setPayload({
+      plan: json.plan,
+      structure: json.structure,
+      complete: json.complete,
+      operational: json.operational,
+      canAddComponents: json.canAddComponents,
+    });
     setNewName('');
     return true;
   }
@@ -125,14 +148,6 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
     });
   }
 
-  async function updateBlockWeight(blockId: string, weight: number) {
-    const block = structure.continuous.blocks.find((b) => b.id === blockId);
-    if (!block) return;
-    await patch({
-      category: { id: blockId, name: block.name, weight, kind: 'block', blockKey: block.meta.blockKey },
-    });
-  }
-
   type ListedComponent = GradeCategoryRow & { blockName?: string };
   const listedComponents: ListedComponent[] = isSingle
     ? structure.single.components
@@ -142,11 +157,31 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
 
   return (
     <div className="space-y-6">
+      {payload.complete && payload.operational ? (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-emerald-800 dark:text-emerald-200">
+              Evaluation structure complete
+            </p>
+            <p className="text-muted-foreground mt-1">
+              Workspace grading is now active. Grade each component there — final grades calculate
+              automatically when every student is published.
+            </p>
+            <Button size="sm" className="mt-3" asChild>
+              <Link href={`/teacher/workspace?view=grading&subject=${subjectId}`}>
+                Open Workspace grading
+              </Link>
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            Evaluation structure
+            Step 1 — Evaluation structure
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -167,13 +202,28 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
             </Button>
           </div>
 
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Grading scale (max)</p>
+              <Input
+                type="number"
+                className="w-24"
+                value={scaleMax}
+                onChange={(e) => setScaleMax(e.target.value)}
+                onBlur={() =>
+                  void patch({ plan: { mode: plan.mode, scaleMax: parseFloat(scaleMax) } })
+                }
+              />
+            </div>
+          </div>
+
           {isSingle ? (
-            <WeightBar summary={structure.single.summary} label="Total evaluation weight" />
+            <WeightBar summary={structure.single.summary} label="All components (must total 100%)" />
           ) : (
             <>
               <WeightBar
                 summary={structure.continuous.summary}
-                label="Continuous + Final Exam (main blocks)"
+                label="Level 1 — Continuous + Final (must total 100%)"
               />
               <div className="grid gap-4 sm:grid-cols-2">
                 {structure.continuous.blocks.map((block) => (
@@ -185,23 +235,49 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
                           type="number"
                           className="h-8 w-16 text-right"
                           defaultValue={block.weight}
+                          disabled={plan.blocksConfirmed}
                           onBlur={(e) => {
                             const w = parseFloat(e.target.value);
                             if (!Number.isNaN(w) && w !== block.weight) {
-                              void updateBlockWeight(block.id, w);
+                              void patch({
+                                category: {
+                                  id: block.id,
+                                  name: block.name,
+                                  weight: w,
+                                  kind: 'block',
+                                  blockKey: block.meta.blockKey,
+                                },
+                              });
                             }
                           }}
                         />
                         <span className="text-sm text-muted-foreground">%</span>
                       </div>
                     </div>
-                    <WeightBar
-                      summary={block.summary}
-                      label={`Components inside ${block.name}`}
-                    />
+                    {plan.blocksConfirmed ? (
+                      <WeightBar
+                        summary={block.summary}
+                        label={`Level 2 — inside ${block.name}`}
+                        target={block.weight}
+                      />
+                    ) : null}
                   </div>
                 ))}
               </div>
+              {!plan.blocksConfirmed ? (
+                <Button
+                  type="button"
+                  onClick={() => void patch({ confirmBlocks: true })}
+                  disabled={!structure.continuous.summary.valid}
+                >
+                  Confirm block structure (100%)
+                </Button>
+              ) : (
+                <p className="text-sm text-emerald-600 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Main blocks confirmed — you can add components inside each block.
+                </p>
+              )}
             </>
           )}
 
@@ -209,62 +285,73 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={!payload.canAddComponents ? 'opacity-80' : ''}>
         <CardHeader>
-          <CardTitle className="text-base">Add evaluation component</CardTitle>
-          {!isSingle ? (
+          <CardTitle className="text-base flex items-center gap-2">
+            {payload.canAddComponents ? (
+              <Plus className="h-4 w-4" />
+            ) : (
+              <Lock className="h-4 w-4 text-muted-foreground" />
+            )}
+            Step 2 — Evaluation components
+          </CardTitle>
+          {!isSingle && !payload.canAddComponents ? (
             <p className="text-sm text-muted-foreground">
-              Components are added inside a block. Select which block below.
+              Confirm the main block weights first (Continuous + Final = 100%).
             </p>
           ) : null}
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isSingle ? (
-            <div className="flex flex-wrap gap-2">
-              {structure.continuous.blocks.map((block) => (
-                <Button
-                  key={block.id}
-                  type="button"
-                  size="sm"
-                  variant={activeParentId === block.id ? 'default' : 'outline'}
-                  onClick={() => setActiveParentId(block.id)}
-                >
-                  {block.name} ({block.weight}%)
+          {payload.canAddComponents ? (
+            <>
+              {!isSingle ? (
+                <div className="flex flex-wrap gap-2">
+                  {structure.continuous.blocks.map((block) => (
+                    <Button
+                      key={block.id}
+                      type="button"
+                      size="sm"
+                      variant={activeParentId === block.id ? 'default' : 'outline'}
+                      onClick={() => setActiveParentId(block.id)}
+                    >
+                      {block.name} ({block.weight}%)
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                {EVALUATION_COMPONENT_PRESETS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className="rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
+                    onClick={() => setNewName(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                <Input
+                  placeholder="Component name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+                <Input
+                  type="number"
+                  placeholder="Weight %"
+                  value={newWeight}
+                  onChange={(e) => setNewWeight(e.target.value)}
+                />
+                <Button type="button" onClick={() => void addComponent()}>
+                  <Plus className="h-4 w-4" />
+                  Add component
                 </Button>
-              ))}
-            </div>
+              </div>
+            </>
           ) : null}
-
-          <div className="flex flex-wrap gap-2">
-            {EVALUATION_COMPONENT_PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className="rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
-                onClick={() => setNewName(p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Input
-              placeholder="Component name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            <Input
-              type="number"
-              placeholder="Weight %"
-              value={newWeight}
-              onChange={(e) => setNewWeight(e.target.value)}
-            />
-            <Button type="button" onClick={() => void addComponent()}>
-              <Plus className="h-4 w-4" />
-              Add component
-            </Button>
-          </div>
 
           {listedComponents.length > 0 ? (
             <div className="space-y-2 border-t pt-4">
@@ -281,6 +368,11 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
                       <span className="text-muted-foreground">{c.blockName} → </span>
                     ) : null}
                     {c.name} — {c.weight}%
+                    {c.minGrade != null ? (
+                      <span className="text-muted-foreground text-xs ml-1">
+                        (min {c.minGrade})
+                      </span>
+                    ) : null}
                   </span>
                   <Button
                     variant="ghost"
@@ -295,31 +387,29 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No components yet. Add your first one above — weights can be built up until they
-              reach 100%.
+              {payload.canAddComponents
+                ? 'Add components until each group reaches its target weight.'
+                : 'Locked until block structure is confirmed.'}
             </p>
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ClipboardList className="h-4 w-4" />
-            Grade & publish
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            Published grades sync live to each student. Students only see their own results.
-          </p>
-          <Button asChild>
-            <Link href={`/teacher/workspace?view=grading&subject=${subjectId}`}>
-              Open grading workspace
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {!payload.operational ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Workspace grading
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Complete the evaluation structure above to unlock grading in Workspace.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

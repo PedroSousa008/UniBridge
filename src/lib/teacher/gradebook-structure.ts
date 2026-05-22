@@ -180,3 +180,28 @@ export const BLOCK_LABELS: Record<GradeBlockKey, string> = {
   continuous: 'Continuous Evaluation',
   final: 'Final Exam',
 };
+
+/** Level 1 + Level 2 validation — structure ready for Workspace grading. */
+export function isGradebookStructureComplete(
+  structure: GradebookStructure,
+  blocksConfirmed: boolean
+): boolean {
+  if (structure.mode === 'single') {
+    return (
+      structure.single.components.length > 0 && structure.single.summary.valid
+    );
+  }
+  if (!blocksConfirmed || !structure.continuous.summary.valid) return false;
+  if (structure.continuous.blocks.length < 2) return false;
+  return structure.continuous.blocks.every(
+    (b) => b.components.length > 0 && b.summary.valid
+  );
+}
+
+export function canAddComponentsToStructure(
+  structure: GradebookStructure,
+  blocksConfirmed: boolean
+): boolean {
+  if (structure.mode === 'single') return true;
+  return blocksConfirmed && structure.continuous.summary.valid;
+}

@@ -5,12 +5,15 @@ import { ensureSubjectGradingColumns } from '@/lib/db/ensure-subject-grading-sch
 import {
   BLOCK_LABELS,
   buildGradebookStructure,
+  canAddComponentsToStructure,
+  isGradebookStructureComplete,
   parseCategoryMeta,
   type GradeBlockKey,
   type GradeCategoryMeta,
   validateBlockWeights,
   validateNewComponentWeight,
 } from '@/lib/teacher/gradebook-structure';
+import { syncEvaluationAssignments } from '@/lib/teacher/teacher-evaluation-sync';
 import { isPendingGradePublish, studentVisibleScore } from '@/lib/teacher/teacher-grading';
 
 export type GradingMode = 'single' | 'continuous_final';
@@ -35,13 +38,14 @@ export async function getSubjectGradingPlan(subjectId: string) {
   await Promise.all([ensureGradebookTables(), ensureSubjectGradingColumns()]);
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
-    select: { gradingMode: true, gradingScaleMax: true },
+    select: { gradingMode: true, gradingScaleMax: true, gradingBlocksConfirmed: true },
   });
   const mode: GradingMode =
     subject?.gradingMode === 'single' ? 'single' : 'continuous_final';
   return {
     mode,
     scaleMax: subject?.gradingScaleMax ?? 20,
+    blocksConfirmed: subject?.gradingBlocksConfirmed ?? false,
   };
 }
 
@@ -56,11 +60,32 @@ export async function saveSubjectGradingPlan(
     data: {
       gradingMode: input.mode,
       gradingScaleMax: input.scaleMax ?? 20,
+      gradingBlocksConfirmed: input.mode === 'single',
     },
   });
   if (input.mode === 'continuous_final' && prev.mode !== 'continuous_final') {
     await ensureContinuousFinalBlocks(subjectId);
   }
+}
+
+export async function confirmSubjectGradingBlocks(subjectId: string) {
+  const plan = await getSubjectGradingPlan(subjectId);
+  if (plan.mode !== 'continuous_final') {
+    return { ok: false as const, error: 'Only required for continuous + final exam mode.' };
+  }
+  const categories = await listGradeCategories(subjectId);
+  const structure = buildGradebookStructure(categories, plan.mode, plan.scaleMax);
+  if (!structure.continuous.summary.valid) {
+    return {
+      ok: false as const,
+      error: `Continuous + Final must total 100% (currently ${structure.continuous.summary.total}%).`,
+    };
+  }
+  await prisma.subject.update({
+    where: { id: subjectId },
+    data: { gradingBlocksConfirmed: true },
+  });
+  return { ok: true as const };
 }
 
 export async function ensureContinuousFinalBlocks(subjectId: string) {
@@ -123,6 +148,7 @@ export async function upsertGradeCategory(
   await ensureGradebookTables();
   const plan = await getSubjectGradingPlan(subjectId);
   const categories = await listGradeCategories(subjectId);
+  const structure = buildGradebookStructure(categories, plan.mode, plan.scaleMax);
 
   const existing = input.id
     ? categories.find((c) => c.id === input.id)
@@ -149,7 +175,20 @@ export async function upsertGradeCategory(
   if (kind === 'block') {
     const check = validateBlockWeights(categories, { id: input.id, weight: input.weight });
     if (!check.ok) return { ok: false as const, error: check.error };
+    if (input.id) {
+      await prisma.subject.update({
+        where: { id: subjectId },
+        data: { gradingBlocksConfirmed: false },
+      });
+    }
   } else {
+    if (!canAddComponentsToStructure(structure, plan.blocksConfirmed)) {
+      return {
+        ok: false as const,
+        error:
+          'Confirm the main block weights (Continuous + Final = 100%) before adding components.',
+      };
+    }
     const check = validateNewComponentWeight(plan.mode, categories, {
       weight: input.weight,
       parentId: meta.parentId ?? null,
@@ -278,28 +317,36 @@ export async function buildTeacherGradeTable(subjectId: string) {
 }
 
 export async function getGradebookPayload(subjectId: string) {
-  const [plan, categories, table] = await Promise.all([
-    getSubjectGradingPlan(subjectId),
-    listGradeCategories(subjectId),
-    buildTeacherGradeTable(subjectId),
-  ]);
+  let plan = await getSubjectGradingPlan(subjectId);
+  let categories = await listGradeCategories(subjectId);
+
   if (plan.mode === 'continuous_final') {
     const blocks = categories.filter((c) => parseCategoryMeta(c.rulesJson).kind === 'block');
     if (blocks.length === 0) {
       await ensureContinuousFinalBlocks(subjectId);
-      const refreshed = await listGradeCategories(subjectId);
-      return {
-        plan,
-        categories: refreshed,
-        structure: buildGradebookStructure(refreshed, plan.mode, plan.scaleMax),
-        table,
-      };
+      categories = await listGradeCategories(subjectId);
+      plan = await getSubjectGradingPlan(subjectId);
     }
   }
+
+  const structure = buildGradebookStructure(categories, plan.mode, plan.scaleMax);
+  const complete = isGradebookStructureComplete(structure, plan.blocksConfirmed);
+  let operational = false;
+
+  if (complete) {
+    const sync = await syncEvaluationAssignments(subjectId);
+    operational = sync.ok;
+  }
+
+  const table = await buildTeacherGradeTable(subjectId);
+
   return {
     plan,
     categories,
-    structure: buildGradebookStructure(categories, plan.mode, plan.scaleMax),
+    structure,
+    complete,
+    operational,
+    canAddComponents: canAddComponentsToStructure(structure, plan.blocksConfirmed),
     table,
   };
 }

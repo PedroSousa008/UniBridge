@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { TeacherWorkspaceHub } from '@/lib/teacher/teacher-workspace-hub';
 import { Badge } from '@/components/ui/badge';
@@ -9,13 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { TeacherWorkspaceGradingPanel } from '@/components/teacher/teacher-workspace-grading-panel';
 import {
   Calendar,
   CheckCircle2,
   ClipboardCheck,
   GraduationCap,
   Loader2,
-  Sparkles,
   TrendingUp,
   UserCheck,
   Users,
@@ -25,18 +25,6 @@ import {
 type View = 'overview' | 'attendance' | 'grading' | 'progression';
 
 type StudentRow = { id: string; name: string; email: string; attendance: number | null };
-type SubmissionRow = {
-  id: string;
-  studentId: string;
-  studentName: string;
-  studentEmail: string;
-  submittedAt: string | null;
-  draftScore: number | null;
-  score: number | null;
-  gradePublished: boolean;
-  teacherFeedback: string | null;
-};
-
 const ATT_STATUS = [
   { id: 'PRESENT', label: 'Present', icon: CheckCircle2, color: 'text-emerald-600' },
   { id: 'ABSENT', label: 'Absent', icon: XCircle, color: 'text-rose-600' },
@@ -64,13 +52,6 @@ export function TeacherWorkspaceCommandCenter({
   const [attMarks, setAttMarks] = useState<Record<string, string>>({});
   const [attNote, setAttNote] = useState('');
 
-  const [gradeEvalId, setGradeEvalId] = useState('');
-  const [gradeRows, setGradeRows] = useState<SubmissionRow[]>([]);
-  const [gradeMeta, setGradeMeta] = useState<{ title: string; maxScore: number } | null>(null);
-  const [gradeDrafts, setGradeDrafts] = useState<
-    Record<string, { score: string; feedback: string }>
-  >({});
-
   const refresh = useCallback(async () => {
     const res = await fetch('/api/teacher/workspace');
     if (res.ok) setHub(await res.json());
@@ -79,11 +60,6 @@ export function TeacherWorkspaceCommandCenter({
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const selectedEval = useMemo(
-    () => hub.gradingQueue.find((g) => g.id === gradeEvalId),
-    [hub.gradingQueue, gradeEvalId]
-  );
 
   async function loadAttendanceStudents(subjectId: string) {
     if (!subjectId) return;
@@ -121,53 +97,6 @@ export function TeacherWorkspaceCommandCenter({
       setMsg('Attendance saved — student dashboards update live.');
       await refresh();
     } else setMsg('Could not save attendance.');
-    setLoading(false);
-  }
-
-  async function loadGrading(assignmentId: string) {
-    setGradeEvalId(assignmentId);
-    setLoading(true);
-    const res = await fetch(`/api/teacher/workspace/grading/${assignmentId}`);
-    if (res.ok) {
-      const data = (await res.json()) as {
-        assignment: { title: string; maxScore: number };
-        submissions: SubmissionRow[];
-      };
-      setGradeMeta({ title: data.assignment.title, maxScore: data.assignment.maxScore });
-      setGradeRows(data.submissions);
-      const drafts: Record<string, { score: string; feedback: string }> = {};
-      for (const s of data.submissions) {
-        drafts[s.id] = {
-          score: String(s.draftScore ?? s.score ?? ''),
-          feedback: s.teacherFeedback ?? '',
-        };
-      }
-      setGradeDrafts(drafts);
-    }
-    setLoading(false);
-  }
-
-  async function saveGrade(submissionId: string, publish: boolean) {
-    const draft = gradeDrafts[submissionId];
-    setLoading(true);
-    const res = await fetch('/api/teacher/workspace/grading', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        submissionId,
-        draftScore: draft?.score ? parseFloat(draft.score) : null,
-        teacherFeedback: draft?.feedback ?? '',
-        publish,
-      }),
-    });
-    if (res.ok) {
-      setMsg(publish ? 'Grade published — visible only to that student.' : 'Draft saved.');
-      if (gradeEvalId) await loadGrading(gradeEvalId);
-      await refresh();
-    } else {
-      const data = await res.json();
-      setMsg(data.error ?? 'Grading failed.');
-    }
     setLoading(false);
   }
 
@@ -350,131 +279,10 @@ export function TeacherWorkspaceCommandCenter({
       ) : null}
 
       {view === 'grading' ? (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="text-base">Evaluations to grade</CardTitle>
-              <p className="text-xs text-muted-foreground">Created in Classes — grade only here.</p>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-[420px] overflow-y-auto">
-              {hub.gradingQueue.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No submissions waiting.</p>
-              ) : (
-                hub.gradingQueue.map((g) => (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => void loadGrading(g.id)}
-                    className={cn(
-                      'w-full rounded-xl border px-3 py-2 text-left text-sm transition hover:bg-muted/40',
-                      gradeEvalId === g.id && 'border-violet-500/40 bg-violet-500/5'
-                    )}
-                  >
-                    <p className="font-medium line-clamp-1">{g.title}</p>
-                    <p className="text-[10px] text-muted-foreground">{g.subjectName}</p>
-                    <div className="mt-1 flex gap-2">
-                      <Badge variant="outline" className="text-[10px]">
-                        {g.pendingCount} pending
-                      </Badge>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {g.gradedCount}/{g.totalSubmissions}
-                      </Badge>
-                    </div>
-                  </button>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-base">
-                {gradeMeta?.title ?? 'Select an evaluation'}
-              </CardTitle>
-              {selectedEval ? (
-                <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden max-w-xs">
-                  <div
-                    className="h-full bg-violet-500 transition-all"
-                    style={{
-                      width: `${
-                        selectedEval.totalSubmissions
-                          ? (selectedEval.gradedCount / selectedEval.totalSubmissions) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              ) : null}
-            </CardHeader>
-            <CardContent className="space-y-3 max-h-[480px] overflow-y-auto">
-              {!gradeEvalId ? (
-                <p className="text-sm text-muted-foreground">Choose an assignment to open the grading table.</p>
-              ) : (
-                gradeRows.map((row) => (
-                  <div key={row.id} className="rounded-xl border p-3 space-y-2">
-                    <div className="flex justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-sm">{row.studentName}</p>
-                        <p className="text-[10px] text-muted-foreground">{row.studentEmail}</p>
-                      </div>
-                      {row.gradePublished ? (
-                        <Badge className="text-[10px]">Published</Badge>
-                      ) : row.submittedAt ? (
-                        <Badge variant="outline" className="text-[10px]">
-                          Submitted
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px]">
-                          Missing
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Input
-                        type="number"
-                        placeholder={`Score / ${gradeMeta?.maxScore ?? 100}`}
-                        value={gradeDrafts[row.id]?.score ?? ''}
-                        onChange={(e) =>
-                          setGradeDrafts({
-                            ...gradeDrafts,
-                            [row.id]: { ...gradeDrafts[row.id], score: e.target.value },
-                          })
-                        }
-                      />
-                      <Input
-                        placeholder="Feedback"
-                        value={gradeDrafts[row.id]?.feedback ?? ''}
-                        onChange={(e) =>
-                          setGradeDrafts({
-                            ...gradeDrafts,
-                            [row.id]: { ...gradeDrafts[row.id], feedback: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => void saveGrade(row.id, false)}
-                      >
-                        Save draft
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={loading || !row.submittedAt}
-                        onClick={() => void saveGrade(row.id, true)}
-                      >
-                        Publish grade
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <TeacherWorkspaceGradingPanel
+          subjects={hub.subjects.map((s) => ({ id: s.id, name: s.name }))}
+          initialSubjectId={initialSubject || attSubjectId}
+        />
       ) : null}
 
       {view === 'progression' ? (
@@ -512,14 +320,11 @@ export function TeacherWorkspaceCommandCenter({
         </Card>
       ) : null}
 
-      {view === 'overview' && hub.gradingQueue.length > 0 ? (
+      {view === 'overview' && hub.subjects.length > 0 ? (
         <section className="rounded-2xl border p-4">
-          <p className="text-sm font-medium flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-500" />
-            Grading queue highlight
-          </p>
+          <p className="text-sm font-medium">Grade submissions</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {hub.gradingQueue[0].title} — {hub.gradingQueue[0].pendingCount} submissions waiting
+            Set up evaluation structure in Classes, then grade and publish from Workspace.
           </p>
           <Button size="sm" className="mt-3" onClick={() => setView('grading')}>
             Open grading

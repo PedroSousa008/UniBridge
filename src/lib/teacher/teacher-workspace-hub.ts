@@ -276,6 +276,42 @@ export async function loadTeacherWorkspaceAssignmentSubmissions(
   });
   if (!ok) return null;
 
+  const enrollments = await prisma.subjectEnrollment.findMany({
+    where: { subjectId: assignment.subjectId },
+    include: { student: { select: { id: true, name: true, email: true } } },
+    orderBy: { student: { name: 'asc' } },
+  });
+
+  const subByStudent = new Map(assignment.submissions.map((s) => [s.studentId, s]));
+  const submissions = [];
+
+  for (const e of enrollments) {
+    let sub = subByStudent.get(e.studentId);
+    if (!sub) {
+      sub = await prisma.assignmentSubmission.create({
+        data: { assignmentId: assignment.id, studentId: e.studentId },
+        include: { student: { select: { id: true, name: true, email: true } } },
+      });
+    }
+    const row = sub as typeof sub & {
+      draftScore?: number | null;
+      gradePublished?: boolean;
+      teacherFeedback?: string | null;
+    };
+    submissions.push({
+      id: sub.id,
+      studentId: sub.studentId,
+      studentName: sub.student?.name ?? e.student?.name ?? 'Student',
+      studentEmail: sub.student?.email ?? e.student?.email ?? '',
+      studentRef: sub.student?.email?.split('@')[0] ?? sub.studentId.slice(-8),
+      submittedAt: sub.submittedAt?.toISOString() ?? null,
+      draftScore: row.draftScore ?? sub.score,
+      score: sub.score,
+      gradePublished: row.gradePublished ?? false,
+      teacherFeedback: row.teacherFeedback ?? sub.comment,
+    });
+  }
+
   return {
     assignment: {
       id: assignment.id,
@@ -284,23 +320,6 @@ export async function loadTeacherWorkspaceAssignmentSubmissions(
       subjectId: assignment.subjectId,
       subjectName: assignment.subject.name,
     },
-    submissions: assignment.submissions.map((sub) => {
-      const row = sub as typeof sub & {
-        draftScore?: number | null;
-        gradePublished?: boolean;
-        teacherFeedback?: string | null;
-      };
-      return {
-        id: sub.id,
-        studentId: sub.studentId,
-        studentName: sub.student?.name ?? 'Student',
-        studentEmail: sub.student?.email ?? '',
-        submittedAt: sub.submittedAt?.toISOString() ?? null,
-        draftScore: row.draftScore ?? sub.score,
-        score: sub.score,
-        gradePublished: row.gradePublished ?? false,
-        teacherFeedback: row.teacherFeedback ?? sub.comment,
-      };
-    }),
+    submissions,
   };
 }

@@ -611,8 +611,9 @@ model Subject {
   status      RecordStatus @default(ACTIVE)
   absenceLimit Int?
   minAttendancePercent Float @default(75)
-  gradingMode        String?  @default("continuous_final")
-  gradingScaleMax    Float?   @default(20)
+  gradingMode             String?  @default("continuous_final")
+  gradingScaleMax         Float?   @default(20)
+  gradingBlocksConfirmed  Boolean  @default(false)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 

@@ -5,11 +5,12 @@ let ensurePromise: Promise<boolean> | null = null;
 const STATEMENTS: string[] = [
   `ALTER TABLE "Subject" ADD COLUMN IF NOT EXISTS "gradingMode" TEXT DEFAULT 'continuous_final'`,
   `ALTER TABLE "Subject" ADD COLUMN IF NOT EXISTS "gradingScaleMax" DOUBLE PRECISION DEFAULT 20`,
+  `ALTER TABLE "Subject" ADD COLUMN IF NOT EXISTS "gradingBlocksConfirmed" BOOLEAN NOT NULL DEFAULT false`,
 ];
 
 async function columnsReady(): Promise<boolean> {
   try {
-    await prisma.$queryRaw`SELECT "gradingMode", "gradingScaleMax" FROM "Subject" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "gradingMode", "gradingScaleMax", "gradingBlocksConfirmed" FROM "Subject" LIMIT 1`;
     return true;
   } catch {
     return false;
