@@ -13,11 +13,23 @@ export type SubmissionGradeRow = {
   teacherFeedback: string | null;
 };
 
-/** Score visible to the student only after publish. */
-export function studentVisibleScore(sub: {
+/** DB column added via ensure-assignment-schema; not always on generated Prisma types. */
+export type SubmissionGradeFields = {
   score: number | null;
   gradePublished?: boolean | null;
-}): number | null {
+  submittedAt?: Date | string | null;
+};
+
+export function submissionGradePublished(sub: { gradePublished?: boolean | null }): boolean {
+  return !!sub.gradePublished;
+}
+
+export function isPendingGradePublish(sub: SubmissionGradeFields): boolean {
+  return !!sub.submittedAt && !submissionGradePublished(sub);
+}
+
+/** Score visible to the student only after publish. */
+export function studentVisibleScore(sub: SubmissionGradeFields): number | null {
   if (sub.gradePublished) return sub.score ?? null;
   return null;
 }

@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
 import { ensureGradebookTables } from '@/lib/db/ensure-gradebook-schema';
 import { ensureSubjectGradingColumns } from '@/lib/db/ensure-subject-grading-schema';
-import { studentVisibleScore } from '@/lib/teacher/teacher-grading';
+import { isPendingGradePublish, studentVisibleScore } from '@/lib/teacher/teacher-grading';
 
 export type GradingMode = 'single' | 'continuous_final';
 
@@ -31,15 +31,15 @@ export function validateCategoryWeights(weights: number[]) {
 
 export async function getSubjectGradingPlan(subjectId: string) {
   await Promise.all([ensureGradebookTables(), ensureSubjectGradingColumns()]);
-  const rows = await prisma.$queryRaw<
-    { gradingMode: string | null; gradingScaleMax: number | null }[]
-  >`SELECT "gradingMode", "gradingScaleMax" FROM "Subject" WHERE "id" = ${subjectId} LIMIT 1`;
-  const row = rows[0];
+  const subject = await prisma.subject.findUnique({
+    where: { id: subjectId },
+    select: { gradingMode: true, gradingScaleMax: true },
+  });
   const mode: GradingMode =
-    row?.gradingMode === 'single' ? 'single' : 'continuous_final';
+    subject?.gradingMode === 'single' ? 'single' : 'continuous_final';
   return {
     mode,
-    scaleMax: row?.gradingScaleMax ?? 20,
+    scaleMax: subject?.gradingScaleMax ?? 20,
   };
 }
 
@@ -48,12 +48,13 @@ export async function saveSubjectGradingPlan(
   input: { mode: GradingMode; scaleMax?: number }
 ) {
   await ensureSubjectGradingColumns();
-  const scale = input.scaleMax ?? 20;
-  await prisma.$executeRaw`
-    UPDATE "Subject"
-    SET "gradingMode" = ${input.mode}, "gradingScaleMax" = ${scale}
-    WHERE "id" = ${subjectId}
-  `;
+  await prisma.subject.update({
+    where: { id: subjectId },
+    data: {
+      gradingMode: input.mode,
+      gradingScaleMax: input.scaleMax ?? 20,
+    },
+  });
 }
 
 export async function listGradeCategories(subjectId: string) {
@@ -154,9 +155,7 @@ export async function buildTeacherGradeTable(subjectId: string) {
     categoryName: a.gradeCategory?.name ?? null,
     maxScore: a.maxScore,
     dueDate: a.dueDate.toISOString(),
-    pendingPublish: a.submissions.filter(
-      (s) => s.submittedAt && !s.gradePublished
-    ).length,
+    pendingPublish: a.submissions.filter((s) => isPendingGradePublish(s)).length,
   }));
 
   const cells: Record<string, Record<string, number | null>> = {};
@@ -164,12 +163,7 @@ export async function buildTeacherGradeTable(subjectId: string) {
     cells[student.id] = {};
     for (const a of assignments) {
       const sub = a.submissions.find((s) => s.studentId === student.id);
-      cells[student.id][a.id] = sub
-        ? studentVisibleScore({
-            score: sub.score,
-            gradePublished: sub.gradePublished,
-          })
-        : null;
+      cells[student.id][a.id] = sub ? studentVisibleScore(sub) : null;
     }
   }
 

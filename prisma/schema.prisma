@@ -611,6 +611,8 @@ model Subject {
   status      RecordStatus @default(ACTIVE)
   absenceLimit Int?
   minAttendancePercent Float @default(75)
+  gradingMode        String?  @default("continuous_final")
+  gradingScaleMax    Float?   @default(20)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -707,19 +709,23 @@ model StudentAssignmentProgress {
 }
 
 model AssignmentSubmission {
-  id           String     @id @default(cuid())
-  assignmentId String
-  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  studentId    String
-  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  content      String?    @db.Text
-  comment      String?    @db.Text
-  linkUrl      String?
-  fileUrls     String[]   @default([])
-  score        Float?
-  submittedAt  DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id              String     @id @default(cuid())
+  assignmentId    String
+  assignment      Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  content         String?    @db.Text
+  comment         String?    @db.Text
+  linkUrl         String?
+  fileUrls        String[]   @default([])
+  score           Float?
+  draftScore      Float?
+  gradePublished  Boolean    @default(false)
+  teacherFeedback String?    @db.Text
+  publishedAt     DateTime?
+  submittedAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   @@unique([assignmentId, studentId])
 }

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { TeacherSubjectWorkspace } from '@/lib/teacher/teacher-subject-context';
 import { EVALUATION_COMPONENT_PRESETS, validateCategoryWeights } from '@/lib/teacher/teacher-gradebook';
+import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,8 +42,7 @@ function formatDate(d: Date | string) {
 export function TeacherSubjectHomePanel({ ws }: { ws: TeacherSubjectWorkspace }) {
   const now = new Date();
   const pendingGrading = ws.assignments.reduce(
-    (n, a) =>
-      n + a.submissions.filter((s) => s.submittedAt && !s.gradePublished).length,
+    (n, a) => n + a.submissions.filter((s) => isPendingGradePublish(s)).length,
     0
   );
   const upcoming = ws.assignments.filter((a) => new Date(a.dueDate) >= now).slice(0, 5);

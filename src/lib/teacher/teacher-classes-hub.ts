@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
 import { ensureAttendanceTables } from '@/lib/db/ensure-attendance-schema';
+import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
 
 export interface TeacherSubjectCardSignal {
   pendingEvaluations: number;
@@ -63,7 +64,7 @@ export async function loadTeacherClassesHub(actorUserId: string): Promise<Teache
           assignments: {
             include: {
               submissions: {
-                select: { submittedAt: true, gradePublished: true },
+                select: { submittedAt: true, gradePublished: true, score: true },
               },
             },
           },
@@ -105,7 +106,7 @@ export async function loadTeacherClassesHub(actorUserId: string): Promise<Teache
 
     for (const a of s.assignments) {
       const subs = a.submissions.filter((sub) => sub.submittedAt);
-      pendingEvaluations += subs.filter((sub) => !sub.gradePublished).length;
+      pendingEvaluations += subs.filter((sub) => isPendingGradePublish(sub)).length;
       if (a.dueDate <= weekAhead && a.dueDate >= new Date()) upcomingDeadlines += 1;
     }
 
