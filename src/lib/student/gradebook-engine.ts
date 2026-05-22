@@ -1,6 +1,10 @@
 import type { SubjectWorkspace } from './subject-context';
 import { studentVisibleScore } from '@/lib/teacher/teacher-grading';
 
+function toIsoString(value: Date | string): string {
+  return typeof value === 'string' ? value : value.toISOString();
+}
+
 export interface GradeRow {
   id: string;
   title: string;
@@ -30,7 +34,7 @@ export function buildGradeRows(workspace: SubjectWorkspace): GradeRow[] {
       weight: cat?.weight ?? defaultWeight,
       score: sub ? studentVisibleScore(subRow) : null,
       maxScore: a.maxScore,
-      dueDate: a.dueDate.toISOString(),
+      dueDate: toIsoString(a.dueDate),
       submitted: !!sub?.submittedAt,
       feedback: sub?.content ?? null,
     };
