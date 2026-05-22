@@ -224,7 +224,7 @@ export function TeacherSubjectContentPanel({
 
       <div className="space-y-4">
         {weeks.length === 0 ? (
-          <EmptyState iconName="file-text" title="No content yet" description="Upload your first lecture materials." className="py-12" />
+          <EmptyState iconName="book-open" title="No content yet" description="Upload your first lecture materials." className="py-12" />
         ) : (
           weeks.map((w) => (
             <Card key={w.id}>
