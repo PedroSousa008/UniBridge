@@ -90,7 +90,7 @@ export async function loadSubjectCalendarHub(subjectId: string): Promise<{
 
   const [assignments, exams] = await Promise.all([
     prisma.assignment.findMany({
-      where: { subjectId, dueDate: { not: null } },
+      where: { subjectId },
       select: { id: true, title: true, dueDate: true },
     }),
     prisma.exam.findMany({
@@ -128,7 +128,6 @@ export async function loadSubjectCalendarHub(subjectId: string): Promise<{
   }
 
   for (const a of assignments) {
-    if (!a.dueDate) continue;
     const d = new Date(a.dueDate);
     const end = new Date(d);
     end.setHours(end.getHours() + 1);
