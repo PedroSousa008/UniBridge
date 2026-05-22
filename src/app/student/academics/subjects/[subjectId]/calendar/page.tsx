@@ -1,7 +1,7 @@
 import { requireSession } from '@/lib/session';
-import { loadSubjectWorkspace } from '@/lib/student/subject-context';
-import { serializeSubjectWorkspace } from '@/lib/student/serialize-workspace';
-import { SubjectCalendarPanel } from '@/components/student/subject/subject-panels';
+import { requireStudentSubjectAccess } from '@/lib/student/subject-context';
+import { StudentSubjectCalendarPanel } from '@/components/student/subject/student-subject-calendar-panel';
+import { loadSubjectCalendarHub } from '@/lib/teacher/subject-calendar-hub';
 
 export default async function SubjectCalendarPage({
   params,
@@ -10,8 +10,15 @@ export default async function SubjectCalendarPage({
 }) {
   const session = await requireSession('STUDENT');
   const { subjectId } = await params;
-  const ws = serializeSubjectWorkspace(
-    await loadSubjectWorkspace(session.user.id, subjectId)
+  const { subject } = await requireStudentSubjectAccess(session.user.id, subjectId);
+  const hub = await loadSubjectCalendarHub(subjectId, { editable: false });
+
+  return (
+    <StudentSubjectCalendarPanel
+      subjectId={subjectId}
+      subjectName={subject.name}
+      initialEvents={hub.events}
+      initialRaw={hub.raw}
+    />
   );
-  return <SubjectCalendarPanel ws={ws} />;
 }

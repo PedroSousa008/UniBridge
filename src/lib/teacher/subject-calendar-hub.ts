@@ -69,10 +69,14 @@ function subTypeForEventType(type: string): string {
   return 'event';
 }
 
-export async function loadSubjectCalendarHub(subjectId: string): Promise<{
+export async function loadSubjectCalendarHub(
+  subjectId: string,
+  options?: { editable?: boolean }
+): Promise<{
   events: UnifiedCalendarEvent[];
   raw: SubjectCalendarEventDto[];
 }> {
+  const editable = options?.editable ?? true;
   await ensureSubjectCalendarTables();
 
   const rangeStart = subMonths(startOfMonth(new Date()), 2);
@@ -118,7 +122,7 @@ export async function loadSubjectCalendarHub(subjectId: string): Promise<{
         location: e.location,
         source: 'subject-calendar',
         sourceId: e.id,
-        editable: true,
+        editable,
         href: null,
         professor: null,
         recurrence: e.repeatWeekly ? 'WEEKLY' : 'NONE',
