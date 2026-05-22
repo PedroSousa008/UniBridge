@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2 } from 'lucide-react';
+import { ProfileSecuritySection } from '@/components/profile/profile-security-section';
 
 const TABS = [
   { id: 'profile', label: 'Profile' },
@@ -257,20 +258,7 @@ export function UniversityProfileClient({
         </Card>
       ) : null}
 
-      {tab === 'security' ? (
-        <Card>
-          <CardContent className="space-y-4 p-6">
-            <p className="font-medium">Account security</p>
-            <p className="text-sm text-muted-foreground">
-              Password changes are managed through your account provider. Two-factor authentication
-              will be available soon.
-            </p>
-            <Button variant="outline" disabled>
-              Enable 2FA
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
+      {tab === 'security' ? <ProfileSecuritySection userEmail={admin.email} /> : null}
     </div>
   );
 }

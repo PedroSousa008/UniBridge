@@ -120,24 +120,9 @@ export async function changeUserPassword(
   currentPassword: string,
   newPassword: string
 ): Promise<{ ok: boolean; error?: string }> {
-  if (newPassword.length < 8) {
-    return { ok: false, error: 'Password must be at least 8 characters' };
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { passwordHash: true },
-  });
-  if (!user?.passwordHash) return { ok: false, error: 'Account not found' };
-
-  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!valid) return { ok: false, error: 'Current password is incorrect' };
-
-  const passwordHash = await bcrypt.hash(newPassword, 12);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash },
-  });
+  const { changeUserPassword: changePassword } = await import('@/lib/auth/password');
+  const result = await changePassword(userId, currentPassword, newPassword);
+  if (!result.ok) return result;
 
   const workspace = await resolveCompanyWorkspace(userId);
   if (workspace) {

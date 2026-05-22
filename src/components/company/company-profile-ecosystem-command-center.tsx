@@ -12,12 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { CompanyTeamMemberAvatar } from '@/components/company/company-team-member-avatar';
 import { CompanyProfileHeroBanner } from '@/components/company/company-profile-hero-banner';
+import { ProfileSecuritySection } from '@/components/profile/profile-security-section';
 import {
   Building2,
-  KeyRound,
   Loader2,
   Network,
-  Shield,
   Sparkles,
   TrendingUp,
   User,
@@ -43,11 +42,6 @@ export function CompanyProfileEcosystemCommandCenter({
     bio: hub.myProfile.bio ?? '',
   });
 
-  const [passwordForm, setPasswordForm] = useState({
-    current: '',
-    next: '',
-    confirm: '',
-  });
 
   const [teamDrafts, setTeamDrafts] = useState<
     Record<string, { email: string; password: string; permission: CompanyPermission }>
@@ -95,28 +89,6 @@ export function CompanyProfileEcosystemCommandCenter({
       setHub(await res.json());
       setMsg('Profile saved.');
     } else setMsg('Could not save profile.');
-    setLoading(false);
-  }
-
-  async function changePassword() {
-    if (passwordForm.next !== passwordForm.confirm) {
-      setMsg('New passwords do not match.');
-      return;
-    }
-    setLoading(true);
-    const res = await fetch('/api/company/profile/password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        currentPassword: passwordForm.current,
-        newPassword: passwordForm.next,
-      }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setPasswordForm({ current: '', next: '', confirm: '' });
-      setMsg('Password updated. Use the new password on your next login.');
-    } else setMsg(data.error ?? 'Password update failed.');
     setLoading(false);
   }
 
@@ -627,59 +599,16 @@ export function CompanyProfileEcosystemCommandCenter({
         </CardContent>
       </Card>
 
-      {/* Security */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Security & access history
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="rounded-xl border p-4 space-y-3 max-w-md">
-            <p className="text-sm font-medium flex items-center gap-2">
-              <KeyRound className="h-4 w-4" />
-              Change password
-            </p>
-            <Input
-              type="password"
-              placeholder="Current password"
-              value={passwordForm.current}
-              onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-            />
-            <Input
-              type="password"
-              placeholder="New password"
-              value={passwordForm.next}
-              onChange={(e) => setPasswordForm({ ...passwordForm, next: e.target.value })}
-            />
-            <Input
-              type="password"
-              placeholder="Confirm new password"
-              value={passwordForm.confirm}
-              onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-            />
-            <Button onClick={() => void changePassword()} disabled={loading}>
-              Update password
-            </Button>
-          </div>
-          <ul className="space-y-2 max-h-64 overflow-y-auto">
-            {hub.security.length === 0 ? (
-              <li className="text-sm text-muted-foreground">Activity will appear here.</li>
-            ) : (
-              hub.security.map((a) => (
-                <li key={a.id} className="text-sm border-b pb-2">
-                  <span className="font-medium">{a.action}</span> — {a.detail}
-                  {a.actorName ? ` · ${a.actorName}` : ''}
-                  <span className="block text-[10px] text-muted-foreground">
-                    {new Date(a.createdAt).toLocaleString()}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
-        </CardContent>
-      </Card>
+      <ProfileSecuritySection
+        userEmail={hub.identity.email}
+        accessHistory={hub.security.map((a) => ({
+          id: a.id,
+          action: a.action,
+          detail: a.detail,
+          actorName: a.actorName,
+          createdAt: a.createdAt,
+        }))}
+      />
 
       {loading ? (
         <div className="fixed bottom-6 right-6 rounded-full bg-card border p-3 shadow-lg">

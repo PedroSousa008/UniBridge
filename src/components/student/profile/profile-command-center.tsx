@@ -35,6 +35,7 @@ import {
 } from '@/lib/career/profile-intelligence';
 import { ProgressRing } from '@/components/student/home/progress-ring';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { ProfileSecuritySection } from '@/components/profile/profile-security-section';
 
 export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub }) {
   const router = useRouter();
@@ -511,6 +512,8 @@ export function ProfileCommandCenter({ initialHub }: { initialHub: ProfileHub })
           <Link href="/student/career/cv">CV Builder</Link>
         </Button>
       </section>
+
+      <ProfileSecuritySection userEmail={hub.hero.email} />
 
       {/* Edit drawer */}
       {editing && (

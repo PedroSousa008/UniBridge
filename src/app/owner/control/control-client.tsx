@@ -1,6 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { OwnerPasswordResetPanel } from '@/app/owner/control/owner-password-reset-panel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -53,6 +54,8 @@ export function OwnerControlClient({
             <p className="mt-1 text-sm text-muted-foreground">Total registered users</p>
           </CardContent>
         </Card>
+
+        <OwnerPasswordResetPanel />
 
         <Card className="lg:col-span-2">
           <CardHeader>

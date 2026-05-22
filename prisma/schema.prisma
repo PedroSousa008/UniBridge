@@ -32,6 +32,13 @@ enum NotificationType {
   ENGAGEMENT
 }
 
+enum PasswordResetStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
 enum RecordStatus {
   ACTIVE
   ARCHIVED
@@ -244,6 +251,8 @@ model User {
   companyProfile    CompanyProfile?
 
   notifications Notification[]
+  passwordResetRequests  PasswordResetRequest[] @relation("PasswordResetUser")
+  passwordResetsReviewed PasswordResetRequest[] @relation("PasswordResetReviewer")
   accounts      Account[]
   sessions      Session[]
 
@@ -595,6 +604,24 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([userId, read, createdAt])
+}
+
+model PasswordResetRequest {
+  id           String              @id @default(cuid())
+  userId       String
+  user         User                @relation("PasswordResetUser", fields: [userId], references: [id], onDelete: Cascade)
+  email        String
+  role         UserRole
+  status       PasswordResetStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   User?               @relation("PasswordResetReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId, status])
 }
 
 model Subject {

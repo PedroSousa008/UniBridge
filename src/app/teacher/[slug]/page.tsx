@@ -5,7 +5,6 @@ const pages: Record<string, string> = {
   classes: 'Manage your classes, schedules, and materials.',
   students: 'View student performance and progression.',
   communication: 'Announcements and messaging with students.',
-  profile: 'Your professional teacher profile.',
 };
 
 export default async function TeacherModulePage({
