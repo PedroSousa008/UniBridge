@@ -12,6 +12,26 @@ const PRIORITIES: AnnouncementPriority[] = [
   'CRITICAL',
 ];
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ subjectId: string }> }
+) {
+  const { subjectId } = await params;
+  const auth = await requireTeacherSubject(subjectId);
+  if (auth.error) return auth.error;
+
+  await ensureAnnouncementTables();
+
+  const announcements = await prisma.subjectAnnouncement.findMany({
+    where: { subjectId },
+    include: { author: { select: { name: true, image: true } } },
+    orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
+    take: 80,
+  });
+
+  return NextResponse.json({ announcements });
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ subjectId: string }> }

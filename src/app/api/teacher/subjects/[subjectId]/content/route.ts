@@ -3,6 +3,23 @@ import { prisma } from '@/lib/db';
 import { syncDocumentAnnouncement } from '@/lib/student/announcement-sync';
 import { requireTeacherSubject } from '@/lib/teacher/subject-auth';
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ subjectId: string }> }
+) {
+  const { subjectId } = await params;
+  const auth = await requireTeacherSubject(subjectId);
+  if (auth.error) return auth.error;
+
+  const weeks = await prisma.subjectContentWeek.findMany({
+    where: { subjectId },
+    include: { items: { orderBy: { sortOrder: 'asc' } } },
+    orderBy: { weekNumber: 'asc' },
+  });
+
+  return NextResponse.json({ weeks });
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ subjectId: string }> }

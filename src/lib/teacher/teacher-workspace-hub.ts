@@ -119,7 +119,7 @@ export async function loadTeacherWorkspaceHub(actorUserId: string): Promise<Teac
   let pendingAttendance = 0;
 
   const subjects: WorkspaceSubject[] = teacher.subjects.map((s) => {
-    const calendarHref = `/teacher/classes?subject=${s.id}&view=calendar`;
+    const calendarHref = `/teacher/classes/${s.id}/calendar`;
     for (const slot of s.scheduleSlots) {
       if (slot.dayOfWeek === todayDow) {
         todayClasses.push({
