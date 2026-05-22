@@ -116,6 +116,7 @@ export const translations = {
       nav: {
         home: 'Home',
         classes: 'Classes',
+        workspace: 'Workspace',
         students: 'Students',
         communication: 'Communication',
         profile: 'Profile',
@@ -294,6 +295,7 @@ export const translations = {
       nav: {
         home: 'Início',
         classes: 'Turmas',
+        workspace: 'Workspace',
         students: 'Estudantes',
         communication: 'Comunicação',
         profile: 'Perfil',

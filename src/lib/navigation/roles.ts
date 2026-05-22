@@ -6,6 +6,7 @@ import {
   Rocket,
   User,
   BookOpen,
+  ClipboardList,
   Users,
   MessageSquare,
   Building2,
@@ -37,6 +38,7 @@ export const studentNav: RoleNavItem[] = [
 export const teacherNav: RoleNavItem[] = [
   { href: '/teacher/home', labelKey: 'teacher.nav.home', icon: Home },
   { href: '/teacher/classes', labelKey: 'teacher.nav.classes', icon: BookOpen },
+  { href: '/teacher/workspace', labelKey: 'teacher.nav.workspace', icon: ClipboardList },
   { href: '/teacher/students', labelKey: 'teacher.nav.students', icon: Users },
   { href: '/teacher/communication', labelKey: 'teacher.nav.communication', icon: MessageSquare },
   { href: '/teacher/profile', labelKey: 'teacher.nav.profile', icon: User },

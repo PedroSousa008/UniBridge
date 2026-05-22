@@ -17,6 +17,10 @@ const STATEMENTS: string[] = [
   `ALTER TABLE "AssignmentSubmission" ADD COLUMN IF NOT EXISTS "linkUrl" TEXT`,
   `ALTER TABLE "AssignmentSubmission" ADD COLUMN IF NOT EXISTS "fileUrls" TEXT[] DEFAULT ARRAY[]::TEXT[]`,
   `ALTER TABLE "AssignmentSubmission" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  `ALTER TABLE "AssignmentSubmission" ADD COLUMN IF NOT EXISTS "draftScore" DOUBLE PRECISION`,
+  `ALTER TABLE "AssignmentSubmission" ADD COLUMN IF NOT EXISTS "gradePublished" BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE "AssignmentSubmission" ADD COLUMN IF NOT EXISTS "teacherFeedback" TEXT`,
+  `ALTER TABLE "AssignmentSubmission" ADD COLUMN IF NOT EXISTS "publishedAt" TIMESTAMP(3)`,
   `CREATE TABLE IF NOT EXISTS "AssignmentAttachment" (
     "id" TEXT NOT NULL,
     "assignmentId" TEXT NOT NULL,

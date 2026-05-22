@@ -1,4 +1,5 @@
 import type { SubjectWorkspace } from './subject-context';
+import { studentVisibleScore } from '@/lib/teacher/teacher-grading';
 
 export interface GradeRow {
   id: string;
@@ -21,12 +22,13 @@ export function buildGradeRows(workspace: SubjectWorkspace): GradeRow[] {
   return workspace.assignments.map((a) => {
     const sub = a.submissions[0];
     const cat = a.gradeCategory;
+    const subRow = sub as typeof sub & { gradePublished?: boolean };
     return {
       id: a.id,
       title: a.title,
       categoryName: cat?.name ?? 'Assignments',
       weight: cat?.weight ?? defaultWeight,
-      score: sub?.score ?? null,
+      score: sub ? studentVisibleScore(subRow) : null,
       maxScore: a.maxScore,
       dueDate: a.dueDate.toISOString(),
       submitted: !!sub?.submittedAt,

@@ -4,6 +4,7 @@ import type {
 } from '@prisma/client';
 import { differenceInHours, format, isTomorrow, isToday } from 'date-fns';
 import { prisma } from '@/lib/db';
+import { studentVisibleScore } from '@/lib/teacher/teacher-grading';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
 
 export type AssignmentViewFilter =
@@ -318,7 +319,7 @@ export async function loadStudentAssignmentsHub(studentId: string): Promise<{
     const status = deriveAssignmentStatus({
       dueDate: a.dueDate,
       submittedAt: sub?.submittedAt ?? null,
-      score: sub?.score ?? null,
+      score: sub ? studentVisibleScore(sub as { score: number | null; gradePublished?: boolean }) : null,
       progressPercent,
       startedAt,
       now,
@@ -372,7 +373,7 @@ export async function loadStudentAssignmentsHub(studentId: string): Promise<{
       attachmentCount: a.attachments.length,
       isGroup: a.isGroup,
       weightPercent: weight,
-      score: sub?.score ?? null,
+      score: sub ? studentVisibleScore(sub as { score: number | null; gradePublished?: boolean }) : null,
       maxScore: a.maxScore,
       submittedAt: sub?.submittedAt?.toISOString() ?? null,
       instructions: a.instructions ?? a.description,

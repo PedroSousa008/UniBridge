@@ -27,7 +27,10 @@ export async function loadStudentAssignments(studentId: string) {
     dueDate: a.dueDate.toISOString(),
     subject: a.subject,
     submitted: !!a.submissions[0]?.submittedAt,
-    score: a.submissions[0]?.score ?? null,
+    score: (() => {
+      const sub = a.submissions[0] as { score: number | null; gradePublished?: boolean } | undefined;
+      return sub?.gradePublished ? sub.score ?? null : null;
+    })(),
     maxScore: a.maxScore,
   }));
 }
