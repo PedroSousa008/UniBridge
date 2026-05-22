@@ -328,7 +328,8 @@ export function TeacherSubjectCalendarPanel({
                 ) : null}
                 <Button
                   size="sm"
-                  variant="destructive"
+                  variant="outline"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
                   onClick={() => {
                     setEditingId(selected.sourceId!);
                     void deleteEvent('series');
@@ -475,7 +476,12 @@ export function TeacherSubjectCalendarPanel({
                         Remove this date
                       </Button>
                     ) : null}
-                    <Button variant="destructive" disabled={saving} onClick={() => void deleteEvent('series')}>
+                    <Button
+                      variant="outline"
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                      disabled={saving}
+                      onClick={() => void deleteEvent('series')}
+                    >
                       Delete all
                     </Button>
                   </>
