@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
-import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
-import { ensureAttendanceTables } from '@/lib/db/ensure-attendance-schema';
+import { ensureTeacherAcademicSchema } from '@/lib/teacher/ensure-teacher-schema';
 import { getSubjectGradingPlan } from '@/lib/teacher/teacher-gradebook';
 
 export async function requireTeacherSubjectAccess(actorUserId: string, subjectId: string) {
@@ -30,7 +29,7 @@ export async function requireTeacherSubjectAccess(actorUserId: string, subjectId
 }
 
 export async function loadTeacherSubjectWorkspace(actorUserId: string, subjectId: string) {
-  await Promise.all([ensureAttendanceTables(), ensureAssignmentTables()]);
+  await ensureTeacherAcademicSchema();
   const { subject } = await requireTeacherSubjectAccess(actorUserId, subjectId);
   const gradingPlan = await getSubjectGradingPlan(subjectId);
 

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
-import { ensureAttendanceTables } from '@/lib/db/ensure-attendance-schema';
+import { ensureTeacherAcademicSchema } from '@/lib/teacher/ensure-teacher-schema';
+import { submissionGradePublished } from '@/lib/teacher/teacher-grading';
 
 export interface WorkspaceSubject {
   id: string;
@@ -70,7 +71,7 @@ function endOfDay(d = new Date()) {
 }
 
 export async function loadTeacherWorkspaceHub(actorUserId: string): Promise<TeacherWorkspaceHub> {
-  await Promise.all([ensureAttendanceTables(), ensureAssignmentTables()]);
+  await ensureTeacherAcademicSchema();
 
   const teacher = await prisma.teacherProfile.findUnique({
     where: { userId: actorUserId },
@@ -152,10 +153,7 @@ export async function loadTeacherWorkspaceHub(actorUserId: string): Promise<Teac
   for (const s of teacher.subjects) {
     for (const a of s.assignments) {
       const subs = a.submissions.filter((sub) => sub.submittedAt);
-      const graded = subs.filter((sub) => {
-        const row = sub as { gradePublished?: boolean };
-        return !!row.gradePublished;
-      }).length;
+      const graded = subs.filter((sub) => submissionGradePublished(sub)).length;
       const pending = subs.length - graded;
       if (pending > 0) pendingGrading += pending;
       if (subs.length > 0) {

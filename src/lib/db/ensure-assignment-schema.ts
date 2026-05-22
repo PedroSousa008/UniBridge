@@ -110,8 +110,17 @@ async function tableReady(): Promise<boolean> {
   }
 }
 
+async function submissionColumnsReady(): Promise<boolean> {
+  try {
+    await prisma.$queryRaw`SELECT "gradePublished", "draftScore" FROM "AssignmentSubmission" LIMIT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function runEnsure(): Promise<boolean> {
-  if (await tableReady()) return true;
+  if ((await tableReady()) && (await submissionColumnsReady())) return true;
   for (const sql of STATEMENTS) {
     try {
       await prisma.$executeRawUnsafe(sql);
@@ -119,14 +128,13 @@ async function runEnsure(): Promise<boolean> {
       console.error('[ensure-assignment-schema]', e);
     }
   }
-  return tableReady();
+  return (await tableReady()) && (await submissionColumnsReady());
 }
 
 export function ensureAssignmentTables(): Promise<boolean> {
   if (!ensurePromise) {
-    ensurePromise = runEnsure().then((ok) => {
-      if (!ok) ensurePromise = null;
-      return ok;
+    ensurePromise = runEnsure().finally(() => {
+      ensurePromise = null;
     });
   }
   return ensurePromise;

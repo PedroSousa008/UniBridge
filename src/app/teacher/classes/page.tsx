@@ -5,5 +5,5 @@ import { TeacherClassesEcosystem } from '@/components/teacher/teacher-classes-ec
 export default async function TeacherClassesPage() {
   const session = await requireSession('TEACHER');
   const hub = await loadTeacherClassesHub(session.user.id);
-  return <TeacherClassesEcosystem initialHub={hub} />;
+  return <TeacherClassesEcosystem initialHub={JSON.parse(JSON.stringify(hub))} />;
 }

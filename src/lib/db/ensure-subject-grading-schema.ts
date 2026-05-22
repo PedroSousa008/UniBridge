@@ -30,9 +30,8 @@ async function runEnsure(): Promise<boolean> {
 
 export function ensureSubjectGradingColumns(): Promise<boolean> {
   if (!ensurePromise) {
-    ensurePromise = runEnsure().then((ok) => {
-      if (!ok) ensurePromise = null;
-      return ok;
+    ensurePromise = runEnsure().finally(() => {
+      ensurePromise = null;
     });
   }
   return ensurePromise;

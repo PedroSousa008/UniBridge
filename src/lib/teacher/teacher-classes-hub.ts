@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/db';
-import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
-import { ensureAttendanceTables } from '@/lib/db/ensure-attendance-schema';
+import { ensureTeacherAcademicSchema } from '@/lib/teacher/ensure-teacher-schema';
 import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
 
 export interface TeacherSubjectCardSignal {
@@ -49,7 +48,7 @@ function endOfDay(d = new Date()) {
 }
 
 export async function loadTeacherClassesHub(actorUserId: string): Promise<TeacherClassesHub> {
-  await Promise.all([ensureAttendanceTables(), ensureAssignmentTables()]);
+  await ensureTeacherAcademicSchema();
 
   const teacher = await prisma.teacherProfile.findUnique({
     where: { userId: actorUserId },
