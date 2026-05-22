@@ -1,9 +1,7 @@
 import { requireSession } from '@/lib/session';
-import {
-  loadTeacherSubjectWorkspace,
-  serializeTeacherSubjectWorkspace,
-} from '@/lib/teacher/teacher-subject-context';
-import { TeacherSubjectAttendancePanel } from '@/components/teacher/teacher-subject-panels';
+import { requireTeacherSubjectAccess } from '@/lib/teacher/teacher-subject-context';
+import { TeacherSubjectAttendancePanel } from '@/components/teacher/teacher-subject-attendance-panel';
+import { loadSubjectAttendanceReport } from '@/lib/teacher/subject-attendance-report';
 
 export default async function TeacherSubjectAttendancePage({
   params,
@@ -12,8 +10,13 @@ export default async function TeacherSubjectAttendancePage({
 }) {
   const session = await requireSession('TEACHER');
   const { subjectId } = await params;
-  const ws = serializeTeacherSubjectWorkspace(
-    await loadTeacherSubjectWorkspace(session.user.id, subjectId)
+  await requireTeacherSubjectAccess(session.user.id, subjectId);
+  const report = await loadSubjectAttendanceReport(subjectId);
+
+  return (
+    <TeacherSubjectAttendancePanel
+      subjectId={subjectId}
+      initialReport={JSON.parse(JSON.stringify(report))}
+    />
   );
-  return <TeacherSubjectAttendancePanel subjectId={subjectId} ws={ws} />;
 }
