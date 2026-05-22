@@ -9,7 +9,7 @@ import {
   Trash2,
   TrendingUp,
 } from 'lucide-react';
-import type { GradebookStructure } from '@/lib/teacher/gradebook-structure';
+import type { GradebookStructure, GradeCategoryRow } from '@/lib/teacher/gradebook-structure';
 import { EVALUATION_COMPONENT_PRESETS } from '@/lib/teacher/teacher-gradebook';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -133,7 +133,8 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
     });
   }
 
-  const listedComponents = isSingle
+  type ListedComponent = GradeCategoryRow & { blockName?: string };
+  const listedComponents: ListedComponent[] = isSingle
     ? structure.single.components
     : structure.continuous.blocks.flatMap((b) =>
         b.components.map((c) => ({ ...c, blockName: b.name }))
@@ -276,7 +277,7 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
                   className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2"
                 >
                   <span className="text-sm font-medium">
-                    {'blockName' in c && c.blockName ? (
+                    {c.blockName ? (
                       <span className="text-muted-foreground">{c.blockName} → </span>
                     ) : null}
                     {c.name} — {c.weight}%
