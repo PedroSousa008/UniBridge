@@ -15,6 +15,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,6 +34,7 @@ export const iconMap = {
   award: Award,
   'folder-kanban': FolderKanban,
   'file-user': FileUser,
+  users: Users,
 } as const;
 
 export type IconName = keyof typeof iconMap;
