@@ -2,7 +2,11 @@ import { prisma } from '@/lib/db';
 import { ensureCompanyOpportunitiesEcosystemTables } from '@/lib/db/ensure-company-opportunities-ecosystem-schema';
 import { ensureOpportunityTables } from '@/lib/db/ensure-opportunities-schema';
 import { buildCompanyCandidateCard } from '@/lib/company/company-candidate-builder';
-import { quickApplicantCompatibility } from '@/lib/company/company-presence-shared';
+import {
+  parseCurrentlyHiring,
+  quickApplicantCompatibility,
+} from '@/lib/company/company-presence-shared';
+import { syncCompanyRoleHiringToInternships } from '@/lib/company/company-presence-hub';
 import { upsertPipelineCandidate } from '@/lib/company/company-pipeline-hub';
 import {
   availabilityLabel,
@@ -39,6 +43,7 @@ export interface OpportunityEcosystemCard {
   applicationsCount: number;
   applicationsThisWeek: number;
   hiringUrgency: string;
+  currentlyHiring: boolean;
   remoteType: string;
   remoteLabel: string;
   duration: string | null;
@@ -125,6 +130,7 @@ function weekAgo(): Date {
 async function loadInternshipRows(companyUserId: string) {
   await ensureCompanyOpportunitiesEcosystemTables();
   await ensureOpportunityTables();
+  await syncCompanyRoleHiringToInternships(companyUserId);
 
   const internships = await prisma.internship.findMany({
     where: { companyUserId, status: { not: 'ARCHIVED' } },
@@ -147,19 +153,32 @@ async function loadInternshipRows(companyUserId: string) {
     orderBy: { updatedAt: 'desc' },
   });
 
-  const roleRows = await prisma.$queryRaw<
-    {
-      id: string;
-      internshipId: string | null;
-      roleType: string;
-      isFilled: boolean;
-      departmentId: string | null;
-    }[]
-  >`
-    SELECT "id", "internshipId", "roleType", "isFilled", "departmentId"
-    FROM "CompanyRole"
-    WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
-  `;
+  const [roleRows, internshipHiringRows] = await Promise.all([
+    prisma.$queryRaw<
+      {
+        id: string;
+        internshipId: string | null;
+        roleType: string;
+        isFilled: boolean;
+        currentlyHiring: boolean | null;
+        departmentId: string | null;
+      }[]
+    >`
+      SELECT "id", "internshipId", "roleType", "isFilled", "currentlyHiring", "departmentId"
+      FROM "CompanyRole"
+      WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
+    `,
+    prisma.$queryRaw<{ id: string; currentlyHiring: boolean | null }[]>`
+      SELECT "id", "currentlyHiring"
+      FROM "Internship"
+      WHERE "companyUserId" = ${companyUserId} AND "status" != 'ARCHIVED'
+    `.catch(() => [] as { id: string; currentlyHiring: boolean | null }[]),
+  ]);
+
+  const internshipHiringById = new Map(
+    internshipHiringRows.map((r) => [r.id, parseCurrentlyHiring(r.currentlyHiring)])
+  );
+
   const roleByInternship = new Map(
     roleRows.filter((r) => r.internshipId).map((r) => [r.internshipId!, r])
   );
@@ -175,12 +194,20 @@ async function loadInternshipRows(companyUserId: string) {
     links = [];
   }
 
-  return { internships, roleByInternship, links };
+  return { internships, roleByInternship, internshipHiringById, links };
 }
 
 function buildCardFromInternship(
   i: Awaited<ReturnType<typeof loadInternshipRows>>['internships'][0],
-  role: { id: string; roleType: string; isFilled: boolean } | undefined,
+  role:
+    | {
+        id: string;
+        roleType: string;
+        isFilled: boolean;
+        currentlyHiring: boolean | null;
+      }
+    | undefined,
+  internshipHiringById: Map<string, boolean>,
   links: { internshipId: string; linkType: string }[]
 ): OpportunityEcosystemCard {
   const weekStart = weekAgo();
@@ -235,6 +262,9 @@ function buildCardFromInternship(
   const leadershipAlignment = role?.roleType === 'leadership' ? 82 : 48 + (compatScores[0] ?? 50) % 35;
 
   const isFilled = i.availabilityStatus === 'filled' || Boolean(role?.isFilled);
+  const currentlyHiring = role
+    ? parseCurrentlyHiring(role.currentlyHiring, isFilled)
+    : (internshipHiringById.get(i.id) ?? true);
   const status = resolveAvailability(isFilled, isFutureOpening, opensAt);
   const category = resolveOpportunityCategory(
     role?.roleType ?? i.employmentType,
@@ -258,7 +288,8 @@ function buildCardFromInternship(
     compatibilityAvg,
     applicationsCount: i._count.applications,
     applicationsThisWeek: appsThisWeek,
-    hiringUrgency: hiringUrgencyLabel(hiringPriority),
+    hiringUrgency: hiringUrgencyLabel(hiringPriority, isFilled, currentlyHiring),
+    currentlyHiring,
     remoteType: i.remoteType ?? 'on_site',
     remoteLabel: remoteLabel(i.remoteType),
     duration: i.duration,
@@ -267,7 +298,7 @@ function buildCardFromInternship(
     startupAlignment,
     leadershipAlignment,
     status,
-    statusLabel: availabilityLabel(status),
+    statusLabel: availabilityLabel(status, currentlyHiring),
     signals: buildOpportunitySignals({
       applicationsThisWeek: appsThisWeek,
       applicationsCount: i._count.applications,
@@ -307,7 +338,7 @@ export async function loadCompanyOpportunitiesEcosystemHub(
 
   const opportunities = data.internships.map((i) => {
     const role = data.roleByInternship.get(i.id);
-    return buildCardFromInternship(i, role, data.links);
+    return buildCardFromInternship(i, role, data.internshipHiringById, data.links);
   });
 
   const byCategory: Record<string, OpportunityEcosystemCard[]> = {};

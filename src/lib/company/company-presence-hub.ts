@@ -822,6 +822,28 @@ export async function upsertCompanyRole(
   return id;
 }
 
+/** Keep linked internships aligned with role recruitment flags (fixes stale Opportunities labels). */
+export async function syncCompanyRoleHiringToInternships(companyUserId: string): Promise<void> {
+  await ensureCompanyPresenceTables();
+  const rows = await prisma.$queryRaw<
+    { internshipId: string; currentlyHiring: boolean | null; isFilled: boolean }[]
+  >`
+    SELECT "internshipId", "currentlyHiring", "isFilled"
+    FROM "CompanyRole"
+    WHERE "companyUserId" = ${companyUserId}
+      AND "internshipId" IS NOT NULL
+      AND "status" != 'archived'
+  `;
+  for (const row of rows) {
+    const flag = parseCurrentlyHiring(row.currentlyHiring, row.isFilled);
+    await prisma.$executeRaw`
+      UPDATE "Internship"
+      SET "currentlyHiring" = ${flag}, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${row.internshipId}
+    `;
+  }
+}
+
 export async function setCompanyRoleCurrentlyHiring(
   companyUserId: string,
   roleId: string,

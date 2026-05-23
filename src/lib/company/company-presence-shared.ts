@@ -27,6 +27,19 @@ export function parseCurrentlyHiring(value: unknown, isFilled = false): boolean 
   return true;
 }
 
+/** Single label for recruitment state — used across Presence, Opportunities, and student views. */
+export function recruitmentStatusLabel(
+  isFilled: boolean,
+  currentlyHiring: boolean,
+  hiringPriority?: string | null
+): string {
+  if (isFilled) return 'Position filled';
+  if (!currentlyHiring) return 'Not actively hiring';
+  if (hiringPriority === 'high') return 'High urgency';
+  if (hiringPriority === 'low') return 'Steady hiring';
+  return 'Actively hiring';
+}
+
 export interface PositionHolderData {
   id?: string;
   photoUrl: string | null;

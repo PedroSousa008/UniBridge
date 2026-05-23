@@ -7,6 +7,7 @@ import {
   parsePositionHolder,
   quickApplicantCompatibility,
   parseCurrentlyHiring,
+  recruitmentStatusLabel,
   roleStatusFromFilled,
   type PositionHolderData,
   type RoleStatus,
@@ -391,8 +392,11 @@ export async function loadCompanyDepartmentView(
       avgCompatibility,
       applicationCount,
       hiringPriority: priority,
-      hiringPriorityLabel:
-        priority === 'high' ? 'High priority hiring' : priority === 'low' ? 'Standard' : 'Active hiring',
+      hiringPriorityLabel: recruitmentStatusLabel(
+        r.isFilled,
+        parseCurrentlyHiring(r.currentlyHiring, r.isFilled),
+        priority
+      ),
       topSkills: skills.slice(0, 4).map(labelForRequirementTag),
       positionHolder,
     };
@@ -894,8 +898,11 @@ export function buildDepartmentSnapshot(
       avgCompatibility: r.isFilled ? 70 + skillBoost : 68 + skillBoost + appBoost,
       applicationCount: r.applicationCount,
       hiringPriority: priority,
-      hiringPriorityLabel:
-        priority === 'high' ? 'High priority hiring' : priority === 'low' ? 'Standard' : 'Active hiring',
+      hiringPriorityLabel: recruitmentStatusLabel(
+        r.isFilled,
+        parseCurrentlyHiring(r.currentlyHiring, r.isFilled),
+        priority
+      ),
       topSkills: skills.slice(0, 4).map(labelForRequirementTag),
       positionHolder: null,
     };

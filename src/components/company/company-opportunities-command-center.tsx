@@ -110,7 +110,9 @@ function OpportunityCard({
 }) {
   const statusColor =
     card.status === 'open'
-      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+      ? card.currentlyHiring
+        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+        : 'bg-amber-500/15 text-amber-800 dark:text-amber-200'
       : card.status === 'future'
         ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300'
         : 'bg-muted text-muted-foreground';
@@ -153,7 +155,16 @@ function OpportunityCard({
         {card.salaryLabel && (
           <span className="rounded-full bg-muted/60 px-2 py-0.5">{card.salaryLabel}</span>
         )}
-        <span className="rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-200 px-2 py-0.5">
+        <span
+          className={cn(
+            'rounded-full px-2 py-0.5',
+            card.currentlyHiring && card.status === 'open'
+              ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+              : card.status === 'open'
+                ? 'bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                : 'bg-muted/60 text-muted-foreground'
+          )}
+        >
           {card.hiringUrgency}
         </span>
       </div>

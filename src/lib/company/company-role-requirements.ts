@@ -13,6 +13,10 @@ import {
   getCompanyPresenceMatchCriteria,
   parseJsonArray,
 } from '@/lib/company/company-presence-hub';
+import {
+  parseCurrentlyHiring,
+  recruitmentStatusLabel,
+} from '@/lib/company/company-presence-shared';
 import type { RoleVisibilitySettings } from '@/lib/company/company-department-hub';
 import {
   PREFERRED_QUALITY_TEMPLATES,
@@ -570,6 +574,7 @@ export async function loadRoleRequirementsHub(companyUserId: string): Promise<Ro
         title: string;
         departmentId: string | null;
         isFilled: boolean;
+        currentlyHiring: boolean | null;
         status: string;
         hiringPriority: string | null;
         nonNegotiables: unknown;
@@ -579,7 +584,7 @@ export async function loadRoleRequirementsHub(companyUserId: string): Promise<Ro
         internshipId: string | null;
       }[]
     >`
-      SELECT "id", "title", "departmentId", "isFilled", "status", "hiringPriority",
+      SELECT "id", "title", "departmentId", "isFilled", "currentlyHiring", "status", "hiringPriority",
              "nonNegotiables", "preferredQualities", "requiredSkills", "structuredRequirements",
              "internshipId"
       FROM "CompanyRole"
@@ -619,6 +624,7 @@ export async function loadRoleRequirementsHub(companyUserId: string): Promise<Ro
           : 62 + Math.min(12, completion / 8);
 
       const priority = r.hiringPriority ?? 'normal';
+      const currentlyHiring = parseCurrentlyHiring(r.currentlyHiring, r.isFilled);
       return {
         id: r.id,
         title: r.title,
@@ -629,11 +635,14 @@ export async function loadRoleRequirementsHub(companyUserId: string): Promise<Ro
         fitQuality: fitQualityLabel(completion, compat),
         requirementsCompletion: completion,
         hiringUrgency: priority,
-        hiringUrgencyLabel:
-          priority === 'high' ? 'High urgency' : priority === 'low' ? 'Standard' : 'Active hiring',
+        hiringUrgencyLabel: recruitmentStatusLabel(r.isFilled, currentlyHiring, priority),
         isFilled: r.isFilled,
         status: r.status,
-        openLabel: r.isFilled ? 'Filled' : 'Open',
+        openLabel: r.isFilled
+          ? 'Filled'
+          : currentlyHiring
+            ? 'Open'
+            : 'Open · not actively hiring',
       };
     })
   );

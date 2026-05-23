@@ -1,3 +1,5 @@
+import { recruitmentStatusLabel } from '@/lib/company/company-presence-shared';
+
 export type OpportunityCategoryId =
   | 'internship'
   | 'graduate_program'
@@ -119,9 +121,13 @@ export function resolveAvailability(
   return 'open';
 }
 
-export function availabilityLabel(status: OpportunityAvailability): string {
+export function availabilityLabel(
+  status: OpportunityAvailability,
+  currentlyHiring = true
+): string {
   if (status === 'filled') return 'Filled';
   if (status === 'future') return 'Future opening';
+  if (!currentlyHiring) return 'Open · not actively hiring';
   return 'Open';
 }
 
@@ -132,10 +138,12 @@ export function remoteLabel(remoteType: string | null | undefined): string {
   return 'On-site';
 }
 
-export function hiringUrgencyLabel(priority: string | null | undefined): string {
-  if (priority === 'high') return 'High urgency';
-  if (priority === 'low') return 'Steady hiring';
-  return 'Active hiring';
+export function hiringUrgencyLabel(
+  priority: string | null | undefined,
+  isFilled = false,
+  currentlyHiring = true
+): string {
+  return recruitmentStatusLabel(isFilled, currentlyHiring, priority);
 }
 
 export function formatSalaryRange(min: number | null, max: number | null): string | null {
