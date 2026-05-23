@@ -6,6 +6,7 @@ import {
   countPartnerStudents,
   parsePositionHolder,
   quickApplicantCompatibility,
+  parseCurrentlyHiring,
   roleStatusFromFilled,
   type PositionHolderData,
   type RoleStatus,
@@ -41,6 +42,7 @@ export interface DepartmentRoleCard {
   remoteType: string;
   location: string | null;
   isFilled: boolean;
+  currentlyHiring: boolean;
   roleStatus: RoleStatus;
   status: string;
   avgCompatibility: number;
@@ -110,6 +112,7 @@ export interface CompanyRoleIntelligenceView {
   remoteType: string;
   location: string | null;
   isFilled: boolean;
+  currentlyHiring: boolean;
   roleStatus: RoleStatus;
   positionHolder: PositionHolderData | null;
   status: string;
@@ -280,6 +283,7 @@ export async function loadCompanyDepartmentView(
         remoteType: string;
         location: string | null;
         isFilled: boolean;
+        currentlyHiring: boolean | null;
         status: string;
         hiringPriority: string | null;
         requiredSkills: unknown;
@@ -287,7 +291,7 @@ export async function loadCompanyDepartmentView(
         positionHolderId: string | null;
       }[]
     >`
-      SELECT "id", "title", "roleType", "remoteType", "location", "isFilled", "status",
+      SELECT "id", "title", "roleType", "remoteType", "location", "isFilled", "currentlyHiring", "status",
              "hiringPriority", "requiredSkills", "internshipId", "positionHolderId"
       FROM "CompanyRole"
       WHERE "departmentId" = ${departmentId} AND "companyUserId" = ${companyUserId}
@@ -381,6 +385,7 @@ export async function loadCompanyDepartmentView(
       remoteType: r.remoteType,
       location: r.location,
       isFilled: r.isFilled,
+      currentlyHiring: parseCurrentlyHiring(r.currentlyHiring, r.isFilled),
       roleStatus: roleStatusFromFilled(r.isFilled),
       status: r.status,
       avgCompatibility,
@@ -521,6 +526,8 @@ export async function duplicateCompanyRole(companyUserId: string, roleId: string
     remoteType: intel.remoteType,
     location: intel.location,
     isFilled: false,
+    roleStatus: 'hiring',
+    currentlyHiring: intel.currentlyHiring,
     status: 'published',
     nonNegotiables: intel.nonNegotiables,
     preferredQualities: intel.preferredQualities,
@@ -673,6 +680,7 @@ export async function loadCompanyRoleIntelligence(
 
   const priority = String(row.hiringPriority ?? 'normal');
   const isFilled = Boolean(row.isFilled);
+  const currentlyHiring = parseCurrentlyHiring(row.currentlyHiring, isFilled);
   let positionHolder: PositionHolderData | null = null;
   const holderId = row.positionHolderId as string | null;
   if (holderId) {
@@ -735,6 +743,7 @@ export async function loadCompanyRoleIntelligence(
     remoteType: String(row.remoteType ?? 'hybrid'),
     location: row.location as string | null,
     isFilled,
+    currentlyHiring,
     roleStatus: roleStatusFromFilled(isFilled),
     positionHolder,
     status: String(row.status ?? 'published'),
@@ -751,9 +760,11 @@ export async function loadCompanyRoleIntelligence(
     hero: {
       hiringStatus: isFilled
         ? 'Position filled — still accepting applications'
-        : priority === 'high'
-          ? 'Hiring actively'
-          : 'Open for applications',
+        : currentlyHiring
+          ? priority === 'high'
+            ? 'Actively hiring'
+            : 'Currently hiring'
+          : 'Open — not actively hiring (applications welcome)',
       avgCompatibility: topStudents.length
         ? Math.round(topStudents.reduce((a, s) => a + s.compatibility, 0) / topStudents.length)
         : estStrong > 0
@@ -791,6 +802,7 @@ export function buildRoleIntelligenceSnapshot(
     remoteType: role.remoteType,
     location: role.location,
     isFilled,
+    currentlyHiring: role.currentlyHiring,
     roleStatus: role.roleStatus,
     positionHolder: role.positionHolder,
     status: role.status,
@@ -813,9 +825,11 @@ export function buildRoleIntelligenceSnapshot(
     hero: {
       hiringStatus: isFilled
         ? 'Position filled — aspirational example'
-        : role.hiringPriority === 'high'
-          ? 'Hiring actively'
-          : 'Open for applications',
+        : role.currentlyHiring
+          ? role.hiringPriority === 'high'
+            ? 'Actively hiring'
+            : 'Currently hiring'
+          : 'Open — not actively hiring (applications welcome)',
       avgCompatibility: role.avgCompatibility,
       applicationCount: role.applicationCount,
       strongestSkills: role.topSkills,
@@ -852,6 +866,7 @@ export function buildDepartmentSnapshot(
       remoteType: string;
       location: string | null;
       isFilled: boolean;
+      currentlyHiring?: boolean;
       applicationCount: number;
       requiredSkills: string[];
       hiringPriority?: string | null;
@@ -873,6 +888,7 @@ export function buildDepartmentSnapshot(
       remoteType: r.remoteType,
       location: r.location,
       isFilled: r.isFilled,
+      currentlyHiring: parseCurrentlyHiring(r.currentlyHiring, r.isFilled),
       roleStatus: roleStatusFromFilled(r.isFilled),
       status: 'published',
       avgCompatibility: r.isFilled ? 70 + skillBoost : 68 + skillBoost + appBoost,

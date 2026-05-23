@@ -95,6 +95,7 @@ const MIGRATION_STATEMENTS: string[] = [
   `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "growthPhilosophy" TEXT`,
   `ALTER TABLE "CompanyDepartment" ADD COLUMN IF NOT EXISTS "hiringActivity" TEXT DEFAULT 'active'`,
   `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "hiringPriority" TEXT DEFAULT 'normal'`,
+  `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "currentlyHiring" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "visibilitySettings" JSONB`,
   `ALTER TABLE "CompanyRole" ADD COLUMN IF NOT EXISTS "applicationSettings" JSONB`,
   `ALTER TABLE "CompanyTeamMember" ADD COLUMN IF NOT EXISTS "departmentId" TEXT`,

@@ -18,6 +18,13 @@ import {
   type PositionHolderData,
 } from '@/lib/company/company-presence-shared';
 
+function readInternshipCurrentlyHiring(
+  internship: Internship & { currentlyHiring?: boolean | null }
+): boolean {
+  if ((internship.availabilityStatus ?? 'available') === 'filled') return false;
+  return internship.currentlyHiring !== false;
+}
+
 export type InternshipLifecycleStage =
   | 'saved'
   | 'preparing'
@@ -57,8 +64,10 @@ export interface InternshipCard {
   breakdown: { id: string; label: string; score: number; status: string }[];
   deadline: string | null;
   availabilityStatus: 'available' | 'filled';
+  currentlyHiring: boolean;
   positionHolder: PositionHolderData | null;
   filledInterestLabel: string | null;
+  notActivelyHiringLabel: string | null;
   candidateCount: number;
   isBookmarked: boolean;
   isCandidate: boolean;
@@ -328,12 +337,18 @@ export function buildInternshipCard(
     deadline: internship.deadline?.toISOString() ?? null,
     availabilityStatus:
       (internship.availabilityStatus ?? 'available') === 'filled' ? 'filled' : 'available',
+    currentlyHiring: readInternshipCurrentlyHiring(internship),
     positionHolder: parsePositionHolder(
       (internship as Internship & { positionHolderJson?: unknown }).positionHolderJson
     ),
     filledInterestLabel:
       (internship.availabilityStatus ?? 'available') === 'filled'
         ? 'This role is currently filled, but you can still express interest for future openings.'
+        : null,
+    notActivelyHiringLabel:
+      (internship.availabilityStatus ?? 'available') !== 'filled' &&
+      !readInternshipCurrentlyHiring(internship)
+        ? 'The company is not actively hiring right now, but you can still apply.'
         : null,
     candidateCount: internship._count.applications,
     isBookmarked: bookmarked.has(internship.id),

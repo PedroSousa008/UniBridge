@@ -60,9 +60,13 @@ export function PartnershipJobCard({
                 <Badge variant="outline" className="text-[10px] text-muted-foreground">
                   Filled
                 </Badge>
-              ) : (
+              ) : job.currentlyHiring ? (
                 <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-200">
-                  Available
+                  Actively hiring
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] text-amber-800 border-amber-200">
+                  Not actively hiring
                 </Badge>
               )}
               {statusLabel ? (
@@ -76,6 +80,11 @@ export function PartnershipJobCard({
             {filled && job.filledInterestLabel ? (
               <p className="text-xs text-muted-foreground mt-2 rounded-lg bg-muted/50 px-2 py-1.5">
                 {job.filledInterestLabel}
+              </p>
+            ) : null}
+            {!filled && job.notActivelyHiringLabel ? (
+              <p className="text-xs text-muted-foreground mt-2 rounded-lg bg-amber-500/10 border border-amber-200/60 px-2 py-1.5">
+                {job.notActivelyHiringLabel}
               </p>
             ) : null}
             {filled && holder ? (

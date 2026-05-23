@@ -4,7 +4,10 @@ import {
   duplicateCompanyRole,
   loadCompanyRoleIntelligence,
 } from '@/lib/company/company-department-hub';
-import { upsertCompanyRole } from '@/lib/company/company-presence-hub';
+import {
+  setCompanyRoleCurrentlyHiring,
+  upsertCompanyRole,
+} from '@/lib/company/company-presence-hub';
 import { getCompanyWorkspaceUserId, requireSession } from '@/lib/session';
 
 export async function GET(
@@ -39,6 +42,12 @@ export async function PATCH(
       return NextResponse.json(view ?? { newId });
     }
     return NextResponse.json({ newId });
+  } else if (body.action === 'setCurrentlyHiring') {
+    await setCompanyRoleCurrentlyHiring(
+      getCompanyWorkspaceUserId(session),
+      id,
+      body.currentlyHiring !== false
+    );
   } else {
     await upsertCompanyRole(getCompanyWorkspaceUserId(session), { ...body, id });
   }

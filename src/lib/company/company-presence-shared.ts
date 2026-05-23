@@ -21,6 +21,12 @@ export function roleStatusFromFilled(isFilled: boolean): RoleStatus {
   return isFilled ? 'filled' : 'hiring';
 }
 
+export function parseCurrentlyHiring(value: unknown, isFilled = false): boolean {
+  if (isFilled) return false;
+  if (value === false || value === 0 || value === 'false') return false;
+  return true;
+}
+
 export interface PositionHolderData {
   id?: string;
   photoUrl: string | null;

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { ensureCompanyPresenceTables } from '@/lib/db/ensure-company-presence-schema';
 import {
   batchInternshipApplicationCounts,
+  parseCurrentlyHiring,
   type PositionHolderData,
 } from '@/lib/company/company-presence-shared';
 import { buildStudentProfile } from '@/lib/student/student-career-paths';
@@ -62,6 +63,7 @@ export interface CompanyPresenceRole {
   location: string | null;
   startDate: string | null;
   isFilled: boolean;
+  currentlyHiring: boolean;
   status: string;
   hiringPriority: string;
   internshipId: string | null;
@@ -233,6 +235,7 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
         location: string | null;
         startDate: Date | null;
         isFilled: boolean;
+        currentlyHiring: boolean | null;
         status: string;
         hiringPriority: string | null;
         internshipId: string | null;
@@ -241,7 +244,7 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
       SELECT "id", "departmentId", "title", "roleType", "description", "responsibilities",
              "expectations", "requiredSkills", "preferredSkills", "nonNegotiables",
              "preferredQualities", "growthOpportunities", "salaryMin", "salaryMax",
-             "remoteType", "location", "startDate", "isFilled", "status", "hiringPriority", "internshipId"
+             "remoteType", "location", "startDate", "isFilled", "currentlyHiring", "status", "hiringPriority", "internshipId"
       FROM "CompanyRole"
       WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
       ORDER BY "sortOrder" ASC, "title" ASC
@@ -272,6 +275,7 @@ async function loadDepartmentsAndRoles(companyUserId: string) {
     location: r.location,
     startDate: r.startDate?.toISOString() ?? null,
     isFilled: r.isFilled,
+    currentlyHiring: parseCurrentlyHiring(r.currentlyHiring, r.isFilled),
     status: r.status,
     hiringPriority: r.hiringPriority ?? 'normal',
     internshipId: r.internshipId,
@@ -567,13 +571,14 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
       salaryMax: number | null;
       requiredSkills: unknown;
       isFilled: boolean;
+      currentlyHiring: boolean | null;
       internshipId: string | null;
       roleType: string;
       positionHolderId: string | null;
     }[]
   >`
     SELECT "title", "description", "departmentId", "remoteType", "location",
-           "salaryMin", "salaryMax", "requiredSkills", "isFilled", "internshipId", "roleType",
+           "salaryMin", "salaryMax", "requiredSkills", "isFilled", "currentlyHiring", "internshipId", "roleType",
            "positionHolderId"
     FROM "CompanyRole" WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
   `;
@@ -607,6 +612,7 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
   }
 
   const availability = role.isFilled ? 'filled' : 'available';
+  const activelyHiring = parseCurrentlyHiring(role.currentlyHiring, role.isFilled);
   const positionHolder = await loadPositionHolderSnapshot(
     role.positionHolderId as string | null,
     departmentName
@@ -633,6 +639,9 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
       where: { id: role.internshipId },
       data: payload,
     });
+    await prisma.$executeRaw`
+      UPDATE "Internship" SET "currentlyHiring" = ${activelyHiring} WHERE "id" = ${role.internshipId}
+    `;
     if (positionHolderJson != null) {
       await prisma.$executeRaw`
         UPDATE "Internship" SET "positionHolderJson" = ${positionHolderJson}::jsonb
@@ -647,6 +656,9 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
         department: departmentName,
       },
     });
+    await prisma.$executeRaw`
+      UPDATE "Internship" SET "currentlyHiring" = ${activelyHiring} WHERE "id" = ${internship.id}
+    `;
     await prisma.$executeRaw`
       UPDATE "CompanyRole" SET "internshipId" = ${internship.id} WHERE "id" = ${roleId}
     `;
@@ -708,6 +720,7 @@ export async function upsertCompanyRole(
   const roleStatus = role.roleStatus === 'filled' || role.roleStatus === 'hiring' ? role.roleStatus : null;
   const isFilled =
     roleStatus === 'filled' ? true : roleStatus === 'hiring' ? false : Boolean(role.isFilled);
+  const currentlyHiring = parseCurrentlyHiring(role.currentlyHiring, isFilled);
 
   const sql = exists
     ? prisma.$executeRaw`
@@ -729,6 +742,7 @@ export async function upsertCompanyRole(
           "location" = ${typeof role.location === 'string' ? role.location : null},
           "startDate" = ${role.startDate ? new Date(String(role.startDate)) : null},
           "isFilled" = ${isFilled},
+          "currentlyHiring" = ${currentlyHiring},
           "status" = ${String(role.status ?? 'published')},
           "hiringPriority" = ${String(role.hiringPriority ?? 'normal')},
           "visibilitySettings" = ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
@@ -742,7 +756,7 @@ export async function upsertCompanyRole(
           "id", "companyUserId", "departmentId", "title", "roleType", "description",
           "responsibilities", "expectations", "requiredSkills", "preferredSkills",
           "nonNegotiables", "preferredQualities", "growthOpportunities",
-          "salaryMin", "salaryMax", "remoteType", "location", "startDate", "isFilled", "status",
+          "salaryMin", "salaryMax", "remoteType", "location", "startDate", "isFilled", "currentlyHiring", "status",
           "hiringPriority", "visibilitySettings", "applicationSettings", "structuredRequirements"
         ) VALUES (
           ${id}, ${companyUserId},
@@ -763,6 +777,7 @@ export async function upsertCompanyRole(
           ${typeof role.location === 'string' ? role.location : null},
           ${role.startDate ? new Date(String(role.startDate)) : null},
           ${isFilled},
+          ${currentlyHiring},
           ${String(role.status ?? 'published')},
           ${String(role.hiringPriority ?? 'normal')},
           ${JSON.stringify(role.visibilitySettings ?? { allStudents: true })}::jsonb,
@@ -805,6 +820,20 @@ export async function upsertCompanyRole(
 
   await syncRoleToInternship(companyUserId, id);
   return id;
+}
+
+export async function setCompanyRoleCurrentlyHiring(
+  companyUserId: string,
+  roleId: string,
+  currentlyHiring: boolean
+) {
+  await ensureCompanyPresenceTables();
+  await prisma.$executeRaw`
+    UPDATE "CompanyRole"
+    SET "currentlyHiring" = ${currentlyHiring}, "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId} AND "isFilled" = false
+  `;
+  await syncRoleToInternship(companyUserId, roleId);
 }
 
 export async function deleteCompanyRole(companyUserId: string, roleId: string) {

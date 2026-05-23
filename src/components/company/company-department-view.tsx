@@ -313,8 +313,12 @@ export function CompanyDepartmentView({
                   <Badge variant="outline" className="text-muted-foreground">
                     Filled · aspirational example
                   </Badge>
+                ) : role.currentlyHiring ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-700">Actively hiring</Badge>
                 ) : (
-                  <Badge className="bg-emerald-500/15 text-emerald-700">Hiring</Badge>
+                  <Badge variant="outline" className="text-amber-800 border-amber-300/60 bg-amber-500/10">
+                    Not actively hiring
+                  </Badge>
                 )}
                 {role.hiringPriority === 'high' ? (
                   <Badge variant="secondary">High priority</Badge>

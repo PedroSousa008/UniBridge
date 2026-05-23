@@ -44,6 +44,7 @@ export function CompanyRolePanel({
     salaryMax: '',
     startDate: '',
     roleStatus: 'hiring' as RoleStatus,
+    currentlyHiring: true,
     hiringPriority: 'high',
     holder: {
       photoUrl: '',
@@ -103,6 +104,7 @@ export function CompanyRolePanel({
           salaryMax: '',
           startDate: '',
           roleStatus: r.roleStatus ?? (r.isFilled ? 'filled' : 'hiring'),
+          currentlyHiring: r.currentlyHiring ?? !r.isFilled,
           hiringPriority: r.hiringPriority,
           holder: {
             photoUrl: r.positionHolder?.photoUrl ?? '',
@@ -143,6 +145,7 @@ export function CompanyRolePanel({
         salaryMax: '',
         startDate: '',
         roleStatus: 'hiring',
+        currentlyHiring: true,
         hiringPriority: 'high',
         holder: {
           photoUrl: '',
@@ -212,6 +215,7 @@ export function CompanyRolePanel({
         startDate: form.startDate || null,
         roleStatus: form.roleStatus,
         isFilled: form.roleStatus === 'filled',
+        currentlyHiring: form.roleStatus === 'hiring' ? form.currentlyHiring : false,
         hiringPriority: form.hiringPriority,
         positionHolder:
           form.roleStatus === 'filled'
@@ -302,6 +306,44 @@ export function CompanyRolePanel({
             </button>
           </div>
         </section>
+
+        {form.roleStatus === 'hiring' ? (
+          <section>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+              Currently hiring?
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                className={cn(
+                  'rounded-2xl border p-4 text-left transition',
+                  form.currentlyHiring &&
+                    'border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/30'
+                )}
+                onClick={() => setForm({ ...form, currentlyHiring: true })}
+              >
+                <p className="font-semibold">Yes — actively hiring</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Shown to students as an open, active opportunity.
+                </p>
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'rounded-2xl border p-4 text-left transition',
+                  !form.currentlyHiring &&
+                    'border-amber-500/40 bg-amber-500/10 ring-1 ring-amber-500/25'
+                )}
+                onClick={() => setForm({ ...form, currentlyHiring: false })}
+              >
+                <p className="font-semibold">Not actively hiring</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Role stays visible; students can still apply anytime.
+                </p>
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section>
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">

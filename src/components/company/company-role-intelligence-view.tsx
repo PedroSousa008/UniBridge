@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Sparkles, Target, TrendingUp, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +26,7 @@ export function CompanyRoleIntelligenceScreen({
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hiringSaving, setHiringSaving] = useState(false);
   const hasViewRef = useRef(Boolean(initialView));
 
   useEffect(() => {
@@ -56,6 +58,21 @@ export function CompanyRoleIntelligenceScreen({
   useEffect(() => {
     void refresh(Boolean(initialView));
   }, [roleId, refresh, initialView]);
+
+  async function setCurrentlyHiring(currentlyHiring: boolean) {
+    if (!view || view.isFilled) return;
+    setHiringSaving(true);
+    try {
+      const res = await fetch(`/api/company/presence/roles/${roleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setCurrentlyHiring', currentlyHiring }),
+      });
+      if (res.ok) setView(await res.json());
+    } finally {
+      setHiringSaving(false);
+    }
+  }
 
   if (loading && !view) {
     return (
@@ -135,6 +152,37 @@ export function CompanyRoleIntelligenceScreen({
             <p className="text-xs text-muted-foreground mt-1">{view.hero.strongestSkills.join(' · ') || '—'}</p>
           </div>
         </div>
+        {!view.isFilled ? (
+          <div className="mt-5 space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Recruitment status
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={view.currentlyHiring ? 'brand' : 'outline'}
+                disabled={hiringSaving}
+                onClick={() => void setCurrentlyHiring(true)}
+              >
+                Actively hiring
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={!view.currentlyHiring ? 'default' : 'outline'}
+                className={cn(!view.currentlyHiring && 'border-amber-300/60 bg-amber-500/10')}
+                disabled={hiringSaving}
+                onClick={() => void setCurrentlyHiring(false)}
+              >
+                Not actively hiring
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Students can apply in both cases — this only changes how the role is labeled.
+            </p>
+          </div>
+        ) : null}
         <Button variant="outline" size="sm" className="mt-4" onClick={() => setEditOpen(true)}>
           Edit role
         </Button>
