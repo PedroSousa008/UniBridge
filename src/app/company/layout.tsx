@@ -1,11 +1,18 @@
 import { requireSession } from '@/lib/session';
-import { RoleLayout } from '@/components/layout/role-layout';
+import { resolveCompanyWorkspace } from '@/lib/company/company-workspace';
+import { CompanyShell } from '@/components/company/company-shell';
 
 export default async function CompanyLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireSession('COMPANY');
-  return <RoleLayout role="COMPANY">{children}</RoleLayout>;
+  const session = await requireSession('COMPANY');
+  const workspace = await resolveCompanyWorkspace(session.user.id);
+
+  return (
+    <CompanyShell companyName={workspace?.companyName ?? 'Your company'}>
+      {children}
+    </CompanyShell>
+  );
 }
