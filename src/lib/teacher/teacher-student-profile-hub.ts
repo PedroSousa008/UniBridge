@@ -88,8 +88,8 @@ export async function loadTeacherStudentAcademicProfile(
     }),
     prisma.announcementRead.count({
       where: {
-        userId: studentId,
-        subjectAnnouncement: { subjectId },
+        studentId,
+        announcement: { subjectId },
       },
     }),
     prisma.subjectOfficeHours.findMany({

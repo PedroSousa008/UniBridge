@@ -15,9 +15,9 @@ export type SubmissionGradeRow = {
   teacherFeedback: string | null;
 };
 
-/** DB column added via ensure-assignment-schema; not always on generated Prisma types. */
+/** Partial submission fields for grading helpers (score optional when not selected). */
 export type SubmissionGradeFields = {
-  score: number | null;
+  score?: number | null;
   gradePublished?: boolean | null;
   submittedAt?: Date | string | null;
 };
@@ -26,10 +26,7 @@ export function submissionGradePublished(sub: { gradePublished?: boolean | null 
   return !!sub.gradePublished;
 }
 
-export function isPendingGradePublish(sub: {
-  gradePublished?: boolean | null;
-  submittedAt?: Date | string | null;
-}): boolean {
+export function isPendingGradePublish(sub: SubmissionGradeFields): boolean {
   return !!sub.submittedAt && !submissionGradePublished(sub);
 }
 
