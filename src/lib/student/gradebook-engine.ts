@@ -17,7 +17,9 @@ export interface GradeRow {
   feedback: string | null;
 }
 
-export function buildGradeRows(workspace: SubjectWorkspace): GradeRow[] {
+export type GradeRowsInput = Pick<SubjectWorkspace, 'assignments' | 'gradeCategories'>;
+
+export function buildGradeRows(workspace: GradeRowsInput): GradeRow[] {
   const defaultWeight =
     workspace.gradeCategories.length > 0
       ? 0
