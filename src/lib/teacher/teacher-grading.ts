@@ -26,7 +26,10 @@ export function submissionGradePublished(sub: { gradePublished?: boolean | null 
   return !!sub.gradePublished;
 }
 
-export function isPendingGradePublish(sub: SubmissionGradeFields): boolean {
+export function isPendingGradePublish(sub: {
+  gradePublished?: boolean | null;
+  submittedAt?: Date | string | null;
+}): boolean {
   return !!sub.submittedAt && !submissionGradePublished(sub);
 }
 
