@@ -5,18 +5,23 @@ import { upload } from '@vercel/blob/client';
 import { FileUp, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { VERCEL_SERVER_UPLOAD_MAX_BYTES } from '@/lib/uploads/blob-storage';
 import {
   guessContentItemType,
   MAX_ACADEMIC_BYTES,
   validateAcademicFile,
 } from '@/lib/uploads/validate-academic-file';
-import { isLocalDev } from '@/lib/uploads/validate-image';
 
 interface AcademicFileUploadProps {
   onUploaded: (result: { url: string; fileName: string; contentType: string }) => void;
   folder?: string;
   className?: string;
   disabled?: boolean;
+}
+
+function formatMaxSize(): string {
+  const gb = MAX_ACADEMIC_BYTES / (1024 * 1024 * 1024);
+  return gb >= 1 ? `${gb} GB` : `${Math.round(MAX_ACADEMIC_BYTES / (1024 * 1024))} MB`;
 }
 
 export function AcademicFileUpload({
@@ -35,6 +40,7 @@ export function AcademicFileUpload({
       access: 'public',
       handleUploadUrl: '/api/uploads',
       clientPayload: JSON.stringify({ folder }),
+      multipart: file.size > 100 * 1024 * 1024,
     });
     return blob.url;
   }
@@ -44,7 +50,7 @@ export function AcademicFileUpload({
     formData.append('file', file);
     formData.append('folder', folder);
     const res = await fetch('/api/uploads', { method: 'POST', body: formData });
-    const data = await res.json();
+    const data = (await res.json()) as { url?: string; error?: string };
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     return data.url as string;
   }
@@ -59,28 +65,37 @@ export function AcademicFileUpload({
       return;
     }
 
-    try {
-      let url: string;
-      if (isLocalDev()) {
-        try {
-          url = await uploadViaBlob(file);
-        } catch {
-          url = await uploadViaForm(file);
-        }
-      } else {
-        url = await uploadViaBlob(file);
+    const preferServer = file.size <= VERCEL_SERVER_UPLOAD_MAX_BYTES;
+    const attempts: Array<() => Promise<string>> = preferServer
+      ? [() => uploadViaForm(file), () => uploadViaBlob(file)]
+      : [() => uploadViaBlob(file), () => uploadViaForm(file)];
+
+    let lastError: Error | null = null;
+    for (const attempt of attempts) {
+      try {
+        const url = await attempt();
+        setPickedName(file.name);
+        onUploaded({
+          url,
+          fileName: file.name,
+          contentType: guessContentItemType(file),
+        });
+        setUploading(false);
+        return;
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error('Upload failed');
       }
-      setPickedName(file.name);
-      onUploaded({
-        url,
-        fileName: file.name,
-        contentType: guessContentItemType(file),
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
-    } finally {
-      setUploading(false);
     }
+
+    const message = lastError?.message ?? 'Upload failed';
+    if (message.includes('client token') || message.includes('Blob')) {
+      setError(
+        `${message} If this keeps happening, open Vercel → your project → Storage → Create Blob Store, then redeploy.`
+      );
+    } else {
+      setError(message);
+    }
+    setUploading(false);
   }
 
   return (
@@ -89,7 +104,6 @@ export function AcademicFileUpload({
         ref={inputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.mp4,.webm,.mov,.mp3,.zip,image/*"
         disabled={disabled || uploading}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -126,7 +140,7 @@ export function AcademicFileUpload({
         ) : null}
       </div>
       <p className="text-xs text-muted-foreground">
-        PDF, slides, Office files, video, audio · up to 150 MB
+        PDF, slides, Office, video, audio, images, ZIP · up to {formatMaxSize()}
       </p>
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
     </div>

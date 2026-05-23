@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { randomBytes } from 'crypto';
+import { isBlobStorageConfigured } from './blob-storage';
 import { MAX_ACADEMIC_BYTES, validateAcademicFile } from './validate-academic-file';
 
 function safeName(original: string) {
@@ -25,14 +26,8 @@ async function saveBlob(buffer: Buffer, filename: string, contentType: string) {
   return blob.url;
 }
 
-/** Server-side academic upload — local development only. */
+/** Server-side academic upload (multipart form or dev fallback). */
 export async function saveUploadedAcademicFile(file: File, folder: string) {
-  if (process.env.VERCEL === '1') {
-    throw new Error(
-      'Server file save is disabled on Vercel. Upload using the device picker in the app.'
-    );
-  }
-
   const err = validateAcademicFile(file, MAX_ACADEMIC_BYTES);
   if (err) throw new Error(err);
 
@@ -40,8 +35,14 @@ export async function saveUploadedAcademicFile(file: File, folder: string) {
   const buffer = Buffer.from(bytes);
   const filename = `${folder}/${safeName(file.name)}`;
 
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (isBlobStorageConfigured()) {
     return saveBlob(buffer, filename, file.type);
+  }
+
+  if (process.env.VERCEL === '1') {
+    throw new Error(
+      'File storage is not configured on the server. Connect Vercel Blob in your project Storage settings.'
+    );
   }
 
   return saveLocal(buffer, filename.replace(/\//g, '-'));

@@ -10,9 +10,11 @@ import {
   Loader2,
   Megaphone,
   Pin,
+  Pencil,
   Plus,
   Radio,
   Send,
+  Trash2,
   Users,
 } from 'lucide-react';
 import type {
@@ -152,6 +154,114 @@ function OverviewCard({
   return href ? <Link href={href}>{inner}</Link> : inner;
 }
 
+type ContentItem = TeacherSubjectContentWeeks[number]['items'][number];
+
+function ContentItemRow({
+  subjectId,
+  item,
+  onUpdated,
+  onDeleted,
+}: {
+  subjectId: string;
+  item: ContentItem;
+  onUpdated: (item: ContentItem) => void;
+  onDeleted: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(item.title);
+  const [link, setLink] = useState(item.fileUrl || item.url || '');
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    const res = await fetch(`/api/teacher/subjects/${subjectId}/content/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title.trim(),
+        url: link.trim() || null,
+        fileUrl: link.trim() || null,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      onUpdated(data.item);
+      setEditing(false);
+    }
+    setBusy(false);
+  }
+
+  async function remove() {
+    if (!confirm(`Remove "${item.title}" from this class? Students will no longer see it.`)) return;
+    setBusy(true);
+    const res = await fetch(`/api/teacher/subjects/${subjectId}/content/${item.id}`, {
+      method: 'DELETE',
+    });
+    if (res.ok) onDeleted();
+    setBusy(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-2 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-sm">
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+        <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="File or link URL" />
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => void save()} disabled={busy}>
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const href = item.fileUrl || item.url;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+      <div className="min-w-0 flex-1">
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium hover:text-brand truncate block"
+          >
+            {item.title}
+          </a>
+        ) : (
+          <span className="font-medium">{item.title}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Badge variant="outline">{item.type}</Badge>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          onClick={() => setEditing(true)}
+          disabled={busy}
+          aria-label="Edit"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-rose-600 hover:text-rose-700"
+          onClick={() => void remove()}
+          disabled={busy}
+          aria-label="Delete"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function TeacherSubjectContentPanel({
   subjectId,
   initialWeeks,
@@ -217,7 +327,8 @@ export function TeacherSubjectContentPanel({
             Upload academic content
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Slides, PDFs, videos, links, and large files sync instantly to student subject pages and dashboards.
+            Upload any file size from your device. Materials stay visible to all enrolled students until you
+            edit or remove them.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -260,10 +371,32 @@ export function TeacherSubjectContentPanel({
               </CardHeader>
               <CardContent className="space-y-2">
                 {w.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                    <span>{item.title}</span>
-                    <Badge variant="outline">{item.type}</Badge>
-                  </div>
+                  <ContentItemRow
+                    key={item.id}
+                    subjectId={subjectId}
+                    item={item}
+                    onUpdated={(updated) =>
+                      setWeeks((prev) =>
+                        prev.map((week) =>
+                          week.id === w.id
+                            ? {
+                                ...week,
+                                items: week.items.map((i) => (i.id === updated.id ? updated : i)),
+                              }
+                            : week
+                        )
+                      )
+                    }
+                    onDeleted={() =>
+                      setWeeks((prev) =>
+                        prev.map((week) =>
+                          week.id === w.id
+                            ? { ...week, items: week.items.filter((i) => i.id !== item.id) }
+                            : week
+                        )
+                      )
+                    }
+                  />
                 ))}
               </CardContent>
             </Card>
