@@ -200,7 +200,7 @@ export async function loadTeacherWorkspaceHub(actorUserId: string): Promise<Teac
           subjectName: s.name,
           signal: 'Strong attendance consistency',
           tone: 'positive',
-          href: `/teacher/students`,
+          href: `/teacher/students/${s.id}`,
         });
       }
     }

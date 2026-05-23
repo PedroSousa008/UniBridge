@@ -12,7 +12,7 @@ export function TeacherHomeClient() {
 
   const quickLinks = [
     { href: '/teacher/classes', label: tr('teacher.nav.classes'), description: 'Subjects you teach and courses you coordinate', icon: BookOpen },
-    { href: '/teacher/students', label: tr('teacher.nav.students'), description: tr('common.comingSoon'), icon: Users },
+    { href: '/teacher/students', label: tr('teacher.nav.students'), description: 'Understand and guide student progression by class', icon: Users },
     { href: '/teacher/communication', label: tr('teacher.nav.communication'), description: tr('common.comingSoon'), icon: MessageSquare },
   ];
 

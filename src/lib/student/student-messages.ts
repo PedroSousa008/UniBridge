@@ -164,7 +164,10 @@ export async function loadStudentMessagesHub(studentId: string): Promise<Message
         })
       : Promise.resolve([]),
     prisma.subjectMessage.findMany({
-      where: { subjectId: { in: subjectIds }, channel: 'class' },
+      where: {
+        subjectId: { in: subjectIds },
+        OR: [{ channel: 'class' }, { channel: 'direct', recipientId: studentId }],
+      },
       orderBy: { createdAt: 'desc' },
       select: { subjectId: true, body: true, createdAt: true, authorId: true },
     }),
@@ -182,8 +185,8 @@ export async function loadStudentMessagesHub(studentId: string): Promise<Message
       const count = await prisma.subjectMessage.count({
         where: {
           subjectId,
-          channel: 'class',
           authorId: { not: studentId },
+          OR: [{ channel: 'class' }, { channel: 'direct', recipientId: studentId }],
           ...(lastRead ? { createdAt: { gt: lastRead } } : {}),
         },
       });

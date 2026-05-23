@@ -74,7 +74,10 @@ export async function loadStudentSubjectContent(userId: string, subjectId: strin
 export async function loadStudentSubjectMessages(userId: string, subjectId: string) {
   await requireStudentSubjectAccess(userId, subjectId);
   const messages = await prisma.subjectMessage.findMany({
-    where: { subjectId, channel: 'class' },
+    where: {
+      subjectId,
+      OR: [{ channel: 'class' }, { channel: 'direct', recipientId: userId }],
+    },
     include: { author: { select: { id: true, name: true, image: true } } },
     orderBy: { createdAt: 'desc' },
     take: 80,
@@ -305,7 +308,10 @@ export const loadSubjectWorkspace = cache(async function loadSubjectWorkspace(
       take: 60,
     }),
     prisma.subjectMessage.findMany({
-      where: { subjectId, channel: 'class' },
+      where: {
+        subjectId,
+        OR: [{ channel: 'class' }, { channel: 'direct', recipientId: userId }],
+      },
       include: { author: { select: { id: true, name: true, image: true } } },
       orderBy: { createdAt: 'desc' },
       take: 80,

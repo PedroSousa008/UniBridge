@@ -2,6 +2,7 @@ import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
 import { ensureAttendanceTables } from '@/lib/db/ensure-attendance-schema';
 import { ensureSubjectGradingColumns } from '@/lib/db/ensure-subject-grading-schema';
 import { ensureSubjectCalendarTables } from '@/lib/db/ensure-subject-calendar-schema';
+import { ensureTeacherStudentsSchema } from '@/lib/db/ensure-teacher-students-schema';
 
 let teacherAcademicSchemaReady = false;
 
@@ -13,6 +14,7 @@ export async function ensureTeacherAcademicSchema(): Promise<void> {
     ensureAssignmentTables(),
     ensureSubjectGradingColumns(),
     ensureSubjectCalendarTables(),
+    ensureTeacherStudentsSchema(),
   ]);
   teacherAcademicSchemaReady = true;
 }

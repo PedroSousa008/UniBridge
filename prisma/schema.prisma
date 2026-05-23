@@ -1169,17 +1169,19 @@ model StudentDocumentPreference {
 }
 
 model SubjectMessage {
-  id        String   @id @default(cuid())
-  subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation("SubjectMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  channel   String   @default("class")
-  body      String   @db.Text
-  threadId  String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation("SubjectMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  channel     String   @default("class")
+  recipientId String?
+  body        String   @db.Text
+  threadId    String?
+  createdAt   DateTime @default(now())
 
   @@index([subjectId, createdAt])
+  @@index([subjectId, channel, recipientId])
 }
 
 model StudentMessageReadState {
