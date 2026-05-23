@@ -127,10 +127,55 @@ function weekAgo(): Date {
   return d;
 }
 
+async function loadCompanyRolesForOpportunities(companyUserId: string) {
+  try {
+    return await prisma.$queryRaw<
+      {
+        id: string;
+        internshipId: string | null;
+        roleType: string;
+        isFilled: boolean;
+        currentlyHiring: boolean | null;
+        departmentId: string | null;
+      }[]
+    >`
+      SELECT "id", "internshipId", "roleType", "isFilled", "currentlyHiring", "departmentId"
+      FROM "CompanyRole"
+      WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
+    `;
+  } catch (e) {
+    console.error('[opportunities:roles-with-hiring]', e);
+    const fallback = await prisma.$queryRaw<
+      {
+        id: string;
+        internshipId: string | null;
+        roleType: string;
+        isFilled: boolean;
+        departmentId: string | null;
+      }[]
+    >`
+      SELECT "id", "internshipId", "roleType", "isFilled", "departmentId"
+      FROM "CompanyRole"
+      WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
+    `;
+    return fallback.map((r) => ({ ...r, currentlyHiring: !r.isFilled }));
+  }
+}
+
 async function loadInternshipRows(companyUserId: string) {
-  await ensureCompanyOpportunitiesEcosystemTables();
-  await ensureOpportunityTables();
-  await syncCompanyRoleHiringToInternships(companyUserId);
+  const { ensureRecruitmentHiringColumns } = await import(
+    '@/lib/db/ensure-recruitment-hiring-columns'
+  );
+  await Promise.all([
+    ensureCompanyOpportunitiesEcosystemTables(),
+    ensureOpportunityTables(),
+    ensureRecruitmentHiringColumns(),
+  ]);
+  try {
+    await syncCompanyRoleHiringToInternships(companyUserId);
+  } catch (e) {
+    console.error('[opportunities:sync-hiring]', e);
+  }
 
   const internships = await prisma.internship.findMany({
     where: { companyUserId, status: { not: 'ARCHIVED' } },
@@ -154,20 +199,7 @@ async function loadInternshipRows(companyUserId: string) {
   });
 
   const [roleRows, internshipHiringRows] = await Promise.all([
-    prisma.$queryRaw<
-      {
-        id: string;
-        internshipId: string | null;
-        roleType: string;
-        isFilled: boolean;
-        currentlyHiring: boolean | null;
-        departmentId: string | null;
-      }[]
-    >`
-      SELECT "id", "internshipId", "roleType", "isFilled", "currentlyHiring", "departmentId"
-      FROM "CompanyRole"
-      WHERE "companyUserId" = ${companyUserId} AND "status" != 'archived'
-    `,
+    loadCompanyRolesForOpportunities(companyUserId),
     prisma.$queryRaw<{ id: string; currentlyHiring: boolean | null }[]>`
       SELECT "id", "currentlyHiring"
       FROM "Internship"

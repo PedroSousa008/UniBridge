@@ -65,15 +65,25 @@ async function tableReady(): Promise<boolean> {
 }
 
 async function runEnsure(): Promise<boolean> {
-  if (await tableReady()) return true;
-  for (const sql of STATEMENTS) {
-    try {
-      await prisma.$executeRawUnsafe(sql);
-    } catch (e) {
-      console.error('[ensure-partnerships-schema]', e);
+  const ready = await tableReady();
+  if (!ready) {
+    for (const sql of STATEMENTS) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (e) {
+        console.error('[ensure-partnerships-schema]', e);
+      }
     }
   }
-  return tableReady();
+  // InternshipBookmark may exist while newer columns (e.g. currentlyHiring) do not.
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Internship" ADD COLUMN IF NOT EXISTS "currentlyHiring" BOOLEAN NOT NULL DEFAULT true`
+    );
+  } catch (e) {
+    console.error('[ensure-partnerships-schema:currentlyHiring]', e);
+  }
+  return (await tableReady()) || ready;
 }
 
 export function ensurePartnershipTables(): Promise<boolean> {

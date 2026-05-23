@@ -824,7 +824,10 @@ export async function upsertCompanyRole(
 
 /** Keep linked internships aligned with role recruitment flags (fixes stale Opportunities labels). */
 export async function syncCompanyRoleHiringToInternships(companyUserId: string): Promise<void> {
-  await ensureCompanyPresenceTables();
+  const { ensureRecruitmentHiringColumns } = await import(
+    '@/lib/db/ensure-recruitment-hiring-columns'
+  );
+  await Promise.all([ensureCompanyPresenceTables(), ensureRecruitmentHiringColumns()]);
   const rows = await prisma.$queryRaw<
     { internshipId: string; currentlyHiring: boolean | null; isFilled: boolean }[]
   >`

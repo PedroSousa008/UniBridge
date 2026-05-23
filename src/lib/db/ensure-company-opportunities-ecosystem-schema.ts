@@ -43,15 +43,24 @@ async function tableReady(): Promise<boolean> {
 }
 
 async function runEnsure(): Promise<boolean> {
-  if (await tableReady()) return true;
-  for (const sql of STATEMENTS) {
+  const ready = await tableReady();
+  if (!ready) {
+    for (const sql of STATEMENTS) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (e) {
+        console.error('[ensure-company-opportunities-ecosystem-schema]', e);
+      }
+    }
+  }
+  for (const sql of STATEMENTS.filter((s) => s.startsWith('ALTER TABLE'))) {
     try {
       await prisma.$executeRawUnsafe(sql);
     } catch (e) {
-      console.error('[ensure-company-opportunities-ecosystem-schema]', e);
+      console.error('[ensure-company-opportunities-ecosystem-schema:migrate]', e);
     }
   }
-  return tableReady();
+  return (await tableReady()) || ready;
 }
 
 export function ensureCompanyOpportunitiesEcosystemTables(): Promise<boolean> {
