@@ -1,3 +1,4 @@
+import { ContentItemType } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncDocumentAnnouncement } from '@/lib/student/announcement-sync';
@@ -47,7 +48,11 @@ export async function POST(
     data: {
       weekId: week.id,
       title: itemTitle,
-      type: body.type || 'PDF',
+      type:
+        body.type &&
+        (Object.values(ContentItemType) as string[]).includes(String(body.type).toUpperCase())
+          ? (String(body.type).toUpperCase() as ContentItemType)
+          : ContentItemType.PDF,
       url: body.url || null,
       fileUrl: body.fileUrl || null,
       description: body.description || null,

@@ -1,3 +1,4 @@
+import { ContentItemType } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import {
@@ -24,7 +25,11 @@ export async function PATCH(
 
   const body = await request.json();
   const title = body.title != null ? String(body.title).trim() : undefined;
-  const type = body.type != null ? String(body.type) : undefined;
+  const typeRaw = body.type != null ? String(body.type).toUpperCase() : undefined;
+  const contentType =
+    typeRaw && (Object.values(ContentItemType) as string[]).includes(typeRaw)
+      ? (typeRaw as ContentItemType)
+      : undefined;
   const url = body.url !== undefined ? (body.url ? String(body.url) : null) : undefined;
   const fileUrl = body.fileUrl !== undefined ? (body.fileUrl ? String(body.fileUrl) : null) : undefined;
   const description =
@@ -34,7 +39,7 @@ export async function PATCH(
     where: { id: itemId },
     data: {
       ...(title ? { title } : {}),
-      ...(type ? { type } : {}),
+      ...(contentType ? { type: contentType } : {}),
       ...(url !== undefined ? { url } : {}),
       ...(fileUrl !== undefined ? { fileUrl } : {}),
       ...(description !== undefined ? { description } : {}),
