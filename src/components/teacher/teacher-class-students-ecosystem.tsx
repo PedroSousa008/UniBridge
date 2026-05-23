@@ -59,11 +59,12 @@ export function TeacherClassStudentsEcosystem({
   }, [refresh]);
 
   const filtered = useMemo(() => {
+    const minAttendance = hub.subject.minAttendancePercent;
     return hub.students.filter((s) => {
-      if (!matchesStudentFilter(s, filter)) return false;
+      if (!matchesStudentFilter(s, filter, minAttendance)) return false;
       return matchesStudentSearch(s, query);
     });
-  }, [hub.students, filter, query]);
+  }, [hub.students, hub.subject.minAttendancePercent, filter, query]);
 
   async function saveNote(studentId: string, note: string) {
     await fetch(`/api/teacher/students/${hub.subject.id}/notes`, {

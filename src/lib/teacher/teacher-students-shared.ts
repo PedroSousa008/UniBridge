@@ -108,20 +108,20 @@ export function matchesStudentSearch(
 export function matchesStudentFilter(
   student: {
     attendancePercent: number | null;
-    minAttendance: number;
     missingAssignments: number;
     overdueMissing: number;
     overallGrade: number | null;
     alerts: StudentSupportAlert[];
     submissionsThisMonth: number;
   },
-  filter: StudentAcademicFilter
+  filter: StudentAcademicFilter,
+  minAttendance: number
 ): boolean {
   if (filter === 'all') return true;
   if (filter === 'low_attendance') {
     return (
       student.attendancePercent != null &&
-      student.attendancePercent < student.minAttendance
+      student.attendancePercent < minAttendance
     );
   }
   if (filter === 'missing_assignments') {
