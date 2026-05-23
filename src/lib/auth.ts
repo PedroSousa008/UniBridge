@@ -67,12 +67,18 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
+          let image: string | null = user.image ?? null;
+          if (image && (image.startsWith('data:') || image.length > 2048)) {
+            image = null;
+          }
+
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
             locale: user.locale,
+            image,
           };
         } catch (error) {
           console.error('[auth] authorize error:', error);
@@ -89,7 +95,10 @@ export const authOptions: NextAuthOptions = {
           token.role = user.role;
           token.locale = user.locale;
           token.name = user.name ?? undefined;
-          delete token.picture;
+          token.picture =
+            user.image && !user.image.startsWith('data:') && user.image.length <= 2048
+              ? user.image
+              : undefined;
           if (user.role === 'COMPANY') {
             const { resolveCompanyWorkspace } = await import('@/lib/company/company-workspace');
             const ws = await resolveCompanyWorkspace(user.id);
@@ -99,20 +108,20 @@ export const authOptions: NextAuthOptions = {
             }
           }
         }
-        if (token.role === 'COMPANY' && token.id) {
-          const { resolveCompanyWorkspace } = await import('@/lib/company/company-workspace');
-          const ws = await resolveCompanyWorkspace(token.id as string);
-          if (ws) {
-            token.companyWorkspaceId = ws.workspaceOwnerId;
-            token.companyPermission = ws.permission;
-          }
-        }
         if (trigger === 'update' && token.id) {
           const row = await prisma.user.findUnique({
             where: { id: token.id as string },
-            select: { name: true },
+            select: { name: true, image: true },
           });
           if (row?.name) token.name = row.name;
+          let img = row?.image ?? null;
+          if (img && (img.startsWith('data:') || img.length > 2048)) {
+            await prisma.user
+              .update({ where: { id: token.id as string }, data: { image: null } })
+              .catch(() => undefined);
+            img = null;
+          }
+          token.picture = img ?? undefined;
         }
       } catch (error) {
         console.error('[auth] jwt callback error:', error);
@@ -126,25 +135,8 @@ export const authOptions: NextAuthOptions = {
         session.user.locale = token.locale;
         session.user.companyWorkspaceId = token.companyWorkspaceId as string | undefined;
         session.user.companyPermission = token.companyPermission as string | undefined;
-        try {
-          const row = await prisma.user.findUnique({
-            where: { id: token.id as string },
-            select: { name: true, image: true },
-          });
-          session.user.name = row?.name ?? (token.name as string) ?? session.user.name;
-          let img = row?.image ?? null;
-          if (img && (img.startsWith('data:') || img.length > 2048)) {
-            await prisma.user
-              .update({ where: { id: token.id as string }, data: { image: null } })
-              .catch(() => undefined);
-            img = null;
-          }
-          session.user.image = img;
-        } catch (error) {
-          console.error('[auth] session callback error:', error);
-          session.user.name = (token.name as string) ?? session.user.name;
-          session.user.image = null;
-        }
+        session.user.name = (token.name as string) ?? session.user.name;
+        session.user.image = (token.picture as string) ?? null;
       }
       return session;
     },

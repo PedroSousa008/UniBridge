@@ -1,10 +1,7 @@
 import { requireSession } from '@/lib/session';
+import { requireTeacherSubjectAccess } from '@/lib/teacher/teacher-subject-context';
 import { TeacherSubjectCalendarPanel } from '@/components/teacher/teacher-subject-calendar-panel';
 import { loadSubjectCalendarHub } from '@/lib/teacher/subject-calendar-hub';
-import {
-  loadTeacherSubjectWorkspace,
-  serializeTeacherSubjectWorkspace,
-} from '@/lib/teacher/teacher-subject-context';
 
 export default async function TeacherSubjectCalendarPage({
   params,
@@ -13,15 +10,15 @@ export default async function TeacherSubjectCalendarPage({
 }) {
   const session = await requireSession('TEACHER');
   const { subjectId } = await params;
-  const ws = serializeTeacherSubjectWorkspace(
-    await loadTeacherSubjectWorkspace(session.user.id, subjectId)
-  );
-  const hub = await loadSubjectCalendarHub(subjectId);
+  const [{ subject }, hub] = await Promise.all([
+    requireTeacherSubjectAccess(session.user.id, subjectId),
+    loadSubjectCalendarHub(subjectId),
+  ]);
 
   return (
     <TeacherSubjectCalendarPanel
       subjectId={subjectId}
-      subjectName={ws.subject.name}
+      subjectName={subject.name}
       initialEvents={hub.events}
       initialRaw={hub.raw}
     />

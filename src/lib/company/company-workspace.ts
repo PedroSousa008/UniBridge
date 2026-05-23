@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { ensureCompanyWorkspaceTables } from '@/lib/db/ensure-company-workspace-schema';
@@ -59,10 +60,15 @@ export async function ensureOwnerWorkspaceMember(workspaceOwnerId: string) {
   `;
 }
 
-export async function resolveCompanyWorkspace(
+let companyWorkspaceTablesReady = false;
+
+export const resolveCompanyWorkspace = cache(async function resolveCompanyWorkspace(
   actorUserId: string
 ): Promise<CompanyWorkspaceContext | null> {
-  await ensureCompanyWorkspaceTables();
+  if (!companyWorkspaceTablesReady) {
+    await ensureCompanyWorkspaceTables();
+    companyWorkspaceTablesReady = true;
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: actorUserId },
@@ -113,7 +119,7 @@ export async function resolveCompanyWorkspace(
     isOwner: workspaceOwnerId === actorUserId && permission === 'OWNER',
     companyName: companyProfile?.companyName ?? 'Your company',
   };
-}
+});
 
 export async function changeUserPassword(
   userId: string,

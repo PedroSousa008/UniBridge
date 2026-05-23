@@ -1,6 +1,6 @@
 import { requireSession } from '@/lib/session';
-import { loadSubjectWorkspace } from '@/lib/student/subject-context';
-import { serializeSubjectWorkspace } from '@/lib/student/serialize-workspace';
+import { loadStudentSubjectContent } from '@/lib/student/subject-context';
+import { serializeJson } from '@/lib/student/serialize-workspace';
 import { SubjectContentPanel } from '@/components/student/subject/subject-panels';
 
 export default async function SubjectContentPage({
@@ -10,8 +10,14 @@ export default async function SubjectContentPage({
 }) {
   const session = await requireSession('STUDENT');
   const { subjectId } = await params;
-  const ws = serializeSubjectWorkspace(
-    await loadSubjectWorkspace(session.user.id, subjectId)
+  const { contentWeeks, contentNotes } = serializeJson(
+    await loadStudentSubjectContent(session.user.id, subjectId)
   );
-  return <SubjectContentPanel ws={ws} subjectId={subjectId} />;
+  return (
+    <SubjectContentPanel
+      subjectId={subjectId}
+      contentWeeks={contentWeeks}
+      contentNotes={contentNotes}
+    />
+  );
 }

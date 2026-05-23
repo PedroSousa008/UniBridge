@@ -1,6 +1,6 @@
 import { requireSession } from '@/lib/session';
-import { loadSubjectWorkspace } from '@/lib/student/subject-context';
-import { serializeSubjectWorkspace } from '@/lib/student/serialize-workspace';
+import { loadStudentSubjectAttendanceData } from '@/lib/student/subject-context';
+import { serializeJson } from '@/lib/student/serialize-workspace';
 import { SubjectAttendancePanel } from '@/components/student/subject/subject-panels';
 
 export default async function SubjectAttendancePage({
@@ -10,8 +10,10 @@ export default async function SubjectAttendancePage({
 }) {
   const session = await requireSession('STUDENT');
   const { subjectId } = await params;
-  const ws = serializeSubjectWorkspace(
-    await loadSubjectWorkspace(session.user.id, subjectId)
+  const { enrollment, attendanceSessions } = serializeJson(
+    await loadStudentSubjectAttendanceData(session.user.id, subjectId)
   );
-  return <SubjectAttendancePanel ws={ws} />;
+  return (
+    <SubjectAttendancePanel enrollment={enrollment} attendanceSessions={attendanceSessions} />
+  );
 }

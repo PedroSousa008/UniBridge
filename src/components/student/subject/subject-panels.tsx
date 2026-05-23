@@ -24,7 +24,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { EmptyState } from '@/components/ui/empty-state';
-import type { SubjectWorkspace } from '@/lib/student/subject-context';
+import type {
+  StudentSubjectHomeData,
+  SubjectWorkspace,
+} from '@/lib/student/subject-context';
 import { extractMessageMeta, searchMessages } from '@/lib/student/student-messages';
 import {
   attendanceSummary,
@@ -47,7 +50,7 @@ function formatTime(d: Date | string) {
   return new Date(d).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
-export function SubjectHomePanel({ ws }: { ws: SubjectWorkspace }) {
+export function SubjectHomePanel({ ws }: { ws: StudentSubjectHomeData }) {
   const now = new Date();
   const upcomingAssignments = ws.assignments
     .filter((a) => new Date(a.dueDate) >= now)
@@ -210,22 +213,24 @@ export function SubjectHomePanel({ ws }: { ws: SubjectWorkspace }) {
 }
 
 export function SubjectContentPanel({
-  ws,
+  contentWeeks,
+  contentNotes,
   subjectId,
 }: {
-  ws: SubjectWorkspace;
+  contentWeeks: SubjectWorkspace['contentWeeks'];
+  contentNotes: SubjectWorkspace['contentNotes'];
   subjectId: string;
 }) {
   const [search, setSearch] = useState('');
   const [expandedWeek, setExpandedWeek] = useState<number | null>(
-    ws.contentWeeks[0]?.weekNumber ?? null
+    contentWeeks[0]?.weekNumber ?? null
   );
-  const [notes, setNotes] = useState<Record<string, string>>(ws.contentNotes);
+  const [notes, setNotes] = useState<Record<string, string>>(contentNotes);
 
   const filteredWeeks = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return ws.contentWeeks;
-    return ws.contentWeeks
+    if (!q) return contentWeeks;
+    return contentWeeks
       .map((w) => ({
         ...w,
         items: w.items.filter(
@@ -235,7 +240,7 @@ export function SubjectContentPanel({
         ),
       }))
       .filter((w) => w.title.toLowerCase().includes(q) || w.items.length > 0);
-  }, [ws.contentWeeks, search]);
+  }, [contentWeeks, search]);
 
   async function saveNote(itemId: string, note: string) {
     setNotes((prev) => ({ ...prev, [itemId]: note }));
@@ -340,10 +345,14 @@ export function SubjectContentPanel({
   );
 }
 
-export function SubjectAnnouncementsPanel({ ws }: { ws: SubjectWorkspace }) {
+export function SubjectAnnouncementsPanel({
+  announcements,
+}: {
+  announcements: SubjectWorkspace['announcements'];
+}) {
   return (
     <div className="space-y-4">
-      {ws.announcements.length === 0 ? (
+      {announcements.length === 0 ? (
         <EmptyState
           iconName="book-open"
           title="No announcements"
@@ -351,7 +360,7 @@ export function SubjectAnnouncementsPanel({ ws }: { ws: SubjectWorkspace }) {
           className="py-16"
         />
       ) : (
-        ws.announcements.map((a) => (
+        announcements.map((a) => (
           <Card key={a.id} className={a.pinned ? 'border-brand/40' : ''}>
             <CardHeader className="pb-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -514,18 +523,18 @@ export function SubjectGradebookPanel({ ws }: { ws: SubjectWorkspace }) {
 }
 
 export function SubjectMessagesPanel({
-  ws,
+  initialMessages,
   subjectId,
   userId,
 }: {
-  ws: SubjectWorkspace;
+  initialMessages: SubjectWorkspace['messages'];
   subjectId: string;
   userId: string;
 }) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState('');
-  const [messages, setMessages] = useState(ws.messages);
+  const [messages, setMessages] = useState(initialMessages);
 
   useEffect(() => {
     fetch('/api/student/messages/read', {
@@ -664,8 +673,14 @@ export function SubjectMessagesPanel({
   );
 }
 
-export function SubjectAttendancePanel({ ws }: { ws: SubjectWorkspace }) {
-  const att = attendanceSummary(ws.attendanceSessions, ws.enrollment.attendance);
+export function SubjectAttendancePanel({
+  enrollment,
+  attendanceSessions,
+}: {
+  enrollment: SubjectWorkspace['enrollment'];
+  attendanceSessions: SubjectWorkspace['attendanceSessions'];
+}) {
+  const att = attendanceSummary(attendanceSessions, enrollment.attendance);
   const streak = att.present;
 
   return (
@@ -705,10 +720,10 @@ export function SubjectAttendancePanel({ ws }: { ws: SubjectWorkspace }) {
           <CardTitle className="text-base">Session history</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {ws.attendanceSessions.length === 0 ? (
+          {attendanceSessions.length === 0 ? (
             <p className="text-sm text-muted-foreground">No sessions recorded yet.</p>
           ) : (
-            ws.attendanceSessions.map((s) => {
+            attendanceSessions.map((s) => {
               const rec = s.records[0];
               const status = rec?.status ?? 'ABSENT';
               return (
@@ -735,11 +750,17 @@ export function SubjectAttendancePanel({ ws }: { ws: SubjectWorkspace }) {
   );
 }
 
-export function SubjectCareerPanel({ ws }: { ws: SubjectWorkspace }) {
+export function SubjectCareerPanel({
+  internships,
+  challenges,
+  careerPaths,
+}: {
+  internships: SubjectWorkspace['internships'];
+  challenges: SubjectWorkspace['challenges'];
+  careerPaths: SubjectWorkspace['careerPaths'];
+}) {
   const hasAny =
-    ws.internships.length > 0 ||
-    ws.challenges.length > 0 ||
-    ws.careerPaths.length > 0;
+    internships.length > 0 || challenges.length > 0 || careerPaths.length > 0;
 
   return (
     <div className="space-y-6">
@@ -757,14 +778,14 @@ export function SubjectCareerPanel({ ws }: { ws: SubjectWorkspace }) {
         />
       ) : null}
 
-      {ws.internships.length > 0 ? (
+      {internships.length > 0 ? (
         <section>
           <h2 className="mb-3 font-semibold flex items-center gap-2">
             <Briefcase className="h-4 w-4" />
             Internships
           </h2>
           <div className="grid gap-3 md:grid-cols-2">
-            {ws.internships.map((i) => (
+            {internships.map((i) => (
               <Card key={i.id}>
                 <CardHeader>
                   <CardTitle className="text-base">{i.title}</CardTitle>
@@ -781,11 +802,11 @@ export function SubjectCareerPanel({ ws }: { ws: SubjectWorkspace }) {
         </section>
       ) : null}
 
-      {ws.challenges.length > 0 ? (
+      {challenges.length > 0 ? (
         <section>
           <h2 className="mb-3 font-semibold">Company challenges</h2>
           <div className="grid gap-3 md:grid-cols-2">
-            {ws.challenges.map((c) => (
+            {challenges.map((c) => (
               <Card key={c.id}>
                 <CardHeader>
                   <CardTitle className="text-base">{c.title}</CardTitle>
@@ -804,11 +825,11 @@ export function SubjectCareerPanel({ ws }: { ws: SubjectWorkspace }) {
         </section>
       ) : null}
 
-      {ws.careerPaths.length > 0 ? (
+      {careerPaths.length > 0 ? (
         <section>
           <h2 className="mb-3 font-semibold">Related career paths</h2>
           <div className="space-y-2">
-            {ws.careerPaths.map((p) => (
+            {careerPaths.map((p) => (
               <Card key={p.id}>
                 <CardContent className="py-4">
                   <p className="font-medium">

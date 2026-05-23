@@ -1,5 +1,4 @@
-import { requireSession } from '@/lib/session';
-import { resolveCompanyWorkspace } from '@/lib/company/company-workspace';
+import { requireCompanyWorkspace } from '@/lib/session';
 import { CompanyShell } from '@/components/company/company-shell';
 
 export default async function CompanyLayout({
@@ -7,12 +6,9 @@ export default async function CompanyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireSession('COMPANY');
-  const workspace = await resolveCompanyWorkspace(session.user.id);
+  const { workspace } = await requireCompanyWorkspace();
 
   return (
-    <CompanyShell companyName={workspace?.companyName ?? 'Your company'}>
-      {children}
-    </CompanyShell>
+    <CompanyShell companyName={workspace.companyName}>{children}</CompanyShell>
   );
 }

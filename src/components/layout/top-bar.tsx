@@ -25,10 +25,13 @@ export function TopBar() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
-    fetch('/api/notifications?unread=true')
-      .then((res) => res.json())
-      .then((data) => setUnreadCount(data.count ?? 0))
-      .catch(() => setUnreadCount(0));
+    const timer = window.setTimeout(() => {
+      fetch('/api/notifications?unread=true')
+        .then((res) => res.json())
+        .then((data) => setUnreadCount(data.count ?? 0))
+        .catch(() => setUnreadCount(0));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [session?.user?.id]);
 
   const role = session?.user?.role;

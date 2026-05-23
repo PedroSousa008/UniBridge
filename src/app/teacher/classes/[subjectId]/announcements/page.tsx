@@ -1,7 +1,7 @@
 import { requireSession } from '@/lib/session';
 import {
-  loadTeacherSubjectWorkspace,
-  serializeTeacherSubjectWorkspace,
+  loadTeacherSubjectAnnouncements,
+  serializeJson,
 } from '@/lib/teacher/teacher-subject-context';
 import { TeacherSubjectAnnouncementsPanel } from '@/components/teacher/teacher-subject-panels';
 
@@ -12,8 +12,13 @@ export default async function TeacherSubjectAnnouncementsPage({
 }) {
   const session = await requireSession('TEACHER');
   const { subjectId } = await params;
-  const ws = serializeTeacherSubjectWorkspace(
-    await loadTeacherSubjectWorkspace(session.user.id, subjectId)
+  const announcements = serializeJson(
+    await loadTeacherSubjectAnnouncements(session.user.id, subjectId)
   );
-  return <TeacherSubjectAnnouncementsPanel subjectId={subjectId} ws={ws} />;
+  return (
+    <TeacherSubjectAnnouncementsPanel
+      subjectId={subjectId}
+      initialAnnouncements={announcements}
+    />
+  );
 }

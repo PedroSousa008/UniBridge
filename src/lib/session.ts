@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
@@ -11,6 +12,8 @@ import type { UserRole } from '@prisma/client';
 
 export type AppSession = NonNullable<Session>;
 
+const getCachedServerSession = cache(() => getServerSession(authOptions));
+
 /** Data queries for company modules — owner id for sub-accounts. */
 export function getCompanyWorkspaceUserId(session: {
   user: { id: string; companyWorkspaceId?: string };
@@ -20,6 +23,8 @@ export function getCompanyWorkspaceUserId(session: {
 
 async function attachCompanyWorkspace(session: NonNullable<AppSession>) {
   if (session.user.role !== 'COMPANY') return session;
+  if (session.user.companyWorkspaceId) return session;
+
   const ws = await resolveCompanyWorkspace(session.user.id);
   if (ws) {
     session.user.companyWorkspaceId = ws.workspaceOwnerId;
@@ -28,21 +33,21 @@ async function attachCompanyWorkspace(session: NonNullable<AppSession>) {
   return session;
 }
 
-export async function requireSession(expectedRole?: UserRole) {
-  const session = await getServerSession(authOptions);
+export const requireSession = cache(async (expectedRole?: UserRole) => {
+  const session = await getCachedServerSession();
   if (!session?.user?.id) redirect('/login');
   if (expectedRole && session.user.role !== expectedRole) {
     redirect(ROLE_HOME[session.user.role]);
   }
   return attachCompanyWorkspace(session as NonNullable<AppSession>);
-}
+});
 
-/** Company routes: resolves shared workspace (owner id) for sub-accounts. */
-export async function requireCompanyWorkspace() {
+/** Company routes: session + workspace in one cached pass. */
+export const requireCompanyWorkspace = cache(async () => {
   const session = await requireSession('COMPANY');
   const workspace = await resolveCompanyWorkspace(session.user.id);
   if (!workspace) redirect('/login');
   return { session, workspace };
-}
+});
 
 export type { CompanyWorkspaceContext };

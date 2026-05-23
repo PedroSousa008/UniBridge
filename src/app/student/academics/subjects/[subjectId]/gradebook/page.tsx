@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/session';
-import { loadSubjectWorkspace } from '@/lib/student/subject-context';
-import { serializeSubjectWorkspace } from '@/lib/student/serialize-workspace';
+import { loadStudentSubjectGradebookData } from '@/lib/student/subject-context';
+import { serializeJson } from '@/lib/student/serialize-workspace';
+import type { SubjectWorkspace } from '@/lib/student/subject-context';
 import { SubjectGradebookPanel } from '@/components/student/subject/subject-panels';
 
 export default async function SubjectGradebookPage({
@@ -10,8 +11,8 @@ export default async function SubjectGradebookPage({
 }) {
   const session = await requireSession('STUDENT');
   const { subjectId } = await params;
-  const ws = serializeSubjectWorkspace(
-    await loadSubjectWorkspace(session.user.id, subjectId)
-  );
+  const ws = serializeJson(
+    await loadStudentSubjectGradebookData(session.user.id, subjectId)
+  ) as SubjectWorkspace;
   return <SubjectGradebookPanel ws={ws} />;
 }

@@ -15,7 +15,12 @@ import {
   Send,
   Users,
 } from 'lucide-react';
-import type { TeacherSubjectWorkspace } from '@/lib/teacher/teacher-subject-context';
+import type {
+  TeacherSubjectAnnouncements,
+  TeacherSubjectContentWeeks,
+  TeacherSubjectHomeData,
+  TeacherSubjectMessages,
+} from '@/lib/teacher/teacher-subject-context';
 import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
 import { AcademicFileUpload } from '@/components/ui/academic-file-upload';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,7 +39,7 @@ function formatDate(d: Date | string) {
   });
 }
 
-export function TeacherSubjectHomePanel({ ws }: { ws: TeacherSubjectWorkspace }) {
+export function TeacherSubjectHomePanel({ ws }: { ws: TeacherSubjectHomeData }) {
   const now = new Date();
   const pendingGrading = ws.assignments.reduce(
     (n, a) => n + a.submissions.filter((s) => isPendingGradePublish(s)).length,
@@ -149,12 +154,12 @@ function OverviewCard({
 
 export function TeacherSubjectContentPanel({
   subjectId,
-  ws,
+  initialWeeks,
 }: {
   subjectId: string;
-  ws: TeacherSubjectWorkspace;
+  initialWeeks: TeacherSubjectContentWeeks;
 }) {
-  const [weeks, setWeeks] = useState(ws.contentWeeks);
+  const [weeks, setWeeks] = useState(initialWeeks);
   const [weekNum, setWeekNum] = useState('1');
   const [weekTitle, setWeekTitle] = useState('Week 1');
   const [itemTitle, setItemTitle] = useState('');
@@ -271,12 +276,12 @@ export function TeacherSubjectContentPanel({
 
 export function TeacherSubjectAnnouncementsPanel({
   subjectId,
-  ws,
+  initialAnnouncements,
 }: {
   subjectId: string;
-  ws: TeacherSubjectWorkspace;
+  initialAnnouncements: TeacherSubjectAnnouncements;
 }) {
-  const [items, setItems] = useState(ws.announcements);
+  const [items, setItems] = useState(initialAnnouncements);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
@@ -346,12 +351,12 @@ export function TeacherSubjectAnnouncementsPanel({
 
 export function TeacherSubjectMessagesPanel({
   subjectId,
-  ws,
+  initialMessages,
 }: {
   subjectId: string;
-  ws: TeacherSubjectWorkspace;
+  initialMessages: TeacherSubjectMessages;
 }) {
-  const [messages, setMessages] = useState(ws.messages);
+  const [messages, setMessages] = useState(initialMessages);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
 
