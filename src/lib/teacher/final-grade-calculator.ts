@@ -20,7 +20,12 @@ export type ComponentGradeStatus = {
   complete: boolean;
 };
 
-export { computeSubjectFinalGrade, computeWeightedFinal, type FinalGradeComputation };
+export {
+  computeSubjectFinalGrade,
+  computeWeightedFinal,
+  roundOfficialFinalGrade,
+  type FinalGradeComputation,
+};
 
 export async function computeEnrollmentFinalGrade(
   subjectId: string,

@@ -19,6 +19,57 @@ export function computeWeightedFinal(
 export const FINAL_EXAM_MINIMUM_GRADE = 8.5;
 export const FINAL_PASS_MINIMUM_GRADE = 9.5;
 
+/**
+ * Official final grade rounding: fractional part below 0.5 rounds down, 0.5+ rounds up.
+ * Applied after all calculation paths, before pass/fail and persistence.
+ */
+export function roundOfficialFinalGrade(value: number): number {
+  const normalized = Math.round(value * 100) / 100;
+  return Math.round(normalized);
+}
+
+function finalizeOfficialFinalGrade(
+  result: FinalGradeComputation,
+  minPass: number = FINAL_PASS_MINIMUM_GRADE
+): FinalGradeComputation {
+  if (result.finalGrade == null) return result;
+
+  const raw = result.finalGrade;
+  const official = roundOfficialFinalGrade(raw);
+
+  if (result.failureReason === 'final_exam_below_minimum') {
+    return {
+      ...result,
+      finalGrade: official,
+      passed: false,
+      statusLabel: 'Failed',
+    };
+  }
+
+  const passed = official >= minPass;
+  const statusLabel = passed ? 'Passed' : 'Failed';
+  const failureReason: FinalGradeFailureReason = passed ? null : 'final_grade_below_minimum';
+
+  let reason = result.reason;
+  if (result.method === 'standard') {
+    reason = passed
+      ? `Weighted average of all components is ${official}.`
+      : `Weighted average (${raw}) rounds to ${official}, which is below the pass mark (${minPass}).`;
+  } else if (!passed && reason) {
+    const detail = reason.replace(/\s*Final grade \(.*\)\s*is below.*$/i, '').trim();
+    reason = `${detail} Final grade (${official}) is below the minimum pass mark (${minPass}).`;
+  }
+
+  return {
+    ...result,
+    finalGrade: official,
+    passed,
+    statusLabel,
+    failureReason,
+    reason,
+  };
+}
+
 export type GradePartInput = {
   categoryId: string;
   weight: number;
@@ -53,6 +104,7 @@ export const FINAL_EXAM_REPLACEMENT_RULE_HELP = {
     'If the Final Exam grade is higher than Continuous Evaluation, the Final Grade equals the Final Exam grade.',
     'If the Final Exam grade is lower than or equal to Continuous Evaluation, the Final Grade is the weighted average of both blocks using the configured block percentages (e.g. 60% / 40%).',
     'The student passes only when Final Exam ≥ 8.5 and Final Grade ≥ 9.5. Continuous Evaluation does not need to reach 8.5 on its own.',
+    'The official Final Grade is always rounded to a whole number: decimal below 0.5 rounds down, 0.5 or above rounds up (e.g. 9.3 → 9, 10.5 → 11). Pass/fail uses the rounded grade.',
   ],
 };
 
@@ -156,7 +208,7 @@ export function computeFinalExamReplacementGrade(input: {
     Math.round((continuousGrade * (cw / 100) + finalExamGrade * (fw / 100)) * 100) / 100;
 
   if (finalExamGrade < minExam) {
-    return {
+    return finalizeOfficialFinalGrade({
       finalGrade: weightedAverage,
       passed: false,
       continuousGrade,
@@ -165,24 +217,24 @@ export function computeFinalExamReplacementGrade(input: {
       statusLabel: 'Failed',
       reason: `Final exam grade (${finalExamGrade}) is below the minimum required (${minExam}). The student fails even if the weighted average is ${weightedAverage}.`,
       failureReason: 'final_exam_below_minimum',
-    };
+    });
   }
 
-  let finalGrade: number;
+  let rawFinalGrade: number;
   let detail: string;
 
   if (finalExamGrade > continuousGrade) {
-    finalGrade = finalExamGrade;
+    rawFinalGrade = finalExamGrade;
     detail = `Final exam (${finalExamGrade}) is higher than continuous evaluation (${continuousGrade}), so the final grade uses the exam grade.`;
   } else {
-    finalGrade = weightedAverage;
+    rawFinalGrade = weightedAverage;
     detail = `Final grade is the weighted average of continuous evaluation (${continuousGrade}) at ${cw}% and final exam (${finalExamGrade}) at ${fw}%.`;
   }
 
-  const passed = finalGrade >= minPass;
+  const passed = rawFinalGrade >= minPass;
 
-  return {
-    finalGrade,
+  return finalizeOfficialFinalGrade({
+    finalGrade: rawFinalGrade,
     passed,
     continuousGrade,
     finalExamGrade,
@@ -190,9 +242,9 @@ export function computeFinalExamReplacementGrade(input: {
     statusLabel: passed ? 'Passed' : 'Failed',
     reason: passed
       ? detail
-      : `${detail} Final grade (${finalGrade}) is below the minimum pass mark (${minPass}).`,
+      : `${detail} Final grade (${rawFinalGrade}) is below the minimum pass mark (${minPass}).`,
     failureReason: passed ? null : 'final_grade_below_minimum',
-  };
+  }, minPass);
 }
 
 /** Sync final grade for student subject workspace (gradebook dashboard). */
@@ -284,23 +336,32 @@ export function computeSubjectFinalGrade(input: {
     });
   }
 
-  const finalGrade = computeWeightedFinal(allSlices, input.scaleMax);
-  const passed = finalGrade != null ? finalGrade >= FINAL_PASS_MINIMUM_GRADE : null;
+  const rawFinalGrade = computeWeightedFinal(allSlices, input.scaleMax);
+  if (rawFinalGrade == null) {
+    return {
+      finalGrade: null,
+      passed: null,
+      continuousGrade: null,
+      finalExamGrade: null,
+      method: 'standard',
+      statusLabel: 'Pending',
+      reason: null,
+      failureReason: null,
+    };
+  }
 
-  return {
-    finalGrade,
+  const passed = rawFinalGrade >= FINAL_PASS_MINIMUM_GRADE;
+
+  return finalizeOfficialFinalGrade({
+    finalGrade: rawFinalGrade,
     passed,
     continuousGrade: null,
     finalExamGrade: null,
     method: 'standard',
-    statusLabel:
-      finalGrade == null ? 'Pending' : passed ? 'Passed' : 'Failed',
-    reason:
-      finalGrade == null
-        ? null
-        : passed
-          ? `Weighted average of all components is ${finalGrade}.`
-          : `Weighted average (${finalGrade}) is below the pass mark (${FINAL_PASS_MINIMUM_GRADE}).`,
-    failureReason: passed === false ? 'final_grade_below_minimum' : null,
-  };
+    statusLabel: passed ? 'Passed' : 'Failed',
+    reason: passed
+      ? `Weighted average of all components is ${rawFinalGrade}.`
+      : `Weighted average (${rawFinalGrade}) is below the pass mark (${FINAL_PASS_MINIMUM_GRADE}).`,
+    failureReason: passed ? null : 'final_grade_below_minimum',
+  });
 }
