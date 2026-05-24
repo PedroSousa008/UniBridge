@@ -146,7 +146,11 @@ export function CompanyTeamMemberProfileScreen({
   }
 
   async function remove() {
-    if (!window.confirm('Remove this person from your company presence?')) return;
+    const message =
+      profile?.memberType === 'position_holder'
+        ? `Remove ${profile.name} from People? Their linked role(s) will be opened for hiring again.`
+        : 'Remove this person from your company presence?';
+    if (!window.confirm(message)) return;
     setSaving(true);
     const res = await fetch(`/api/company/presence/team?id=${memberId}`, { method: 'DELETE' });
     if (res.ok) {
@@ -282,12 +286,10 @@ export function CompanyTeamMemberProfileScreen({
             Position holders are edited from the filled role panel.
           </p>
         )}
-        {!isPositionHolder ? (
-          <Button variant="ghost" className="text-rose-600" onClick={() => void remove()} disabled={saving}>
-            <Trash2 className="h-4 w-4 mr-1" />
-            Remove person
-          </Button>
-        ) : null}
+        <Button variant="ghost" className="text-rose-600" onClick={() => void remove()} disabled={saving}>
+          <Trash2 className="h-4 w-4 mr-1" />
+          Remove person
+        </Button>
       </div>
 
       <SlidePanel open={editOpen} onClose={() => setEditOpen(false)} title="Edit person">

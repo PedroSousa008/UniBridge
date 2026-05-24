@@ -672,6 +672,16 @@ async function syncRoleToInternship(companyUserId: string, roleId: string) {
   }
 }
 
+async function syncLinkedRolesForTeamMember(companyUserId: string, memberId: string) {
+  const roles = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "CompanyRole"
+    WHERE "companyUserId" = ${companyUserId} AND "positionHolderId" = ${memberId}
+  `;
+  for (const role of roles) {
+    await syncRoleToInternship(companyUserId, role.id);
+  }
+}
+
 export async function syncRolePositionHolder(
   companyUserId: string,
   roleId: string,
@@ -683,8 +693,17 @@ export async function syncRolePositionHolder(
   await ensureCompanyPresenceTables();
   const holderName = String(holder.name ?? '').trim();
   if (!isRealPersonName(holderName)) return null;
+  let existingMemberId = typeof holder.id === 'string' ? holder.id : undefined;
+  if (!existingMemberId) {
+    const prev = await prisma.$queryRaw<{ positionHolderId: string | null }[]>`
+      SELECT "positionHolderId" FROM "CompanyRole"
+      WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
+      LIMIT 1
+    `;
+    existingMemberId = prev[0]?.positionHolderId ?? undefined;
+  }
   const memberId = await upsertCompanyTeamMember(companyUserId, {
-    id: typeof holder.id === 'string' ? holder.id : undefined,
+    id: existingMemberId,
     name: holderName,
     photoUrl: sanitizeStoredImageUrl(holder.photoUrl),
     age: typeof holder.age === 'number' ? holder.age : holder.age ? Number(holder.age) : null,
@@ -957,6 +976,7 @@ export async function upsertCompanyTeamMember(
         "companyRoleId" = ${common.companyRoleId}
       WHERE "id" = ${id} AND "companyUserId" = ${companyUserId}
     `;
+    await syncLinkedRolesForTeamMember(companyUserId, id);
   } else {
     await prisma.$executeRaw`
       INSERT INTO "CompanyTeamMember" (
@@ -978,6 +998,22 @@ export async function upsertCompanyTeamMember(
 }
 
 export async function deleteCompanyTeamMember(companyUserId: string, memberId: string) {
+  await ensureCompanyPresenceTables();
+  const linkedRoles = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "CompanyRole"
+    WHERE "companyUserId" = ${companyUserId} AND "positionHolderId" = ${memberId}
+  `;
+  for (const role of linkedRoles) {
+    await prisma.$executeRaw`
+      UPDATE "CompanyRole" SET
+        "positionHolderId" = NULL,
+        "isFilled" = false,
+        "currentlyHiring" = true,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${role.id} AND "companyUserId" = ${companyUserId}
+    `;
+    await syncRoleToInternship(companyUserId, role.id);
+  }
   await prisma.$executeRaw`
     DELETE FROM "CompanyTeamMember" WHERE "id" = ${memberId} AND "companyUserId" = ${companyUserId}
   `;

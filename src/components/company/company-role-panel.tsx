@@ -47,6 +47,7 @@ export function CompanyRolePanel({
     currentlyHiring: true,
     hiringPriority: 'high',
     holder: {
+      id: '',
       photoUrl: '',
       name: '',
       age: '',
@@ -107,6 +108,7 @@ export function CompanyRolePanel({
           currentlyHiring: r.currentlyHiring ?? !r.isFilled,
           hiringPriority: r.hiringPriority,
           holder: {
+            id: r.positionHolder?.id ?? '',
             photoUrl: r.positionHolder?.photoUrl ?? '',
             name: r.positionHolder?.name ?? '',
             age: r.positionHolder?.age != null ? String(r.positionHolder.age) : '',
@@ -148,6 +150,7 @@ export function CompanyRolePanel({
         currentlyHiring: true,
         hiringPriority: 'high',
         holder: {
+          id: '',
           photoUrl: '',
           name: '',
           age: '',
@@ -220,6 +223,7 @@ export function CompanyRolePanel({
         positionHolder:
           form.roleStatus === 'filled'
             ? {
+                id: form.holder.id || undefined,
                 name: form.holder.name.trim(),
                 photoUrl: form.holder.photoUrl || null,
                 age: form.holder.age ? Number(form.holder.age) : null,

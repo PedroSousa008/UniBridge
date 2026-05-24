@@ -11,6 +11,7 @@ import {
   Rocket,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -186,6 +187,22 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
           memberId: createdMemberId,
           initial: createdProfile,
         });
+      }
+    }
+    setSaving(false);
+  }
+
+  async function removePerson(memberId: string, memberName: string, isPositionHolder: boolean) {
+    const message = isPositionHolder
+      ? `Remove ${memberName} from People? Their linked role(s) will be opened for hiring again.`
+      : `Remove ${memberName} from your company presence?`;
+    if (!window.confirm(message)) return;
+    setSaving(true);
+    const res = await fetch(`/api/company/presence/team?id=${memberId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setHub(await res.json());
+      if (screen.type === 'person' && screen.memberId === memberId) {
+        setScreen({ type: 'overview' });
       }
     }
     setSaving(false);
@@ -719,7 +736,7 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
             >
               <CardContent className="flex gap-3 pt-5">
                 <CompanyTeamMemberAvatar name={m.name} photoUrl={m.photoUrl} />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium truncate">{m.name}</p>
                   <p className="text-xs text-muted-foreground">{m.roleTitle ?? m.memberType}</p>
                   {m.previousUniversity && (
@@ -730,6 +747,20 @@ export function CompanyPresenceCommandCenter({ initialHub }: { initialHub: Compa
                   )}
                   {m.age ? <p className="text-[10px] text-muted-foreground">Age {m.age}</p> : null}
                 </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-rose-600"
+                  disabled={saving}
+                  aria-label={`Remove ${m.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void removePerson(m.id, m.name, m.memberType === 'position_holder');
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </CardContent>
             </Card>
           ))}
