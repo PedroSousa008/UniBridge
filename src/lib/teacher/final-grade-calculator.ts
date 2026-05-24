@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import {
   computeSubjectFinalGrade,
   computeWeightedFinal,
+  roundOfficialFinalGrade,
   type FinalGradeComputation,
   type GradePartInput,
 } from '@/lib/academics/final-exam-replacement-rule';
