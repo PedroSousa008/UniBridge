@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sanitizeProfileImageUrl } from '@/lib/auth-image';
+import { sanitizeStoredImageUrl } from '@/lib/uploads/stored-image-url';
 
 /** Set profile photo for the signed-in user (any role). Syncs across the platform via User.image */
 export async function PATCH(req: NextRequest) {
@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest) {
   if (body.image === null || body.image === '') {
     image = null;
   } else if (typeof body.image === 'string') {
-    image = sanitizeProfileImageUrl(body.image);
+    image = sanitizeStoredImageUrl(body.image);
     if (body.image.trim() && image === null) {
       return NextResponse.json(
         {

@@ -7,6 +7,7 @@ import {
 } from '@/lib/partnerships/partnership-live-hub';
 import { deriveUiState } from '@/lib/partnerships/partnership-intelligence';
 import { resolveCompanyWorkspace, type CompanyWorkspaceContext } from '@/lib/company/company-workspace';
+import { sanitizeStoredImageUrl } from '@/lib/uploads/stored-image-url';
 import {
   canCompany,
   PERMISSION_LABELS,
@@ -520,6 +521,13 @@ export async function updateMyRepresentativeProfile(
     await prisma.user.update({
       where: { id: actorUserId },
       data: { headline: input.roleInCompany },
+    });
+  }
+
+  if (input.image !== undefined) {
+    await prisma.user.update({
+      where: { id: actorUserId },
+      data: { image: sanitizeStoredImageUrl(input.image) },
     });
   }
 

@@ -19,6 +19,7 @@ import {
   JobDetailPanel,
   PartnershipJobCard,
 } from '@/components/student/career/partnership-job-card';
+import { ProfileAvatar } from '@/components/ui/profile-avatar';
 
 export function PartnershipCompanyView({
   initialDetail,
@@ -265,9 +266,7 @@ export function PartnershipCompanyView({
             {p.team.map((m) => (
               <Card key={m.id}>
                 <CardContent className="flex gap-3 py-4">
-                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                  </div>
+                  <ProfileAvatar name={m.name} imageUrl={m.photoUrl} size="sm" />
                   <div>
                     <p className="font-medium text-sm">{m.name}</p>
                     <p className="text-xs text-muted-foreground">{m.roleTitle ?? m.memberType}</p>

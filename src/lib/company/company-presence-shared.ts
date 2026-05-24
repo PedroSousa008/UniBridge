@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { sanitizeStoredImageUrl } from '@/lib/uploads/stored-image-url';
 
 /** Batch application counts for many internships in one query. */
 export async function batchInternshipApplicationCounts(
@@ -91,7 +92,7 @@ export function parsePositionHolder(val: unknown): PositionHolderData | null {
   if (!o.name || typeof o.name !== 'string') return null;
   return {
     id: typeof o.id === 'string' ? o.id : undefined,
-    photoUrl: typeof o.photoUrl === 'string' ? o.photoUrl : null,
+    photoUrl: sanitizeStoredImageUrl(o.photoUrl),
     name: o.name,
     age: typeof o.age === 'number' ? o.age : null,
     roleTitle: String(o.roleTitle ?? ''),

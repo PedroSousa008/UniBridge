@@ -1,17 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import Image from 'next/image';
-import { upload } from '@vercel/blob/client';
 import { Crop, ImagePlus, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
 import { blobToFile, CROP_ASPECT } from '@/lib/uploads/crop-image';
+import { uploadStoredImageFile } from '@/lib/uploads/upload-stored-image';
 import {
-  isLocalDev,
   isVercelProduction,
-  MAX_DATA_URL_BYTES,
   MAX_IMAGE_BYTES,
   readFileAsDataUrl,
   resolveImageSourceForCrop,
@@ -70,25 +67,6 @@ export function ImageUpload({
     }
   }
 
-  async function uploadViaBlob(file: File) {
-    const blob = await upload(file.name, file, {
-      access: 'public',
-      handleUploadUrl: '/api/uploads',
-      clientPayload: JSON.stringify({ folder }),
-    });
-    return blob.url;
-  }
-
-  async function uploadViaForm(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folder', folder);
-    const res = await fetch('/api/uploads', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
-    return data.url as string;
-  }
-
   async function uploadFile(file: File) {
     setUploading(true);
     setError('');
@@ -101,32 +79,13 @@ export function ImageUpload({
     }
 
     try {
-      let url: string;
-
-      if (isLocalDev()) {
-        try {
-          url = await uploadViaBlob(file);
-        } catch {
-          url = await uploadViaForm(file);
-        }
-      } else {
-        try {
-          url = await uploadViaBlob(file);
-        } catch (blobError) {
-          if (file.size <= MAX_DATA_URL_BYTES) {
-            url = await readFileAsDataUrl(file);
-          } else {
-            throw blobError;
-          }
-        }
-      }
-
+      const url = await uploadStoredImageFile(file, folder);
       onChange(url);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Upload failed';
       if (isVercelProduction() && !message.includes('Blob')) {
         setError(
-          `${message} For large files, add Vercel Blob: Project → Storage → Create Blob Store.`
+          `${message} Connect Vercel Blob: Project → Storage → Create Blob Store, then redeploy.`
         );
       } else {
         setError(message);
@@ -239,9 +198,10 @@ export function ImageUpload({
           aspect === 'banner' ? 'h-32' : 'h-36 w-full max-w-[180px]'
         )}
       >
-        {value ? (
+        {value && !value.startsWith('data:') ? (
           <>
-            <Image src={value} alt="" fill className="object-cover" unoptimized />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={value} alt="" className="absolute inset-0 h-full w-full object-cover" />
             <Button
               type="button"
               size="sm"

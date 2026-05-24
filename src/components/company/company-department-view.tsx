@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ProfileAvatar } from '@/components/ui/profile-avatar';
 import {
   Dialog,
   DialogContent,
@@ -364,9 +365,7 @@ export function CompanyDepartmentView({
           {view.team.map((m) => (
             <Card key={m.id}>
               <CardContent className="flex gap-3 py-4">
-                <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                  <Users className="h-5 w-5 text-muted-foreground" />
-                </div>
+                <ProfileAvatar name={m.name} imageUrl={m.photoUrl} size="sm" className="rounded-xl" />
                 <div>
                   <p className="font-medium text-sm">{m.name}</p>
                   <p className="text-xs text-muted-foreground capitalize">{m.memberType}</p>

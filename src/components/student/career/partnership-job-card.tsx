@@ -4,6 +4,7 @@ import { GitCompare, Loader2, MapPin, Star, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ProfileAvatar } from '@/components/ui/profile-avatar';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { APPLICATION_STATUS_LABELS } from '@/lib/career/partnership-intelligence';
@@ -89,12 +90,7 @@ export function PartnershipJobCard({
             ) : null}
             {filled && holder ? (
               <div className="mt-2 flex items-center gap-2 rounded-lg border bg-card/80 px-2 py-1.5">
-                <div className="h-8 w-8 rounded-md bg-muted overflow-hidden shrink-0">
-                  {holder.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={holder.photoUrl} alt="" className="h-full w-full object-cover" />
-                  ) : null}
-                </div>
+                <ProfileAvatar name={holder.name} imageUrl={holder.photoUrl} size="xs" className="rounded-md" />
                 <div className="min-w-0 text-left">
                   <p className="text-xs font-medium">{holder.name}</p>
                   <p className="text-[10px] text-muted-foreground">

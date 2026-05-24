@@ -7,6 +7,7 @@ import {
   serializeVisibilityField,
   type ProfileVisibility,
 } from '@/lib/career/profile-intelligence';
+import { sanitizeStoredImageUrl } from '@/lib/uploads/stored-image-url';
 import { loadStudentProfileHub } from '@/lib/student/student-profile-hub';
 import { requireSession } from '@/lib/session';
 
@@ -47,9 +48,7 @@ export async function PATCH(req: NextRequest) {
               image:
                 body.image === null || body.image === ''
                   ? null
-                  : typeof body.image === 'string'
-                    ? body.image.trim() || null
-                    : undefined,
+                  : sanitizeStoredImageUrl(body.image),
             }
           : {}),
       },

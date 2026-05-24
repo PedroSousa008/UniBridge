@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { sanitizeStoredImageUrl } from '@/lib/uploads/stored-image-url';
 import { ensureCompanyPresenceTables } from '@/lib/db/ensure-company-presence-schema';
 import {
   batchInternshipApplicationCounts,
@@ -685,7 +686,7 @@ export async function syncRolePositionHolder(
   const memberId = await upsertCompanyTeamMember(companyUserId, {
     id: typeof holder.id === 'string' ? holder.id : undefined,
     name: holderName,
-    photoUrl: typeof holder.photoUrl === 'string' ? holder.photoUrl : null,
+    photoUrl: sanitizeStoredImageUrl(holder.photoUrl),
     age: typeof holder.age === 'number' ? holder.age : holder.age ? Number(holder.age) : null,
     roleTitle,
     departmentId,
@@ -916,7 +917,7 @@ export async function upsertCompanyTeamMember(
       : null;
   const common = {
     name: String(member.name ?? ''),
-    photoUrl: typeof member.photoUrl === 'string' ? member.photoUrl : null,
+    photoUrl: sanitizeStoredImageUrl(member.photoUrl),
     age: typeof member.age === 'number' ? member.age : null,
     roleTitle: typeof member.roleTitle === 'string' ? member.roleTitle : null,
     memberType: String(member.memberType ?? 'employee'),
