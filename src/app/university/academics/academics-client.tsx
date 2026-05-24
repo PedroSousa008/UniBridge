@@ -1,14 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { SectionTabs } from '@/components/university/section-tabs';
 import { DataTable, type Column } from '@/components/university/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  formatSubjectSemester,
+  normalizeSubjectSemester,
+  SUBJECT_SEMESTER_OPTIONS,
+} from '@/lib/academics/subject-semester';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +31,33 @@ const TABS = [
   { id: 'schedules', label: 'Schedules' },
   { id: 'announcements', label: 'Announcements' },
 ];
+
+const selectClassName =
+  'flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm';
+
+function SubjectSemesterSelect({
+  name,
+  defaultValue = '',
+  required,
+}: {
+  name: string;
+  defaultValue?: string;
+  required?: boolean;
+}) {
+  const normalized = normalizeSubjectSemester(defaultValue) || defaultValue;
+  return (
+    <select name={name} required={required} className={selectClassName} defaultValue={normalized}>
+      <option value="" disabled>
+        Select semester
+      </option>
+      {SUBJECT_SEMESTER_OPTIONS.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export interface AcademicsCourse {
   id: string;
@@ -146,6 +178,7 @@ export function UniversityAcademicsClient({
   const [editSubject, setEditSubject] = useState<AcademicsSubject | null>(null);
   const [editStudent, setEditStudent] = useState<AcademicsStudent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [subjectCourseFilter, setSubjectCourseFilter] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,6 +201,17 @@ export function UniversityAcademicsClient({
         return students;
     }
   }, [students, filter]);
+
+  const filteredSubjects = useMemo(() => {
+    if (subjectCourseFilter.length === 0) return subjects;
+    return subjects.filter((s) => s.courseId && subjectCourseFilter.includes(s.courseId));
+  }, [subjects, subjectCourseFilter]);
+
+  function toggleSubjectCourseFilter(courseId: string) {
+    setSubjectCourseFilter((prev) =>
+      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+    );
+  }
 
   useEffect(() => {
     const t = searchParams.get('tab');
@@ -258,8 +302,17 @@ export function UniversityAcademicsClient({
   ];
 
   const subjectColumns: Column<AcademicsSubject>[] = [
-    { key: 'name', header: 'Subject', cell: (r) => r.name },
-    { key: 'code', header: 'Code', cell: (r) => r.code ?? '—' },
+    { key: 'name', header: 'Subject', cell: (r) => <span className="font-medium">{r.name}</span> },
+    {
+      key: 'year',
+      header: 'Year',
+      cell: (r) => (r.year != null ? `Year ${r.year}` : '—'),
+    },
+    {
+      key: 'semester',
+      header: 'Semester',
+      cell: (r) => formatSubjectSemester(r.semester),
+    },
     { key: 'course', header: 'Course', cell: (r) => r.courseName ?? '—' },
     { key: 'teacher', header: 'Teacher', cell: (r) => r.teacherName ?? '—' },
     {
@@ -435,8 +488,57 @@ export function UniversityAcademicsClient({
           Create a course first, then you can add subjects to it.
         </p>
       ) : null}
+      {tab === 'subjects' && courses.length > 0 ? (
+        <div className="mb-4 rounded-xl border bg-muted/20 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-foreground">Filter by course</span>
+            <span className="text-xs text-muted-foreground">
+              {subjectCourseFilter.length === 0
+                ? 'Showing all courses'
+                : `${subjectCourseFilter.length} selected`}
+            </span>
+            {subjectCourseFilter.length > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setSubjectCourseFilter([])}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {courses.map((c) => {
+              const active = subjectCourseFilter.includes(c.id);
+              return (
+                <Button
+                  key={c.id}
+                  type="button"
+                  size="sm"
+                  variant={active ? 'default' : 'outline'}
+                  className="h-8"
+                  onClick={() => toggleSubjectCourseFilter(c.id)}
+                >
+                  {c.name}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       {tab === 'subjects' ? (
-        <DataTable columns={subjectColumns} data={subjects} emptyMessage="No subjects yet." />
+        <DataTable
+          columns={subjectColumns}
+          data={filteredSubjects}
+          emptyMessage={
+            subjectCourseFilter.length > 0
+              ? 'No subjects match the selected courses.'
+              : 'No subjects yet.'
+          }
+        />
       ) : null}
       {tab === 'teachers' ? (
         <DataTable columns={teacherColumns} data={teachers} emptyMessage="No teachers yet." />
@@ -498,7 +600,6 @@ export function UniversityAcademicsClient({
               const fd = new FormData(e.currentTarget);
               const ok = await postJson('/api/university/subjects', {
                 name: fd.get('name'),
-                code: fd.get('code'),
                 courseId: fd.get('courseId'),
                 year: fd.get('year'),
                 semester: fd.get('semester'),
@@ -518,7 +619,7 @@ export function UniversityAcademicsClient({
               <select
                 name="courseId"
                 required
-                className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                className={selectClassName}
                 defaultValue=""
               >
                 <option value="" disabled>
@@ -531,16 +632,11 @@ export function UniversityAcademicsClient({
                 ))}
               </select>
               <Input name="name" placeholder="Subject name" required />
-              <Input name="code" placeholder="Subject code (optional)" />
               <div className="grid grid-cols-2 gap-3">
-                <Input name="year" type="number" min={1} max={6} placeholder="Year" />
-                <Input name="semester" placeholder="Semester (e.g. Fall)" />
+                <Input name="year" type="number" min={1} max={6} placeholder="Year" required />
+                <SubjectSemesterSelect name="semester" required />
               </div>
-              <select
-                name="teacherId"
-                className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
-                defaultValue=""
-              >
+              <select name="teacherId" className={selectClassName} defaultValue="">
                 <option value="">Assign teacher (optional)</option>
                 {teachers.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -747,7 +843,6 @@ export function UniversityAcademicsClient({
                 const fd = new FormData(e.currentTarget);
                 const ok = await requestJson('PATCH', `/api/university/subjects/${editSubject.id}`, {
                   name: fd.get('name'),
-                  code: fd.get('code'),
                   courseId: fd.get('courseId'),
                   year: fd.get('year'),
                   semester: fd.get('semester'),
@@ -764,7 +859,7 @@ export function UniversityAcademicsClient({
                 <select
                   name="courseId"
                   required
-                  className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                  className={selectClassName}
                   defaultValue={editSubject.courseId ?? ''}
                 >
                   <option value="" disabled>
@@ -777,7 +872,6 @@ export function UniversityAcademicsClient({
                   ))}
                 </select>
                 <Input name="name" placeholder="Subject name" required defaultValue={editSubject.name} />
-                <Input name="code" placeholder="Subject code" defaultValue={editSubject.code ?? ''} />
                 <div className="grid grid-cols-2 gap-3">
                   <Input
                     name="year"
@@ -785,17 +879,18 @@ export function UniversityAcademicsClient({
                     min={1}
                     max={6}
                     placeholder="Year"
+                    required
                     defaultValue={editSubject.year ?? ''}
                   />
-                  <Input
+                  <SubjectSemesterSelect
                     name="semester"
-                    placeholder="Semester"
+                    required
                     defaultValue={editSubject.semester ?? ''}
                   />
                 </div>
                 <select
                   name="teacherId"
-                  className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
+                  className={selectClassName}
                   defaultValue={editSubject.teacherId ?? ''}
                 >
                   <option value="">No teacher assigned</option>

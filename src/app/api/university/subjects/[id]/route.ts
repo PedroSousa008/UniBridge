@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isValidSubjectSemester } from '@/lib/academics/subject-semester';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
 import {
@@ -76,9 +77,18 @@ export async function PATCH(
   const semester =
     body.semester !== undefined
       ? body.semester
-        ? String(body.semester).trim()
+        ? (() => {
+            const raw = String(body.semester).trim();
+            if (!isValidSubjectSemester(raw)) {
+              return 'INVALID' as const;
+            }
+            return raw;
+          })()
         : null
       : undefined;
+  if (semester === 'INVALID') {
+    return NextResponse.json({ error: 'Semester must be 1st or 2nd' }, { status: 400 });
+  }
 
   const courseChanged = courseId !== subject.courseId;
   const yearChanged = year !== undefined && year !== subject.year;

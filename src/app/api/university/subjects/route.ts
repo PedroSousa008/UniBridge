@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isValidSubjectSemester } from '@/lib/academics/subject-semester';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
 import { enrollCourseStudentsInSubject } from '@/lib/academics/enrollments';
@@ -42,7 +43,14 @@ export async function POST(request: Request) {
   }
 
   const year = body.year ? parseInt(String(body.year), 10) : null;
-  const semester = body.semester ? String(body.semester).trim() : null;
+  if (year == null || Number.isNaN(year)) {
+    return NextResponse.json({ error: 'Year is required' }, { status: 400 });
+  }
+  const semesterRaw = body.semester ? String(body.semester).trim() : '';
+  if (!isValidSubjectSemester(semesterRaw)) {
+    return NextResponse.json({ error: 'Semester is required (1st or 2nd)' }, { status: 400 });
+  }
+  const semester = semesterRaw;
 
   const subject = await prisma.subject.create({
     data: {
@@ -50,7 +58,7 @@ export async function POST(request: Request) {
       courseId,
       name,
       code: body.code ? String(body.code).trim() : null,
-      year: Number.isNaN(year) ? null : year,
+      year: Number.isNaN(year as number) ? null : year,
       semester,
       teacherId,
       status: 'ACTIVE',
