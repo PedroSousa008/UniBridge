@@ -9,10 +9,10 @@ import {
   resolveStudentAttendancePercent,
 } from '@/lib/teacher/teacher-students-shared';
 
-function studentsWithLowAttendance(
-  enrollments: { studentId: string; attendance: number | null }[],
+function studentsWithLowAttendance<T extends { studentId: string; attendance: number | null }>(
+  enrollments: T[],
   attendanceByStudent: Map<string, number | null>
-) {
+): T[] {
   return enrollments.filter((e) =>
     isTeacherLowAttendance(
       resolveStudentAttendancePercent(e.studentId, attendanceByStudent, e.attendance)
