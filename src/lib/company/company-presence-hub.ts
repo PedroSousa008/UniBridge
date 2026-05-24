@@ -727,6 +727,13 @@ export async function syncRolePositionHolder(
     UPDATE "CompanyRole" SET "positionHolderId" = ${memberId}, "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${roleId} AND "companyUserId" = ${companyUserId}
   `;
+  await prisma.$executeRaw`
+    DELETE FROM "CompanyTeamMember"
+    WHERE "companyUserId" = ${companyUserId}
+      AND "companyRoleId" = ${roleId}
+      AND "id" != ${memberId}
+      AND "memberType" = 'position_holder'
+  `;
   return memberId;
 }
 

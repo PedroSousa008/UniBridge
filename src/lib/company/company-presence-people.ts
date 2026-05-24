@@ -130,6 +130,9 @@ function rowToCard(
       };
     }
     if (linkedRole && linkedRole.isFilled && linkedRole.status !== 'archived') {
+      if (isPositionHolder && linkedRole.positionHolderId && linkedRole.positionHolderId !== row.id) {
+        return null;
+      }
       return {
         id: row.id,
         name: row.name.trim(),
@@ -180,8 +183,22 @@ function rowToCard(
   };
 }
 
+async function pruneOrphanPositionHolders(companyUserId: string) {
+  await prisma.$executeRaw`
+    DELETE FROM "CompanyTeamMember" AS m
+    WHERE m."companyUserId" = ${companyUserId}
+      AND m."memberType" = 'position_holder'
+      AND NOT EXISTS (
+        SELECT 1 FROM "CompanyRole" AS r
+        WHERE r."companyUserId" = ${companyUserId}
+          AND r."positionHolderId" = m."id"
+      )
+  `;
+}
+
 async function loadTeamContext(companyUserId: string) {
   await ensureCompanyPresenceTables();
+  await pruneOrphanPositionHolders(companyUserId);
   const [depts, roles, members] = await Promise.all([
     prisma.$queryRaw<{ id: string; name: string }[]>`
       SELECT "id", "name" FROM "CompanyDepartment" WHERE "companyUserId" = ${companyUserId}
@@ -211,12 +228,49 @@ export async function loadDisplayableTeamMembers(
   companyUserId: string
 ): Promise<CompanyPresenceTeamMemberCard[]> {
   const { deptNames, roleById, members } = await loadTeamContext(companyUserId);
+  const membersById = new Map(members.map((m) => [m.id, m]));
   const cards: CompanyPresenceTeamMemberCard[] = [];
   for (const row of members) {
     const card = rowToCard(row, deptNames, roleById);
-    if (card) cards.push(card);
+    if (card) cards.push(enrichTeamMemberPhoto(card, membersById, roleById));
   }
-  return cards;
+  return dedupeTeamMemberCards(cards);
+}
+
+function enrichTeamMemberPhoto(
+  card: CompanyPresenceTeamMemberCard,
+  membersById: Map<string, CompanyTeamMemberRow>,
+  roleById: Map<string, RoleLinkRow>
+): CompanyPresenceTeamMemberCard {
+  if (card.photoUrl?.trim()) return card;
+  const holderId =
+    [...roleById.values()].find((r) => r.positionHolderId === card.id)?.positionHolderId ??
+    (card.companyRoleId ? roleById.get(card.companyRoleId)?.positionHolderId : null);
+  if (!holderId) return card;
+  const holder = membersById.get(holderId);
+  if (!holder?.photoUrl?.trim()) return card;
+  return {
+    ...card,
+    id: holder.id,
+    photoUrl: holder.photoUrl,
+    name: holder.name.trim(),
+    roleTitle: card.roleTitle ?? holder.roleTitle,
+    previousUniversity: card.previousUniversity ?? holder.previousUniversity,
+    degree: card.degree ?? holder.degree,
+  };
+}
+
+function dedupeTeamMemberCards(
+  cards: CompanyPresenceTeamMemberCard[]
+): CompanyPresenceTeamMemberCard[] {
+  const seen = new Set<string>();
+  const out: CompanyPresenceTeamMemberCard[] = [];
+  for (const card of cards) {
+    if (seen.has(card.id)) continue;
+    seen.add(card.id);
+    out.push(card);
+  }
+  return out;
 }
 
 export async function loadCompanyTeamMemberProfile(

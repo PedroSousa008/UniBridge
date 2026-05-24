@@ -25,6 +25,7 @@ import {
 import {
   loadDisplayableTeamMembers,
   pruneTeamMembersExclusiveToRole,
+  type CompanyPresenceTeamMemberCard,
 } from '@/lib/company/company-presence-people';
 import {
   getCompanyPresenceMatchCriteria,
@@ -52,6 +53,54 @@ export interface DepartmentRoleCard {
   hiringPriorityLabel: string;
   topSkills: string[];
   positionHolder: PositionHolderData | null;
+}
+
+function buildDepartmentTeamList(
+  departmentId: string,
+  roles: DepartmentRoleCard[],
+  allDisplayPeople: CompanyPresenceTeamMemberCard[]
+): DepartmentTeamMember[] {
+  const seen = new Set<string>();
+  const team: DepartmentTeamMember[] = [];
+
+  for (const role of roles) {
+    const holder = role.positionHolder;
+    if (!role.isFilled || !holder?.id) continue;
+    if (seen.has(holder.id)) continue;
+    seen.add(holder.id);
+    team.push({
+      id: holder.id,
+      name: holder.name,
+      photoUrl: holder.photoUrl,
+      roleTitle: holder.roleTitle || role.title,
+      memberType: 'position_holder',
+      previousUniversity: holder.previousUniversity,
+      degree: holder.degree,
+      bio: holder.bio,
+    });
+  }
+
+  for (const m of allDisplayPeople) {
+    if (seen.has(m.id)) continue;
+    const inDept =
+      m.departmentId === departmentId ||
+      (m.departmentId == null &&
+        ['employee', 'mentor', 'recruiter', 'founder', 'leadership'].includes(m.memberType));
+    if (!inDept) continue;
+    seen.add(m.id);
+    team.push({
+      id: m.id,
+      name: m.name,
+      photoUrl: m.photoUrl,
+      roleTitle: m.roleTitle,
+      memberType: m.memberType,
+      previousUniversity: m.previousUniversity,
+      degree: m.degree,
+      bio: m.bio,
+    });
+  }
+
+  return team;
 }
 
 export interface DepartmentTeamMember {
@@ -437,22 +486,7 @@ export async function loadCompanyDepartmentView(
         .map(([k]) => k),
     },
     roles,
-    team: allDisplayPeople
-      .filter(
-        (m) =>
-          m.departmentId === departmentId ||
-          (m.departmentId == null && ['employee', 'mentor', 'recruiter', 'founder', 'leadership'].includes(m.memberType))
-      )
-      .map((m) => ({
-        id: m.id,
-        name: m.name,
-        photoUrl: m.photoUrl,
-        roleTitle: m.roleTitle,
-        memberType: m.memberType,
-        previousUniversity: m.previousUniversity,
-        degree: m.degree,
-        bio: m.bio,
-      })),
+    team: buildDepartmentTeamList(departmentId, roles, allDisplayPeople),
     allDepartments: allDepts,
     companyName: profile?.companyName ?? 'Your company',
   };

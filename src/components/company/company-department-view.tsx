@@ -12,10 +12,10 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { CompanyTeamMemberAvatar } from '@/components/company/company-team-member-avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ProfileAvatar } from '@/components/ui/profile-avatar';
 import {
   Dialog,
   DialogContent,
@@ -365,7 +365,7 @@ export function CompanyDepartmentView({
           {view.team.map((m) => (
             <Card key={m.id}>
               <CardContent className="flex gap-3 py-4">
-                <ProfileAvatar name={m.name} imageUrl={m.photoUrl} size="sm" className="rounded-xl" />
+                <CompanyTeamMemberAvatar name={m.name} photoUrl={m.photoUrl} className="rounded-xl" />
                 <div>
                   <p className="font-medium text-sm">{m.name}</p>
                   <p className="text-xs text-muted-foreground capitalize">{m.memberType}</p>
