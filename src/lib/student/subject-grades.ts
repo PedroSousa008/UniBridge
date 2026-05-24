@@ -3,6 +3,7 @@ export {
   attendanceSummary,
   buildGradeRows,
   computeWeightedAverageAdvanced,
+  isMissingGradeRow,
   simulateWhatIf,
 } from './gradebook-engine';
 

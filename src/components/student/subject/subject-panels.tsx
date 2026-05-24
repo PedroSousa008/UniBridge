@@ -32,6 +32,7 @@ import { extractMessageMeta, searchMessages } from '@/lib/student/student-messag
 import {
   attendanceSummary,
   buildGradeRows,
+  isMissingGradeRow,
   computeWeightedAverage,
   projectFinalGrade,
 } from '@/lib/student/subject-grades';
@@ -387,7 +388,7 @@ export function SubjectGradebookPanel({ ws }: { ws: SubjectWorkspace }) {
   const rows = buildGradeRows(ws);
   const categories = ws.gradeCategories.map((c) => ({ name: c.name, weight: c.weight }));
   const average = computeWeightedAverage(rows, categories);
-  const missing = rows.filter((r) => !r.submitted && new Date(r.dueDate) < new Date());
+  const missing = rows.filter((r) => isMissingGradeRow(r));
 
   const [whatIfId, setWhatIfId] = useState(rows[0]?.id ?? '');
   const [whatIfScore, setWhatIfScore] = useState('16');

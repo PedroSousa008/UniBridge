@@ -20,6 +20,12 @@ export interface GradeRow {
 
 export type GradeRowsInput = Pick<SubjectWorkspace, 'assignments' | 'gradeCategories'>;
 
+/** Past-due work with no published grade (teacher gradebook entries are not student submissions). */
+export function isMissingGradeRow(row: GradeRow, now = Date.now()): boolean {
+  if (row.score != null) return false;
+  return !row.submitted && new Date(row.dueDate).getTime() < now;
+}
+
 export function buildGradeRows(workspace: GradeRowsInput): GradeRow[] {
   const defaultWeight =
     workspace.gradeCategories.length > 0
