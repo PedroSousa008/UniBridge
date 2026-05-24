@@ -4,7 +4,7 @@ export const TEACHER_CRITICAL_ATTENDANCE_ALERT_PERCENT = 25;
 
 export function isTeacherLowAttendance(
   attendancePercent: number | null | undefined
-): boolean {
+): attendancePercent is number {
   return (
     attendancePercent != null &&
     attendancePercent < TEACHER_LOW_ATTENDANCE_ALERT_PERCENT
@@ -13,7 +13,7 @@ export function isTeacherLowAttendance(
 
 export function isTeacherCriticalAttendance(
   attendancePercent: number | null | undefined
-): boolean {
+): attendancePercent is number {
   return (
     attendancePercent != null &&
     attendancePercent < TEACHER_CRITICAL_ATTENDANCE_ALERT_PERCENT
