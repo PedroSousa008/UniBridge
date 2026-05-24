@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
+import { ensureStudentAcademicProfileSchema } from '@/lib/db/ensure-student-academic-profile-schema';
 
 async function getOwnedCourse(universityId: string, id: string) {
   return prisma.course.findFirst({
@@ -39,6 +40,33 @@ export async function PATCH(
       status: body.status !== undefined ? body.status : undefined,
     },
   });
+
+  await ensureStudentAcademicProfileSchema();
+
+  const visualSets: string[] = [];
+  const visualValues: unknown[] = [];
+  let vidx = 1;
+  const addVisual = (col: string, val: unknown) => {
+    visualSets.push(`"${col}" = $${vidx}`);
+    visualValues.push(val);
+    vidx += 1;
+  };
+
+  if (body.bannerUrl !== undefined) addVisual('bannerUrl', body.bannerUrl || null);
+  if (body.themeColor !== undefined) addVisual('themeColor', body.themeColor || null);
+  if (body.visualTheme !== undefined) addVisual('visualTheme', body.visualTheme || null);
+  if (body.requiredCredits !== undefined) {
+    const credits = body.requiredCredits ? parseInt(String(body.requiredCredits), 10) : null;
+    addVisual('requiredCredits', credits && !Number.isNaN(credits) ? credits : null);
+  }
+
+  if (visualSets.length > 0) {
+    visualValues.push(id);
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Course" SET ${visualSets.join(', ')}, "updatedAt" = NOW() WHERE id = $${vidx}`,
+      ...visualValues
+    );
+  }
 
   await logUniversityActivity(
     auth.ctx.university.id,

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { sumCompletedCredits } from '@/lib/academics/student-credits';
 import { universitySubjectsWhere } from '@/lib/academics/enrollments';
 import { ensureSubjectCreditsColumn } from '@/lib/db/ensure-subject-credits-schema';
+import { ensureStudentAcademicProfileSchema } from '@/lib/db/ensure-student-academic-profile-schema';
 import { UniversityAcademicsClient } from './academics-client';
 
 export default async function UniversityAcademicsPage() {
@@ -28,6 +29,7 @@ export default async function UniversityAcademicsPage() {
   }
 
   await ensureSubjectCreditsColumn();
+  await ensureStudentAcademicProfileSchema();
 
   const [courses, subjects, teachers, students, calendarEvents, announcements, enrollments] =
     await Promise.all([

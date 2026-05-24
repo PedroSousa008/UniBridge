@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { SectionTabs } from '@/components/university/section-tabs';
 import { DataTable, type Column } from '@/components/university/data-table';
 import { StudentSubjectPicker } from '@/components/university/student-subject-picker';
+import { UniversityStudentAcademicProfileDrawer } from '@/components/university/university-student-academic-profile-drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -226,6 +227,7 @@ export function UniversityAcademicsClient({
   const [editCourse, setEditCourse] = useState<AcademicsCourse | null>(null);
   const [editSubject, setEditSubject] = useState<AcademicsSubject | null>(null);
   const [editStudent, setEditStudent] = useState<AcademicsStudent | null>(null);
+  const [profileStudentId, setProfileStudentId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [subjectCourseFilter, setSubjectCourseFilter] = useState<string[]>([]);
   const [subjectYearFilter, setSubjectYearFilter] = useState<number[]>([]);
@@ -507,7 +509,22 @@ export function UniversityAcademicsClient({
   ];
 
   const studentColumns: Column<AcademicsStudent>[] = [
-    { key: 'name', header: 'Student', cell: (r) => r.name },
+    {
+      key: 'name',
+      header: 'Student',
+      cell: (r) => (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setProfileStudentId(r.id);
+          }}
+          className="text-left font-medium text-brand hover:underline"
+        >
+          {r.name}
+        </button>
+      ),
+    },
     { key: 'program', header: 'Program', cell: (r) => r.program ?? '—' },
     { key: 'year', header: 'Year', cell: (r) => r.yearOfStudy ?? '—' },
     { key: 'course', header: 'Course', cell: (r) => r.courseName ?? '—' },
@@ -969,6 +986,10 @@ export function UniversityAcademicsClient({
                   department: fd.get('department'),
                   duration: fd.get('duration'),
                   degreeType: fd.get('degreeType'),
+                  bannerUrl: fd.get('bannerUrl'),
+                  themeColor: fd.get('themeColor'),
+                  visualTheme: fd.get('visualTheme'),
+                  requiredCredits: fd.get('requiredCredits'),
                 });
                 if (ok) setEditCourse(null);
               }}
@@ -993,6 +1014,21 @@ export function UniversityAcademicsClient({
                   name="degreeType"
                   placeholder="Degree type"
                   defaultValue={editCourse.degreeType ?? ''}
+                />
+                <Input name="bannerUrl" placeholder="Banner image URL (optional)" />
+                <Input name="themeColor" placeholder="Theme color (e.g. #0d9488)" />
+                <select name="visualTheme" className={selectClassName} defaultValue="">
+                  <option value="">Auto-detect visual theme</option>
+                  <option value="business">Business / Economics</option>
+                  <option value="law">Law / Legal</option>
+                  <option value="engineering">Engineering / Tech</option>
+                  <option value="general">General</option>
+                </select>
+                <Input
+                  name="requiredCredits"
+                  type="number"
+                  min={1}
+                  placeholder="Required ECTS (default 180)"
                 />
               </div>
               {error ? <p className="text-sm text-red-500">{error}</p> : null}
@@ -1220,6 +1256,13 @@ export function UniversityAcademicsClient({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <UniversityStudentAcademicProfileDrawer
+        studentId={profileStudentId}
+        open={!!profileStudentId}
+        onClose={() => setProfileStudentId(null)}
+        onProfileUpdated={() => router.refresh()}
+      />
     </div>
   );
 }
