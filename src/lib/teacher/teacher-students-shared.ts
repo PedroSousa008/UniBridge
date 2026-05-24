@@ -1,3 +1,7 @@
+/** Teacher student-card alerts: low attendance below this % (not subject minAttendance). */
+export const TEACHER_LOW_ATTENDANCE_ALERT_PERCENT = 50;
+export const TEACHER_CRITICAL_ATTENDANCE_ALERT_PERCENT = 25;
+
 export type StudentSupportAlert = {
   id: string;
   label: string;
@@ -24,9 +28,9 @@ export function buildStudentSupportAlerts(input: {
   const alerts: StudentSupportAlert[] = [];
   const att = input.attendancePercent;
 
-  if (att != null && att < input.minAttendance - 15) {
+  if (att != null && att < TEACHER_CRITICAL_ATTENDANCE_ALERT_PERCENT) {
     alerts.push({ id: 'att-critical', label: 'Critical attendance', tone: 'critical' });
-  } else if (att != null && att < input.minAttendance) {
+  } else if (att != null && att < TEACHER_LOW_ATTENDANCE_ALERT_PERCENT) {
     alerts.push({ id: 'att-low', label: 'Low attendance', tone: 'warning' });
   }
 
@@ -115,9 +119,10 @@ export function matchesStudentFilter(
 ): boolean {
   if (filter === 'all') return true;
   if (filter === 'low_attendance') {
+    void minAttendance;
     return (
       student.attendancePercent != null &&
-      student.attendancePercent < minAttendance
+      student.attendancePercent < TEACHER_LOW_ATTENDANCE_ALERT_PERCENT
     );
   }
   if (filter === 'missing_assignments') {
