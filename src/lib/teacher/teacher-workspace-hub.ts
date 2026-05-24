@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
 import { ensureTeacherAcademicSchema } from '@/lib/teacher/ensure-teacher-schema';
 import { submissionGradePublished } from '@/lib/teacher/teacher-grading';
+import { isTeacherLowAttendance } from '@/lib/teacher/teacher-students-shared';
 
 export interface WorkspaceSubject {
   id: string;
@@ -178,11 +179,10 @@ export async function loadTeacherWorkspaceHub(actorUserId: string): Promise<Teac
   const progression: WorkspaceProgressionCard[] = [];
 
   for (const s of teacher.subjects) {
-    const minAtt = s.minAttendancePercent ?? 75;
     for (const e of s.enrollments) {
       const name = e.student?.name ?? 'Student';
       const att = e.attendance;
-      if (att != null && att < minAtt) {
+      if (isTeacherLowAttendance(att)) {
         progression.push({
           studentId: e.studentId,
           studentName: name,

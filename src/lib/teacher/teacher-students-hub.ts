@@ -5,7 +5,12 @@ import {
   isPendingGradePublish,
   isStudentAssignmentMissing,
 } from '@/lib/teacher/teacher-grading';
+import { loadSubjectAttendanceReport } from '@/lib/teacher/subject-attendance-report';
 import { loadSubjectCurrentGradesMap } from '@/lib/teacher/teacher-students-grade-utils';
+import {
+  isTeacherLowAttendance,
+  resolveStudentAttendancePercent,
+} from '@/lib/teacher/teacher-students-shared';
 
 export interface TeacherStudentsClassCard {
   id: string;
@@ -73,7 +78,6 @@ export async function loadTeacherStudentsHub(actorUserId: string): Promise<Teach
   const classes: TeacherStudentsClassCard[] = [];
 
   for (const s of teacher.subjects) {
-    const minAtt = s.minAttendancePercent ?? 75;
     let pendingGrading = 0;
     let missingWorkStudents = new Set<string>();
     const now = Date.now();
@@ -88,14 +92,25 @@ export async function loadTeacherStudentsHub(actorUserId: string): Promise<Teach
 
     let lowAttendance = 0;
     let supportCount = 0;
-    const gradesMap = await loadSubjectCurrentGradesMap(s.id);
+    const [gradesMap, attendanceReport] = await Promise.all([
+      loadSubjectCurrentGradesMap(s.id),
+      loadSubjectAttendanceReport(s.id),
+    ]);
+    const attByStudent = new Map(
+      attendanceReport.students.map((row) => [row.studentId, row.attendancePercent])
+    );
     const gradeSamples = [...gradesMap.values()]
       .map((g) => g.overallGrade)
       .filter((g): g is number => g != null);
 
     for (const e of s.enrollments) {
-      if (e.attendance != null && e.attendance < minAtt) lowAttendance += 1;
-      const needsAtt = e.attendance != null && e.attendance < minAtt;
+      const att = resolveStudentAttendancePercent(
+        e.studentId,
+        attByStudent,
+        e.attendance
+      );
+      if (isTeacherLowAttendance(att)) lowAttendance += 1;
+      const needsAtt = isTeacherLowAttendance(att);
       const needsWork = missingWorkStudents.has(e.studentId);
       if (needsAtt || needsWork) supportCount += 1;
     }
@@ -105,13 +120,7 @@ export async function loadTeacherStudentsHub(actorUserId: string): Promise<Teach
         ? Math.round((gradeSamples.reduce((a, b) => a + b, 0) / gradeSamples.length) * 10) / 10
         : null;
 
-    const attValues = s.enrollments
-      .map((e) => e.attendance)
-      .filter((v): v is number => v != null);
-    const classAttAvg =
-      attValues.length > 0
-        ? Math.round(attValues.reduce((a, b) => a + b, 0) / attValues.length)
-        : null;
+    const classAttAvg = attendanceReport.classAveragePercent;
 
     const indicators: TeacherStudentsClassCard['indicators'] = [];
     if (lowAttendance > 0) {

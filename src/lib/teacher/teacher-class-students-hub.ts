@@ -7,6 +7,7 @@ import {
   buildStudentSupportAlerts,
   engagementLabel,
   participationLabel,
+  resolveStudentAttendancePercent,
   studentNeedsSupport,
   type StudentSupportAlert,
 } from '@/lib/teacher/teacher-students-shared';
@@ -165,7 +166,11 @@ export async function loadTeacherClassStudentsHub(
     const sp = e.student.studentProfile;
     const courseName = sp?.course?.name ?? sp?.program ?? subject.course?.name ?? null;
     const engagement = sp?.engagementScore ?? null;
-    const attendancePercent = attByStudent.get(studentId) ?? e.attendance ?? null;
+    const attendancePercent = resolveStudentAttendancePercent(
+      studentId,
+      attByStudent,
+      e.attendance
+    );
 
     const alerts = buildStudentSupportAlerts({
       attendancePercent,

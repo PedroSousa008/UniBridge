@@ -1,6 +1,34 @@
-/** Teacher student-card alerts: low attendance below this % (not subject minAttendance). */
+/** Teacher alerts & class indicators: low attendance below this % (not subject minAttendance). */
 export const TEACHER_LOW_ATTENDANCE_ALERT_PERCENT = 50;
 export const TEACHER_CRITICAL_ATTENDANCE_ALERT_PERCENT = 25;
+
+export function isTeacherLowAttendance(
+  attendancePercent: number | null | undefined
+): boolean {
+  return (
+    attendancePercent != null &&
+    attendancePercent < TEACHER_LOW_ATTENDANCE_ALERT_PERCENT
+  );
+}
+
+export function isTeacherCriticalAttendance(
+  attendancePercent: number | null | undefined
+): boolean {
+  return (
+    attendancePercent != null &&
+    attendancePercent < TEACHER_CRITICAL_ATTENDANCE_ALERT_PERCENT
+  );
+}
+
+export function resolveStudentAttendancePercent(
+  studentId: string,
+  attendanceByStudent: Map<string, number | null>,
+  enrollmentAttendance: number | null | undefined
+): number | null {
+  const fromSessions = attendanceByStudent.get(studentId);
+  if (fromSessions != null) return fromSessions;
+  return enrollmentAttendance ?? null;
+}
 
 export type StudentSupportAlert = {
   id: string;
@@ -28,9 +56,9 @@ export function buildStudentSupportAlerts(input: {
   const alerts: StudentSupportAlert[] = [];
   const att = input.attendancePercent;
 
-  if (att != null && att < TEACHER_CRITICAL_ATTENDANCE_ALERT_PERCENT) {
+  if (isTeacherCriticalAttendance(att)) {
     alerts.push({ id: 'att-critical', label: 'Critical attendance', tone: 'critical' });
-  } else if (att != null && att < TEACHER_LOW_ATTENDANCE_ALERT_PERCENT) {
+  } else if (isTeacherLowAttendance(att)) {
     alerts.push({ id: 'att-low', label: 'Low attendance', tone: 'warning' });
   }
 
@@ -91,7 +119,7 @@ export function matchesStudentSearch(
     student.courseName ?? '',
     student.yearOfStudy != null ? `year ${student.yearOfStudy}` : '',
     student.attendancePercent != null ? `${student.attendancePercent}% attendance` : '',
-    student.attendancePercent != null && student.attendancePercent < 75 ? 'low attendance' : '',
+    isTeacherLowAttendance(student.attendancePercent) ? 'low attendance' : '',
     student.overallGrade != null ? `grade ${student.overallGrade}` : '',
     student.missingAssignments > 0 ? 'missing assignments missing work' : '',
     studentNeedsSupport(student.alerts) ? 'needs support' : '',
@@ -120,10 +148,7 @@ export function matchesStudentFilter(
   if (filter === 'all') return true;
   if (filter === 'low_attendance') {
     void minAttendance;
-    return (
-      student.attendancePercent != null &&
-      student.attendancePercent < TEACHER_LOW_ATTENDANCE_ALERT_PERCENT
-    );
+    return isTeacherLowAttendance(student.attendancePercent);
   }
   if (filter === 'missing_assignments') {
     return student.missingAssignments > 0 || student.overdueMissing > 0;

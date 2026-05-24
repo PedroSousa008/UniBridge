@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { ensureTeacherAcademicSchema } from '@/lib/teacher/ensure-teacher-schema';
 import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
+import { isTeacherLowAttendance } from '@/lib/teacher/teacher-students-shared';
 
 export interface TeacherSubjectCardSignal {
   pendingEvaluations: number;
@@ -99,7 +100,6 @@ export async function loadTeacherClassesHub(actorUserId: string): Promise<Teache
   const todayDow = new Date().getDay();
   const weekAhead = new Date(Date.now() + 7 * 86400000);
   const subjects: TeacherSubjectCard[] = teacher.subjects.map((s) => {
-    const subjectMinAtt = s.minAttendancePercent ?? 75;
     let pendingEvaluations = 0;
     let upcomingDeadlines = 0;
 
@@ -113,7 +113,7 @@ export async function loadTeacherClassesHub(actorUserId: string): Promise<Teache
     const hasClassToday = s.scheduleSlots.some((sl) => sl.dayOfWeek === todayDow);
     if (hasClassToday && s.attendanceSessions.length === 0) attendanceAlerts += 1;
     for (const e of s.enrollments) {
-      if (e.attendance != null && e.attendance < subjectMinAtt) attendanceAlerts += 1;
+      if (isTeacherLowAttendance(e.attendance)) attendanceAlerts += 1;
     }
 
     return {

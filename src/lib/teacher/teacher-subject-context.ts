@@ -3,6 +3,22 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { ensureTeacherAcademicSchema } from '@/lib/teacher/ensure-teacher-schema';
 import { getSubjectGradingPlan } from '@/lib/teacher/teacher-gradebook';
+import { loadSubjectAttendanceReport } from '@/lib/teacher/subject-attendance-report';
+import {
+  isTeacherLowAttendance,
+  resolveStudentAttendancePercent,
+} from '@/lib/teacher/teacher-students-shared';
+
+function studentsWithLowAttendance(
+  enrollments: { studentId: string; attendance: number | null }[],
+  attendanceByStudent: Map<string, number | null>
+) {
+  return enrollments.filter((e) =>
+    isTeacherLowAttendance(
+      resolveStudentAttendancePercent(e.studentId, attendanceByStudent, e.attendance)
+    )
+  );
+}
 
 export const requireTeacherSubjectAccess = cache(async function requireTeacherSubjectAccess(
   actorUserId: string,
@@ -81,7 +97,8 @@ export const loadTeacherSubjectHomeData = cache(async function loadTeacherSubjec
   const { subject } = await requireTeacherSubjectAccess(actorUserId, subjectId);
   const gradingPlan = await getSubjectGradingPlan(subjectId);
 
-  const [announcements, assignments, scheduleSlots, enrollments] = await Promise.all([
+  const [announcements, assignments, scheduleSlots, enrollments, attendanceReport] =
+    await Promise.all([
     prisma.subjectAnnouncement.findMany({
       where: { subjectId },
       orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
@@ -106,12 +123,13 @@ export const loadTeacherSubjectHomeData = cache(async function loadTeacherSubjec
       include: { student: { select: { id: true, name: true, email: true, image: true } } },
       orderBy: { student: { name: 'asc' } },
     }),
+    loadSubjectAttendanceReport(subjectId),
   ]);
 
-  const minAtt = subject.minAttendancePercent ?? 75;
-  const studentsNeedingSupport = enrollments.filter(
-    (e) => e.attendance != null && e.attendance < minAtt
+  const attendanceByStudent = new Map(
+    attendanceReport.students.map((row) => [row.studentId, row.attendancePercent])
   );
+  const studentsNeedingSupport = studentsWithLowAttendance(enrollments, attendanceByStudent);
 
   return {
     subject,
@@ -145,6 +163,7 @@ export const loadTeacherSubjectWorkspace = cache(async function loadTeacherSubje
     attendanceSessions,
     messages,
     enrollments,
+    attendanceReport,
   ] = await Promise.all([
     prisma.subjectContentWeek.findMany({
       where: { subjectId },
@@ -201,12 +220,13 @@ export const loadTeacherSubjectWorkspace = cache(async function loadTeacherSubje
       include: { student: { select: { id: true, name: true, email: true, image: true } } },
       orderBy: { student: { name: 'asc' } },
     }),
+    loadSubjectAttendanceReport(subjectId),
   ]);
 
-  const minAtt = subject.minAttendancePercent ?? 75;
-  const studentsNeedingSupport = enrollments.filter(
-    (e) => e.attendance != null && e.attendance < minAtt
+  const attendanceByStudent = new Map(
+    attendanceReport.students.map((row) => [row.studentId, row.attendancePercent])
   );
+  const studentsNeedingSupport = studentsWithLowAttendance(enrollments, attendanceByStudent);
 
   return {
     subject,
