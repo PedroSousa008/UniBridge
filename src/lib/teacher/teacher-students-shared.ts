@@ -55,10 +55,6 @@ export function buildStudentSupportAlerts(input: {
     alerts.push({ id: 'grade-low', label: 'Grade below expectations', tone: 'warning' });
   }
 
-  if (input.engagementScore != null && input.engagementScore < 0.35) {
-    alerts.push({ id: 'disengaged', label: 'Low engagement', tone: 'warning' });
-  }
-
   return alerts;
 }
 
