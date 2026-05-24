@@ -106,15 +106,28 @@ export async function loadTeacherWorkspaceGradingHub(
   const finalGrades: WorkspaceFinalGradeRow[] = await Promise.all(
     enrollments.map(async (e) => {
       const computed = await computeEnrollmentFinalGrade(subjectId, e.studentId);
+      const finalGrade = allComponentsComplete ? computed.finalGrade : null;
+
+      if (
+        allComponentsComplete &&
+        computed.finalGrade != null &&
+        e.grade !== computed.finalGrade
+      ) {
+        await prisma.subjectEnrollment.update({
+          where: { id: e.id },
+          data: { grade: computed.finalGrade },
+        });
+      }
+
       return {
         studentId: e.studentId,
         studentName: e.student?.name ?? 'Student',
         studentEmail: e.student?.email ?? '',
         studentRef: e.student?.email?.split('@')[0] ?? e.studentId.slice(-8),
-        finalGrade: allComponentsComplete ? (e.grade ?? computed.finalGrade) : null,
+        finalGrade,
         statusLabel: allComponentsComplete ? computed.statusLabel : 'Pending',
         passed: allComponentsComplete ? computed.passed : null,
-        reason: allComponentsComplete ? computed.reason : computed.reason,
+        reason: computed.reason,
       };
     })
   );
