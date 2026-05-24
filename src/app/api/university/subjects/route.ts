@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isValidSubjectSemester } from '@/lib/academics/subject-semester';
+import { ensureSubjectCreditsColumn } from '@/lib/db/ensure-subject-credits-schema';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
-import { enrollCourseStudentsInSubject } from '@/lib/academics/enrollments';
 
 export async function POST(request: Request) {
   const auth = await requireUniversityApi();
   if (auth.error) return auth.error;
+  await ensureSubjectCreditsColumn();
 
   const body = await request.json();
   const name = String(body.name || '').trim();
@@ -52,6 +53,13 @@ export async function POST(request: Request) {
   }
   const semester = semesterRaw;
 
+  const credits = body.credits != null && body.credits !== ''
+    ? parseInt(String(body.credits), 10)
+    : null;
+  if (credits == null || Number.isNaN(credits) || credits < 1) {
+    return NextResponse.json({ error: 'Number of credits is required' }, { status: 400 });
+  }
+
   const subject = await prisma.subject.create({
     data: {
       universityId: auth.ctx.university.id,
@@ -60,12 +68,11 @@ export async function POST(request: Request) {
       code: body.code ? String(body.code).trim() : null,
       year: Number.isNaN(year as number) ? null : year,
       semester,
+      credits,
       teacherId,
       status: 'ACTIVE',
     },
   });
-
-  await enrollCourseStudentsInSubject(subject.id, courseId, subject.year);
 
   await logUniversityActivity(
     auth.ctx.university.id,

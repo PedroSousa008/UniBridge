@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
-import { syncStudentEnrollments } from '@/lib/academics/enrollments';
+import { setStudentSubjectEnrollments } from '@/lib/academics/enrollments';
 
 export async function POST(request: Request) {
   const auth = await requireUniversityApi();
@@ -56,6 +56,10 @@ export async function POST(request: Request) {
   const resolvedYear =
     yearOfStudy && !Number.isNaN(yearOfStudy) ? yearOfStudy : user.studentProfile?.yearOfStudy ?? null;
 
+  const subjectIds = Array.isArray(body.subjectIds)
+    ? body.subjectIds.map((id: unknown) => String(id))
+    : [];
+
   const student = await prisma.studentProfile.upsert({
     where: { userId: user.id },
     update: {
@@ -75,11 +79,7 @@ export async function POST(request: Request) {
     },
   });
 
-  await syncStudentEnrollments(user.id, {
-    universityId: auth.ctx.university.id,
-    courseId: student.courseId,
-    yearOfStudy: student.yearOfStudy,
-  });
+  await setStudentSubjectEnrollments(user.id, auth.ctx.university.id, subjectIds);
 
   await logUniversityActivity(
     auth.ctx.university.id,

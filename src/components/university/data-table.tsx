@@ -4,9 +4,10 @@ import { cn } from '@/lib/utils';
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   cell: (row: T) => React.ReactNode;
   className?: string;
+  headerClassName?: string;
 }
 
 interface DataTableProps<T> {
@@ -41,6 +42,7 @@ export function DataTable<T extends { id: string }>({
                   key={col.key}
                   className={cn(
                     'px-4 py-3 text-left font-medium text-muted-foreground',
+                    col.headerClassName,
                     col.className
                   )}
                 >

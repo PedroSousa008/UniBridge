@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, UserPlus, X, ChevronDown } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { SectionTabs } from '@/components/university/section-tabs';
 import { DataTable, type Column } from '@/components/university/data-table';
+import { StudentSubjectPicker } from '@/components/university/student-subject-picker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   formatSubjectSemester,
   normalizeSubjectSemester,
@@ -59,6 +61,50 @@ function SubjectSemesterSelect({
   );
 }
 
+function ColumnFilterHeader({
+  label,
+  activeCount,
+  open,
+  onToggle,
+  onClear,
+  children,
+}: {
+  label: string;
+  activeCount: number;
+  open: boolean;
+  onToggle: () => void;
+  onClear: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-muted/60 hover:text-foreground"
+      >
+        {label}
+        {activeCount > 0 ? (
+          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+            {activeCount}
+          </Badge>
+        ) : null}
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-xl border bg-card p-2 shadow-lg">
+          {children}
+          {activeCount > 0 ? (
+            <Button type="button" variant="ghost" size="sm" className="mt-1 h-7 w-full text-xs" onClick={onClear}>
+              Clear filter
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export interface AcademicsCourse {
   id: string;
   name: string;
@@ -81,6 +127,7 @@ export interface AcademicsSubject {
   teacherName: string | null;
   year: number | null;
   semester: string | null;
+  credits: number | null;
   status: string;
 }
 
@@ -103,6 +150,8 @@ export interface AcademicsStudent {
   engagementScore: number;
   employabilityScore: number;
   courseName: string | null;
+  enrolledSubjectIds: string[];
+  completedCredits: number;
 }
 
 type DeleteTarget = {
@@ -179,6 +228,13 @@ export function UniversityAcademicsClient({
   const [editStudent, setEditStudent] = useState<AcademicsStudent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [subjectCourseFilter, setSubjectCourseFilter] = useState<string[]>([]);
+  const [subjectYearFilter, setSubjectYearFilter] = useState<number[]>([]);
+  const [subjectSemesterFilter, setSubjectSemesterFilter] = useState<string[]>([]);
+  const [openSubjectColumnFilter, setOpenSubjectColumnFilter] = useState<'year' | 'semester' | null>(
+    null
+  );
+  const [inviteSelectedSubjectIds, setInviteSelectedSubjectIds] = useState<string[]>([]);
+  const [editSelectedSubjectIds, setEditSelectedSubjectIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -203,9 +259,40 @@ export function UniversityAcademicsClient({
   }, [students, filter]);
 
   const filteredSubjects = useMemo(() => {
-    if (subjectCourseFilter.length === 0) return subjects;
-    return subjects.filter((s) => s.courseId && subjectCourseFilter.includes(s.courseId));
-  }, [subjects, subjectCourseFilter]);
+    return subjects.filter((s) => {
+      if (subjectCourseFilter.length > 0 && (!s.courseId || !subjectCourseFilter.includes(s.courseId))) {
+        return false;
+      }
+      if (subjectYearFilter.length > 0 && (s.year == null || !subjectYearFilter.includes(s.year))) {
+        return false;
+      }
+      if (subjectSemesterFilter.length > 0) {
+        const sem = s.semester?.trim();
+        if (!sem || !subjectSemesterFilter.includes(sem)) return false;
+      }
+      return true;
+    });
+  }, [subjects, subjectCourseFilter, subjectYearFilter, subjectSemesterFilter]);
+
+  const subjectYearOptions = useMemo(() => {
+    const years = new Set<number>();
+    for (const s of subjects) {
+      if (s.year != null) years.add(s.year);
+    }
+    return [...years].sort((a, b) => a - b);
+  }, [subjects]);
+
+  function toggleSubjectYearFilter(year: number) {
+    setSubjectYearFilter((prev) =>
+      prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year]
+    );
+  }
+
+  function toggleSubjectSemesterFilter(semester: string) {
+    setSubjectSemesterFilter((prev) =>
+      prev.includes(semester) ? prev.filter((s) => s !== semester) : [...prev, semester]
+    );
+  }
 
   function toggleSubjectCourseFilter(courseId: string) {
     setSubjectCourseFilter((prev) =>
@@ -220,9 +307,18 @@ export function UniversityAcademicsClient({
     if (action === 'add' && t === 'courses') setAddCourseOpen(true);
     if (action === 'add' && t === 'subjects') setAddSubjectOpen(true);
     if (action === 'invite' && t === 'teachers') setInviteTeacherOpen(true);
-    if (action === 'invite' && t === 'students') setInviteStudentOpen(true);
+    if (action === 'invite' && t === 'students') {
+      setInviteStudentOpen(true);
+      setInviteSelectedSubjectIds([]);
+    }
     if (action === 'add' && t === 'announcements') setAnnouncementOpen(true);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (editStudent) {
+      setEditSelectedSubjectIds(editStudent.enrolledSubjectIds);
+    }
+  }, [editStudent]);
 
   async function requestJson(
     method: 'POST' | 'PATCH' | 'DELETE',
@@ -305,15 +401,69 @@ export function UniversityAcademicsClient({
     { key: 'name', header: 'Subject', cell: (r) => <span className="font-medium">{r.name}</span> },
     {
       key: 'year',
-      header: 'Year',
+      header: (
+        <ColumnFilterHeader
+          label="Year"
+          activeCount={subjectYearFilter.length}
+          open={openSubjectColumnFilter === 'year'}
+          onToggle={() =>
+            setOpenSubjectColumnFilter((v) => (v === 'year' ? null : 'year'))
+          }
+          onClear={() => setSubjectYearFilter([])}
+        >
+          <div className="space-y-1">
+            {subjectYearOptions.map((year) => (
+              <label key={year} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
+                <input
+                  type="checkbox"
+                  checked={subjectYearFilter.includes(year)}
+                  onChange={() => toggleSubjectYearFilter(year)}
+                />
+                Year {year}
+              </label>
+            ))}
+            {subjectYearOptions.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-muted-foreground">No years yet</p>
+            ) : null}
+          </div>
+        </ColumnFilterHeader>
+      ),
       cell: (r) => (r.year != null ? `Year ${r.year}` : '—'),
     },
     {
       key: 'semester',
-      header: 'Semester',
+      header: (
+        <ColumnFilterHeader
+          label="Semester"
+          activeCount={subjectSemesterFilter.length}
+          open={openSubjectColumnFilter === 'semester'}
+          onToggle={() =>
+            setOpenSubjectColumnFilter((v) => (v === 'semester' ? null : 'semester'))
+          }
+          onClear={() => setSubjectSemesterFilter([])}
+        >
+          <div className="space-y-1">
+            {SUBJECT_SEMESTER_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
+                <input
+                  type="checkbox"
+                  checked={subjectSemesterFilter.includes(opt.value)}
+                  onChange={() => toggleSubjectSemesterFilter(opt.value)}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </ColumnFilterHeader>
+      ),
       cell: (r) => formatSubjectSemester(r.semester),
     },
     { key: 'course', header: 'Course', cell: (r) => r.courseName ?? '—' },
+    {
+      key: 'credits',
+      header: 'Credits',
+      cell: (r) => (r.credits != null ? r.credits : '—'),
+    },
     { key: 'teacher', header: 'Teacher', cell: (r) => r.teacherName ?? '—' },
     {
       key: 'status',
@@ -361,6 +511,11 @@ export function UniversityAcademicsClient({
     { key: 'program', header: 'Program', cell: (r) => r.program ?? '—' },
     { key: 'year', header: 'Year', cell: (r) => r.yearOfStudy ?? '—' },
     { key: 'course', header: 'Course', cell: (r) => r.courseName ?? '—' },
+    {
+      key: 'credits',
+      header: 'Credits',
+      cell: (r) => `${r.completedCredits} ECTS`,
+    },
     {
       key: 'engagement',
       header: 'Engagement',
@@ -534,8 +689,10 @@ export function UniversityAcademicsClient({
           columns={subjectColumns}
           data={filteredSubjects}
           emptyMessage={
-            subjectCourseFilter.length > 0
-              ? 'No subjects match the selected courses.'
+            subjectCourseFilter.length > 0 ||
+            subjectYearFilter.length > 0 ||
+            subjectSemesterFilter.length > 0
+              ? 'No subjects match the selected filters.'
               : 'No subjects yet.'
           }
         />
@@ -603,6 +760,7 @@ export function UniversityAcademicsClient({
                 courseId: fd.get('courseId'),
                 year: fd.get('year'),
                 semester: fd.get('semester'),
+                credits: fd.get('credits'),
                 teacherId: fd.get('teacherId') || undefined,
               });
               if (ok) setAddSubjectOpen(false);
@@ -611,8 +769,8 @@ export function UniversityAcademicsClient({
             <DialogHeader>
               <DialogTitle>Add subject</DialogTitle>
               <DialogDescription>
-                Link a subject to a course. Students enrolled in this course will see it in
-                Academics.
+                Link a subject to a course. Assign credits and semester so student progress can be
+                tracked.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-4">
@@ -636,6 +794,14 @@ export function UniversityAcademicsClient({
                 <Input name="year" type="number" min={1} max={6} placeholder="Year" required />
                 <SubjectSemesterSelect name="semester" required />
               </div>
+              <Input
+                name="credits"
+                type="number"
+                min={1}
+                max={60}
+                placeholder="Number of credits (ECTS)"
+                required
+              />
               <select name="teacherId" className={selectClassName} defaultValue="">
                 <option value="">Assign teacher (optional)</option>
                 {teachers.map((t) => (
@@ -655,8 +821,14 @@ export function UniversityAcademicsClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={inviteStudentOpen} onOpenChange={setInviteStudentOpen}>
-        <DialogContent>
+      <Dialog
+        open={inviteStudentOpen}
+        onOpenChange={(open) => {
+          setInviteStudentOpen(open);
+          if (!open) setInviteSelectedSubjectIds([]);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -666,27 +838,26 @@ export function UniversityAcademicsClient({
                 program: fd.get('program'),
                 yearOfStudy: fd.get('yearOfStudy'),
                 courseId: fd.get('courseId') || undefined,
+                subjectIds: inviteSelectedSubjectIds,
               });
-              if (ok) setInviteStudentOpen(false);
+              if (ok) {
+                setInviteStudentOpen(false);
+                setInviteSelectedSubjectIds([]);
+              }
             }}
           >
             <DialogHeader>
               <DialogTitle>Invite student</DialogTitle>
               <DialogDescription>
-                Link an existing student account to your university. Assign a course so they
-                automatically see all subjects for that course in their Academics.
+                Link an existing student account to your university. Choose their course and the
+                subjects they are taking this semester.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-4">
               <Input name="email" type="email" placeholder="Student email" required />
               <Input name="program" placeholder="Program (optional)" />
               <Input name="yearOfStudy" type="number" min={1} max={6} placeholder="Year of study" />
-              <select
-                name="courseId"
-                required
-                className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
-                defaultValue=""
-              >
+              <select name="courseId" required className={selectClassName} defaultValue="">
                 <option value="" disabled>
                   Select course
                 </option>
@@ -696,6 +867,11 @@ export function UniversityAcademicsClient({
                   </option>
                 ))}
               </select>
+              <StudentSubjectPicker
+                subjects={subjects}
+                selectedIds={inviteSelectedSubjectIds}
+                onChange={setInviteSelectedSubjectIds}
+              />
             </div>
             {error ? <p className="text-sm text-red-500">{error}</p> : null}
             <DialogFooter>
@@ -846,6 +1022,7 @@ export function UniversityAcademicsClient({
                   courseId: fd.get('courseId'),
                   year: fd.get('year'),
                   semester: fd.get('semester'),
+                  credits: fd.get('credits'),
                   teacherId: fd.get('teacherId') || null,
                 });
                 if (ok) setEditSubject(null);
@@ -888,6 +1065,15 @@ export function UniversityAcademicsClient({
                     defaultValue={editSubject.semester ?? ''}
                   />
                 </div>
+                <Input
+                  name="credits"
+                  type="number"
+                  min={1}
+                  max={60}
+                  placeholder="Number of credits (ECTS)"
+                  required
+                  defaultValue={editSubject.credits ?? ''}
+                />
                 <select
                   name="teacherId"
                   className={selectClassName}
@@ -916,7 +1102,7 @@ export function UniversityAcademicsClient({
       </Dialog>
 
       <Dialog open={!!editStudent} onOpenChange={(open) => !open && setEditStudent(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           {editStudent ? (
             <form
               key={editStudent.id}
@@ -927,6 +1113,7 @@ export function UniversityAcademicsClient({
                   program: fd.get('program'),
                   yearOfStudy: fd.get('yearOfStudy'),
                   courseId: fd.get('courseId') || null,
+                  subjectIds: editSelectedSubjectIds,
                 });
                 if (ok) setEditStudent(null);
               }}
@@ -934,7 +1121,8 @@ export function UniversityAcademicsClient({
               <DialogHeader>
                 <DialogTitle>Edit student</DialogTitle>
                 <DialogDescription>
-                  Update enrollment details for {editStudent.name}.
+                  Update enrollment details for {editStudent.name}. Credits shown are earned when
+                  final grade is 9.5 or above.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-3 py-4">
@@ -952,11 +1140,7 @@ export function UniversityAcademicsClient({
                   placeholder="Year of study"
                   defaultValue={editStudent.yearOfStudy ?? ''}
                 />
-                <select
-                  name="courseId"
-                  className="flex h-11 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm"
-                  defaultValue={editStudent.courseId ?? ''}
-                >
+                <select name="courseId" className={selectClassName} defaultValue={editStudent.courseId ?? ''}>
                   <option value="">No course assigned</option>
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -964,6 +1148,14 @@ export function UniversityAcademicsClient({
                     </option>
                   ))}
                 </select>
+                <p className="text-sm font-medium">
+                  Completed credits: {editStudent.completedCredits} ECTS
+                </p>
+                <StudentSubjectPicker
+                  subjects={subjects}
+                  selectedIds={editSelectedSubjectIds}
+                  onChange={setEditSelectedSubjectIds}
+                />
               </div>
               {error ? <p className="text-sm text-red-500">{error}</p> : null}
               <DialogFooter>

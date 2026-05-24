@@ -1,9 +1,78 @@
 import { prisma } from '@/lib/db';
 
-function universitySubjectsWhere(universityId: string) {
+export function universitySubjectsWhere(universityId: string) {
   return {
     OR: [{ universityId }, { course: { universityId } }],
   };
+}
+
+/** Validate subject ids belong to the university and are active. */
+export async function validateUniversitySubjectIds(
+  universityId: string,
+  subjectIds: string[]
+): Promise<string[]> {
+  if (subjectIds.length === 0) return [];
+  const unique = [...new Set(subjectIds)];
+  const rows = await prisma.subject.findMany({
+    where: {
+      id: { in: unique },
+      status: 'ACTIVE',
+      ...universitySubjectsWhere(universityId),
+    },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Set exactly which subjects a student is enrolled in at a university.
+ * Replaces automatic course-wide enrollment.
+ */
+export async function setStudentSubjectEnrollments(
+  userId: string,
+  universityId: string,
+  subjectIds: string[]
+) {
+  const targetIds = await validateUniversitySubjectIds(universityId, subjectIds);
+
+  const scoped = await prisma.subject.findMany({
+    where: universitySubjectsWhere(universityId),
+    select: { id: true },
+  });
+  const scopeIds = scoped.map((s) => s.id);
+  const targetSet = new Set(targetIds);
+  const toRemove = scopeIds.filter((id) => !targetSet.has(id));
+
+  if (toRemove.length > 0) {
+    await prisma.subjectEnrollment.deleteMany({
+      where: { studentId: userId, subjectId: { in: toRemove } },
+    });
+  }
+
+  if (targetIds.length > 0) {
+    await prisma.subjectEnrollment.createMany({
+      data: targetIds.map((subjectId) => ({ subjectId, studentId: userId })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+export async function getStudentEnrolledSubjectIds(
+  userId: string,
+  universityId: string
+): Promise<string[]> {
+  const scoped = await prisma.subject.findMany({
+    where: universitySubjectsWhere(universityId),
+    select: { id: true },
+  });
+  const scopeIds = scoped.map((s) => s.id);
+  if (scopeIds.length === 0) return [];
+
+  const rows = await prisma.subjectEnrollment.findMany({
+    where: { studentId: userId, subjectId: { in: scopeIds } },
+    select: { subjectId: true },
+  });
+  return rows.map((r) => r.subjectId);
 }
 
 /** Active subjects on a course; optional year filter matches student year or open subjects. */

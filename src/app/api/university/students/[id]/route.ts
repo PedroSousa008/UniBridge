@@ -4,7 +4,7 @@ import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
 import {
   clearStudentEnrollmentsForUniversity,
-  syncStudentEnrollments,
+  setStudentSubjectEnrollments,
 } from '@/lib/academics/enrollments';
 
 async function getOwnedStudent(universityId: string, id: string) {
@@ -71,11 +71,13 @@ export async function PATCH(
     },
   });
 
-  await syncStudentEnrollments(student.userId, {
-    universityId: auth.ctx.university.id,
-    courseId: updated.courseId,
-    yearOfStudy: updated.yearOfStudy,
-  });
+  if (Array.isArray(body.subjectIds)) {
+    await setStudentSubjectEnrollments(
+      student.userId,
+      auth.ctx.university.id,
+      body.subjectIds.map((sid: unknown) => String(sid))
+    );
+  }
 
   await logUniversityActivity(
     auth.ctx.university.id,

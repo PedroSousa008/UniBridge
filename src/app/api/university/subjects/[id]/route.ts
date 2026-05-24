@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isValidSubjectSemester } from '@/lib/academics/subject-semester';
+import { ensureSubjectCreditsColumn } from '@/lib/db/ensure-subject-credits-schema';
 import { requireUniversityApi } from '@/lib/university/api-auth';
 import { logUniversityActivity } from '@/lib/university/activity';
-import {
-  enrollCourseStudentsInSubject,
-  syncAllStudentsInCourse,
-} from '@/lib/academics/enrollments';
 
 async function getOwnedSubject(universityId: string, id: string) {
   return prisma.subject.findFirst({
@@ -24,6 +21,7 @@ export async function PATCH(
 ) {
   const auth = await requireUniversityApi();
   if (auth.error) return auth.error;
+  await ensureSubjectCreditsColumn();
 
   const { id } = await params;
   const subject = await getOwnedSubject(auth.ctx.university.id, id);
@@ -90,8 +88,18 @@ export async function PATCH(
     return NextResponse.json({ error: 'Semester must be 1st or 2nd' }, { status: 400 });
   }
 
-  const courseChanged = courseId !== subject.courseId;
-  const yearChanged = year !== undefined && year !== subject.year;
+  let credits: number | null | undefined = undefined;
+  if (body.credits !== undefined) {
+    if (body.credits === '' || body.credits == null) {
+      credits = null;
+    } else {
+      const parsed = parseInt(String(body.credits), 10);
+      if (Number.isNaN(parsed) || parsed < 1) {
+        return NextResponse.json({ error: 'Credits must be at least 1' }, { status: 400 });
+      }
+      credits = parsed;
+    }
+  }
 
   const updated = await prisma.subject.update({
     where: { id },
@@ -101,18 +109,11 @@ export async function PATCH(
       code: body.code !== undefined ? (body.code ? String(body.code).trim() : null) : undefined,
       year: year !== undefined ? (Number.isNaN(year as number) ? null : year) : undefined,
       semester,
+      credits,
       teacherId: body.teacherId !== undefined ? teacherId : undefined,
       status: body.status !== undefined ? body.status : undefined,
     },
   });
-
-  if (updated.courseId && (courseChanged || yearChanged)) {
-    if (subject.courseId && subject.courseId !== updated.courseId) {
-      await syncAllStudentsInCourse(subject.courseId);
-    }
-    await enrollCourseStudentsInSubject(updated.id, updated.courseId, updated.year);
-    await syncAllStudentsInCourse(updated.courseId);
-  }
 
   await logUniversityActivity(
     auth.ctx.university.id,
