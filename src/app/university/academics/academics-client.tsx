@@ -236,7 +236,9 @@ export function UniversityAcademicsClient({
     null
   );
   const [inviteSelectedSubjectIds, setInviteSelectedSubjectIds] = useState<string[]>([]);
+  const [inviteCourseId, setInviteCourseId] = useState('');
   const [editSelectedSubjectIds, setEditSelectedSubjectIds] = useState<string[]>([]);
+  const [editCourseId, setEditCourseId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -318,9 +320,25 @@ export function UniversityAcademicsClient({
 
   useEffect(() => {
     if (editStudent) {
+      setEditCourseId(editStudent.courseId ?? '');
       setEditSelectedSubjectIds(editStudent.enrolledSubjectIds);
+    } else {
+      setEditCourseId('');
     }
   }, [editStudent]);
+
+  const subjectsForCourse = useCallback(
+    (courseId: string) => {
+      if (!courseId) return [];
+      return subjects.filter((s) => s.courseId === courseId);
+    },
+    [subjects]
+  );
+
+  function pruneSelectedSubjects(courseId: string, selected: string[]) {
+    const allowed = new Set(subjectsForCourse(courseId).map((s) => s.id));
+    return selected.filter((id) => allowed.has(id));
+  }
 
   async function requestJson(
     method: 'POST' | 'PATCH' | 'DELETE',
@@ -842,7 +860,10 @@ export function UniversityAcademicsClient({
         open={inviteStudentOpen}
         onOpenChange={(open) => {
           setInviteStudentOpen(open);
-          if (!open) setInviteSelectedSubjectIds([]);
+          if (!open) {
+            setInviteSelectedSubjectIds([]);
+            setInviteCourseId('');
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -874,7 +895,17 @@ export function UniversityAcademicsClient({
               <Input name="email" type="email" placeholder="Student email" required />
               <Input name="program" placeholder="Program (optional)" />
               <Input name="yearOfStudy" type="number" min={1} max={6} placeholder="Year of study" />
-              <select name="courseId" required className={selectClassName} defaultValue="">
+              <select
+                name="courseId"
+                required
+                className={selectClassName}
+                value={inviteCourseId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setInviteCourseId(next);
+                  setInviteSelectedSubjectIds((prev) => pruneSelectedSubjects(next, prev));
+                }}
+              >
                 <option value="" disabled>
                   Select course
                 </option>
@@ -885,7 +916,7 @@ export function UniversityAcademicsClient({
                 ))}
               </select>
               <StudentSubjectPicker
-                subjects={subjects}
+                subjects={subjectsForCourse(inviteCourseId)}
                 selectedIds={inviteSelectedSubjectIds}
                 onChange={setInviteSelectedSubjectIds}
               />
@@ -1176,7 +1207,16 @@ export function UniversityAcademicsClient({
                   placeholder="Year of study"
                   defaultValue={editStudent.yearOfStudy ?? ''}
                 />
-                <select name="courseId" className={selectClassName} defaultValue={editStudent.courseId ?? ''}>
+                <select
+                  name="courseId"
+                  className={selectClassName}
+                  value={editCourseId}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setEditCourseId(next);
+                    setEditSelectedSubjectIds((prev) => pruneSelectedSubjects(next, prev));
+                  }}
+                >
                   <option value="">No course assigned</option>
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -1188,7 +1228,7 @@ export function UniversityAcademicsClient({
                   Completed credits: {editStudent.completedCredits} ECTS
                 </p>
                 <StudentSubjectPicker
-                  subjects={subjects}
+                  subjects={subjectsForCourse(editCourseId)}
                   selectedIds={editSelectedSubjectIds}
                   onChange={setEditSelectedSubjectIds}
                 />

@@ -176,8 +176,12 @@ export async function loadStudentExamsHub(studentId: string): Promise<StudentExa
   const ready = await ensureExamTables();
   if (!ready) return [];
 
+  const { getStudentLinkedUniversityId, studentEnrollmentsWhere } = await import(
+    '@/lib/academics/enrollments'
+  );
+  const universityId = await getStudentLinkedUniversityId(studentId);
   const enrollments = await prisma.subjectEnrollment.findMany({
-    where: { studentId },
+    where: studentEnrollmentsWhere(studentId, universityId),
     select: { subjectId: true, attendance: true, grade: true, subject: { select: { id: true, name: true, code: true } } },
   });
   const subjectIds = enrollments.map((e) => e.subjectId);

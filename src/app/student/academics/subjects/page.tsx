@@ -1,6 +1,6 @@
 import { requireSession } from '@/lib/session';
 import { prisma } from '@/lib/db';
-import { ensureStudentEnrollments } from '@/lib/academics/enrollments';
+import { studentEnrollmentsWhere } from '@/lib/academics/enrollments';
 import { StudentSubjectsClient } from './subjects-client';
 
 export default async function StudentSubjectsPage() {
@@ -21,12 +21,8 @@ export default async function StudentSubjectsPage() {
     },
   });
 
-  if (profile?.universityId) {
-    await ensureStudentEnrollments(session.user.id);
-  }
-
   const enrollments = await prisma.subjectEnrollment.findMany({
-    where: { studentId: session.user.id },
+    where: studentEnrollmentsWhere(session.user.id, profile?.universityId ?? null),
     include: {
       subject: {
         include: {

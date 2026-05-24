@@ -79,7 +79,9 @@ export async function POST(request: Request) {
     },
   });
 
-  await setStudentSubjectEnrollments(user.id, auth.ctx.university.id, subjectIds);
+  await setStudentSubjectEnrollments(user.id, auth.ctx.university.id, subjectIds, {
+    courseId,
+  });
 
   await logUniversityActivity(
     auth.ctx.university.id,

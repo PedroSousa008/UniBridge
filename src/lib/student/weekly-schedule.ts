@@ -197,9 +197,15 @@ export function minutesUntilClass(cls: CalendarClass, now = new Date()): number 
 }
 
 async function loadEnrollmentsForSchedule(userId: string) {
+  const { getStudentLinkedUniversityId, studentEnrollmentsWhere } = await import(
+    '@/lib/academics/enrollments'
+  );
+  const universityId = await getStudentLinkedUniversityId(userId);
+  const enrollmentWhere = studentEnrollmentsWhere(userId, universityId);
+
   try {
     return await prisma.subjectEnrollment.findMany({
-      where: { studentId: userId },
+      where: enrollmentWhere,
       include: {
         subject: {
           include: {
@@ -212,7 +218,7 @@ async function loadEnrollmentsForSchedule(userId: string) {
   } catch (error) {
     if (!isPrismaSchemaMismatchError(error)) throw error;
     const rows = await prisma.subjectEnrollment.findMany({
-      where: { studentId: userId },
+      where: enrollmentWhere,
       include: {
         subject: {
           include: {

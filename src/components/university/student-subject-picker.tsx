@@ -49,8 +49,8 @@ export function StudentSubjectPicker({
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Select the subjects this student is taking this semester. They can pick from any year or
-        course.
+        Select subjects from this student&apos;s course curriculum. Only checked subjects will
+        appear in the student&apos;s Academics → Subjects view.
       </p>
       <div className="max-h-52 overflow-y-auto rounded-xl border divide-y">
         {sorted.map((s) => {

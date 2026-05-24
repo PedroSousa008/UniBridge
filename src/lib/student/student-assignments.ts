@@ -268,11 +268,8 @@ export async function loadStudentAssignmentsHub(studentId: string): Promise<{
   const dbReady = await ensureAssignmentTables();
   if (!dbReady) return { assignments: [], notifications: [], dbReady: false };
 
-  const enrollments = await prisma.subjectEnrollment.findMany({
-    where: { studentId },
-    select: { subjectId: true },
-  });
-  const subjectIds = enrollments.map((e) => e.subjectId);
+  const { getStudentActiveEnrollmentSubjectIds } = await import('@/lib/academics/enrollments');
+  const subjectIds = await getStudentActiveEnrollmentSubjectIds(studentId);
 
   const rows = await prisma.assignment.findMany({
     where: { subjectId: { in: subjectIds } },

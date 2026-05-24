@@ -4,8 +4,6 @@ import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
 import { syncAssignmentAnnouncement } from '@/lib/student/announcement-sync';
 import { syncAssignmentToCalendars } from '@/lib/student/assignment-sync';
 import { requireTeacherSubject } from '@/lib/teacher/subject-auth';
-import { enrollCourseStudentsInSubject } from '@/lib/academics/enrollments';
-
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ subjectId: string }> }
@@ -65,14 +63,6 @@ export async function POST(
 
   await syncAssignmentToCalendars(assignment.id);
   await syncAssignmentAnnouncement(assignment.id);
-
-  if (auth.subject.courseId) {
-    await enrollCourseStudentsInSubject(
-      subjectId,
-      auth.subject.courseId,
-      auth.subject.year
-    );
-  }
 
   return NextResponse.json({ assignment }, { status: 201 });
 }

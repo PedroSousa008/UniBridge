@@ -1,8 +1,13 @@
 import { prisma } from '@/lib/db';
+import {
+  getStudentLinkedUniversityId,
+  studentEnrollmentsWhere,
+} from '@/lib/academics/enrollments';
 
 export async function loadStudentEnrolledSubjectIds(studentId: string) {
+  const universityId = await getStudentLinkedUniversityId(studentId);
   const enrollments = await prisma.subjectEnrollment.findMany({
-    where: { studentId },
+    where: studentEnrollmentsWhere(studentId, universityId),
     include: { subject: { select: { id: true, name: true, code: true, status: true } } },
   });
   return enrollments.filter((e) => e.subject.status === 'ACTIVE');

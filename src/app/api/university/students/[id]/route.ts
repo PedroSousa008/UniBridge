@@ -72,10 +72,12 @@ export async function PATCH(
   });
 
   if (Array.isArray(body.subjectIds)) {
+    const resolvedCourseId = courseId !== undefined ? courseId : updated.courseId;
     await setStudentSubjectEnrollments(
       student.userId,
       auth.ctx.university.id,
-      body.subjectIds.map((sid: unknown) => String(sid))
+      body.subjectIds.map((sid: unknown) => String(sid)),
+      { courseId: resolvedCourseId }
     );
   }
 

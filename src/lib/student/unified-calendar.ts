@@ -407,8 +407,9 @@ export async function loadUnifiedCalendar(
     select: { universityId: true },
   });
 
+  const { studentEnrollmentsWhere } = await import('@/lib/academics/enrollments');
   const enrollments = await prisma.subjectEnrollment.findMany({
-    where: { studentId: userId },
+    where: studentEnrollmentsWhere(userId, profile?.universityId ?? null),
     include: { subject: { select: { id: true, name: true, status: true } } },
   });
   const subjectIds = enrollments.filter((e) => e.subject.status === 'ACTIVE').map((e) => e.subjectId);

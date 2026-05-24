@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 
 export function universitySubjectsWhere(universityId: string) {
@@ -24,16 +25,52 @@ export async function validateUniversitySubjectIds(
   return rows.map((r) => r.id);
 }
 
+export async function getStudentLinkedUniversityId(userId: string): Promise<string | null> {
+  const profile = await prisma.studentProfile.findUnique({
+    where: { userId },
+    select: { universityId: true },
+  });
+  return profile?.universityId ?? null;
+}
+
+/** Enrollment rows visible to a linked student (university-scoped when linked). */
+export function studentEnrollmentsWhere(
+  studentId: string,
+  universityId: string | null
+): Prisma.SubjectEnrollmentWhereInput {
+  if (!universityId) {
+    return { studentId };
+  }
+  return {
+    studentId,
+    subject: universitySubjectsWhere(universityId),
+  };
+}
+
+async function filterSubjectIdsToCourse(
+  subjectIds: string[],
+  courseId: string | null | undefined
+): Promise<string[]> {
+  if (!courseId || subjectIds.length === 0) return subjectIds;
+  const rows = await prisma.subject.findMany({
+    where: { id: { in: subjectIds }, courseId },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
 /**
  * Set exactly which subjects a student is enrolled in at a university.
- * Replaces automatic course-wide enrollment.
+ * University admin is the sole source of truth — no automatic course-wide enrollment.
  */
 export async function setStudentSubjectEnrollments(
   userId: string,
   universityId: string,
-  subjectIds: string[]
+  subjectIds: string[],
+  options?: { courseId?: string | null }
 ) {
-  const targetIds = await validateUniversitySubjectIds(universityId, subjectIds);
+  let targetIds = await validateUniversitySubjectIds(universityId, subjectIds);
+  targetIds = await filterSubjectIdsToCourse(targetIds, options?.courseId);
 
   const scoped = await prisma.subject.findMany({
     where: universitySubjectsWhere(universityId),
@@ -55,6 +92,16 @@ export async function setStudentSubjectEnrollments(
       skipDuplicates: true,
     });
   }
+}
+
+/** Active subject ids for a student (respects university admin enrollment scope). */
+export async function getStudentActiveEnrollmentSubjectIds(studentId: string): Promise<string[]> {
+  const universityId = await getStudentLinkedUniversityId(studentId);
+  const rows = await prisma.subjectEnrollment.findMany({
+    where: studentEnrollmentsWhere(studentId, universityId),
+    select: { subjectId: true, subject: { select: { status: true } } },
+  });
+  return rows.filter((r) => r.subject.status === 'ACTIVE').map((r) => r.subjectId);
 }
 
 export async function getStudentEnrolledSubjectIds(
@@ -94,8 +141,8 @@ export async function eligibleSubjectIdsForCourse(
 }
 
 /**
- * Keeps SubjectEnrollment in sync with the student's university + course assignment.
- * Students on a course are enrolled in all eligible subjects for that course.
+ * @deprecated University admins assign subjects via setStudentSubjectEnrollments.
+ * Do not call from student-facing flows.
  */
 export async function syncStudentEnrollments(
   userId: string,
@@ -139,7 +186,9 @@ export async function syncStudentEnrollments(
   }
 }
 
-/** Enroll all students assigned to a course into a subject (respects subject year). */
+/**
+ * @deprecated University admins control enrollments. Do not auto-enroll on teacher actions.
+ */
 export async function enrollCourseStudentsInSubject(
   subjectId: string,
   courseId: string,
@@ -205,17 +254,10 @@ export async function clearStudentEnrollmentsForUniversity(
   });
 }
 
-/** Self-heal enrollments for an existing linked student (e.g. before this feature). */
-export async function ensureStudentEnrollments(userId: string) {
-  const profile = await prisma.studentProfile.findUnique({
-    where: { userId },
-    select: { universityId: true, courseId: true, yearOfStudy: true },
-  });
-  if (!profile?.universityId) return;
-
-  await syncStudentEnrollments(userId, {
-    universityId: profile.universityId,
-    courseId: profile.courseId,
-    yearOfStudy: profile.yearOfStudy,
-  });
+/**
+ * No-op. Enrollments are managed exclusively by university admins
+ * (invite/edit student → setStudentSubjectEnrollments).
+ */
+export async function ensureStudentEnrollments(_userId: string) {
+  return;
 }
