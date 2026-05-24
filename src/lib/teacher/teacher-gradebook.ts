@@ -47,30 +47,83 @@ export async function getSubjectGradingPlan(subjectId: string) {
   });
   const mode: GradingMode =
     subject?.gradingMode === 'single' ? 'single' : 'continuous_final';
+
+  let finalExamReplacementRule = false;
+  try {
+    const rows = await prisma.$queryRaw<Array<{ gradingFinalExamReplacementRule: boolean }>>`
+      SELECT "gradingFinalExamReplacementRule" FROM "Subject" WHERE id = ${subjectId} LIMIT 1
+    `;
+    finalExamReplacementRule = rows[0]?.gradingFinalExamReplacementRule ?? false;
+  } catch {
+    finalExamReplacementRule = false;
+  }
+
   return {
     mode,
     scaleMax: subject?.gradingScaleMax ?? 20,
     blocksConfirmed: subject?.gradingBlocksConfirmed ?? false,
+    finalExamReplacementRule: mode === 'continuous_final' && finalExamReplacementRule,
   };
 }
 
 export async function saveSubjectGradingPlan(
   subjectId: string,
-  input: { mode: GradingMode; scaleMax?: number }
+  input: {
+    mode: GradingMode;
+    scaleMax?: number;
+    finalExamReplacementRule?: boolean;
+  }
 ) {
   await ensureSubjectGradingColumns();
   const prev = await getSubjectGradingPlan(subjectId);
+  const mode = input.mode;
+  const replacementEnabled =
+    mode === 'continuous_final' && (input.finalExamReplacementRule ?? prev.finalExamReplacementRule);
+
   await prisma.subject.update({
     where: { id: subjectId },
     data: {
-      gradingMode: input.mode,
+      gradingMode: mode,
       gradingScaleMax: input.scaleMax ?? 20,
-      gradingBlocksConfirmed: input.mode === 'single',
+      gradingBlocksConfirmed: mode === 'single',
     },
   });
-  if (input.mode === 'continuous_final' && prev.mode !== 'continuous_final') {
+
+  try {
+    await prisma.$executeRaw`
+      UPDATE "Subject"
+      SET "gradingFinalExamReplacementRule" = ${replacementEnabled}
+      WHERE id = ${subjectId}
+    `;
+  } catch (e) {
+    console.error('[saveSubjectGradingPlan] gradingFinalExamReplacementRule', e);
+  }
+
+  if (mode === 'continuous_final' && prev.mode !== 'continuous_final') {
     await ensureContinuousFinalBlocks(subjectId);
   }
+}
+
+export async function setSubjectFinalExamReplacementRule(
+  subjectId: string,
+  enabled: boolean
+) {
+  await ensureSubjectGradingColumns();
+  const plan = await getSubjectGradingPlan(subjectId);
+  if (plan.mode !== 'continuous_final') {
+    return { ok: false as const, error: 'Only available for Continuous + Final Exam mode.' };
+  }
+  try {
+    await prisma.$executeRaw`
+      UPDATE "Subject"
+      SET "gradingFinalExamReplacementRule" = ${enabled}
+      WHERE id = ${subjectId}
+    `;
+  } catch (e) {
+    console.error('[setSubjectFinalExamReplacementRule]', e);
+    return { ok: false as const, error: 'Could not save grading rule setting.' };
+  }
+  return { ok: true as const };
 }
 
 export async function confirmSubjectGradingBlocks(subjectId: string) {

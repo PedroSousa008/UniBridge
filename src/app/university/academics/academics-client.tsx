@@ -6,6 +6,7 @@ import { Pencil, Plus, Trash2, UserPlus, X, ChevronDown } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { SectionTabs } from '@/components/university/section-tabs';
 import { DataTable, type Column } from '@/components/university/data-table';
+import { FinalExamReplacementRuleControl } from '@/components/academics/final-exam-replacement-rule-control';
 import { StudentSubjectPicker } from '@/components/university/student-subject-picker';
 import { UniversityStudentAcademicProfileDrawer } from '@/components/university/university-student-academic-profile-drawer';
 import { Button } from '@/components/ui/button';
@@ -226,6 +227,10 @@ export function UniversityAcademicsClient({
   const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [editCourse, setEditCourse] = useState<AcademicsCourse | null>(null);
   const [editSubject, setEditSubject] = useState<AcademicsSubject | null>(null);
+  const [editSubjectReplacementRule, setEditSubjectReplacementRule] = useState(false);
+  const [editSubjectGradingMode, setEditSubjectGradingMode] = useState<
+    'single' | 'continuous_final'
+  >('continuous_final');
   const [editStudent, setEditStudent] = useState<AcademicsStudent | null>(null);
   const [profileStudentId, setProfileStudentId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
@@ -317,6 +322,25 @@ export function UniversityAcademicsClient({
     }
     if (action === 'add' && t === 'announcements') setAnnouncementOpen(true);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!editSubject) {
+      setEditSubjectReplacementRule(false);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/university/subjects/${editSubject.id}/grading`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled || !json.plan) return;
+        setEditSubjectReplacementRule(!!json.plan.finalExamReplacementRule);
+        setEditSubjectGradingMode(json.plan.mode === 'single' ? 'single' : 'continuous_final');
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [editSubject]);
 
   useEffect(() => {
     if (editStudent) {
@@ -1092,6 +1116,11 @@ export function UniversityAcademicsClient({
                   credits: fd.get('credits'),
                   teacherId: fd.get('teacherId') || null,
                 });
+                if (ok && editSubjectGradingMode === 'continuous_final') {
+                  await requestJson('PATCH', `/api/university/subjects/${editSubject.id}/grading`, {
+                    finalExamReplacementRule: editSubjectReplacementRule,
+                  });
+                }
                 if (ok) setEditSubject(null);
               }}
             >
@@ -1153,6 +1182,17 @@ export function UniversityAcademicsClient({
                     </option>
                   ))}
                 </select>
+                {editSubjectGradingMode === 'continuous_final' ? (
+                  <FinalExamReplacementRuleControl
+                    enabled={editSubjectReplacementRule}
+                    onChange={setEditSubjectReplacementRule}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground rounded-lg border border-dashed px-3 py-2">
+                    Final exam replacement rule applies only when the subject uses Continuous
+                    Evaluation + Final Exam (configured by the teacher in the gradebook).
+                  </p>
+                )}
               </div>
               {error ? <p className="text-sm text-red-500">{error}</p> : null}
               <DialogFooter>

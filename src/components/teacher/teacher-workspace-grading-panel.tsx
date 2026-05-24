@@ -279,7 +279,10 @@ export function TeacherWorkspaceGradingPanel({
             </CardTitle>
             <p className="text-xs text-muted-foreground">
               All components published. Final grades update live on student gradebook and
-              dashboards. Edit any component to recalculate automatically.
+              dashboards.
+              {hub.finalExamReplacementRule
+                ? ' Final exam replacement rule is active for this subject.'
+                : ''}
             </p>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -289,6 +292,7 @@ export function TeacherWorkspaceGradingPanel({
                   <th className="py-2 pr-4">Student</th>
                   <th className="py-2 pr-4">Account</th>
                   <th className="py-2 pr-4">Ref</th>
+                  <th className="py-2 pr-4">Status</th>
                   <th className="py-2 text-right">Final / {hub.scaleMax}</th>
                 </tr>
               </thead>
@@ -298,6 +302,21 @@ export function TeacherWorkspaceGradingPanel({
                     <td className="py-2 pr-4 font-medium">{r.studentName}</td>
                     <td className="py-2 pr-4 text-muted-foreground">{r.studentEmail}</td>
                     <td className="py-2 pr-4 text-muted-foreground">{r.studentRef}</td>
+                    <td className="py-2 pr-4">
+                      <span
+                        className={cn(
+                          'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                          r.passed === true && 'bg-emerald-500/15 text-emerald-700',
+                          r.passed === false && 'bg-rose-500/15 text-rose-700',
+                          r.passed == null && 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {r.statusLabel}
+                      </span>
+                      {r.reason ? (
+                        <p className="text-[10px] text-muted-foreground mt-1 max-w-xs">{r.reason}</p>
+                      ) : null}
+                    </td>
                     <td className="py-2 text-right font-semibold tabular-nums">
                       {r.finalGrade != null ? r.finalGrade : '—'}
                     </td>

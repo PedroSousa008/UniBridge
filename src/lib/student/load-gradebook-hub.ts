@@ -5,6 +5,7 @@ import {
   DEFAULT_THRESHOLDS,
   type GradebookDashboard,
 } from '@/lib/student/gradebook-engine';
+import { getSubjectGradingPlan } from '@/lib/teacher/teacher-gradebook';
 import { loadSubjectWorkspace } from '@/lib/student/subject-context';
 import { serializeSubjectWorkspace } from '@/lib/student/serialize-workspace';
 
@@ -70,7 +71,16 @@ export async function loadGradebookHub(studentId: string): Promise<GradebookHubP
     prefs.creditsCompleted = active.length * prefs.ectsPerSubject;
   }
 
-  const dashboard = buildGradebookDashboard(workspaces, prefs);
+  const gradingPlans = new Map(
+    await Promise.all(
+      active.map(async (e) => {
+        const plan = await getSubjectGradingPlan(e.subject.id);
+        return [e.subject.id, plan] as const;
+      })
+    )
+  );
+
+  const dashboard = buildGradebookDashboard(workspaces, prefs, gradingPlans);
 
   return {
     dashboard,

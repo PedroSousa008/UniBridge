@@ -40,6 +40,10 @@ export async function PATCH(
     await saveSubjectGradingPlan(subjectId, {
       mode,
       scaleMax: body.plan.scaleMax ? Number(body.plan.scaleMax) : undefined,
+      finalExamReplacementRule:
+        body.plan.finalExamReplacementRule !== undefined
+          ? !!body.plan.finalExamReplacementRule
+          : undefined,
     });
   }
 

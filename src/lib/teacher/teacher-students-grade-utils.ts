@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
-import { computeWeightedFinal } from '@/lib/teacher/final-grade-calculator';
+import type { FinalGradeComputation } from '@/lib/academics/final-exam-replacement-rule';
+import { computeEnrollmentFinalGrade } from '@/lib/teacher/final-grade-calculator';
 import { parseCategoryMeta } from '@/lib/teacher/gradebook-structure';
 import { getSubjectGradingPlan, listGradeCategories } from '@/lib/teacher/teacher-gradebook';
 import { studentVisibleScore } from '@/lib/teacher/teacher-grading';
@@ -21,6 +22,7 @@ export async function loadStudentPublishedGrades(
   components: StudentComponentGrade[];
   overallGrade: number | null;
   scaleMax: number;
+  gradeComputation: FinalGradeComputation;
 }> {
   await ensureAssignmentTables();
   const plan = await getSubjectGradingPlan(subjectId);
@@ -37,16 +39,12 @@ export async function loadStudentPublishedGrades(
     include: { submissions: true },
   });
 
-  const parts: { weight: number; score: number | null; maxScore: number }[] = [];
   const rows: StudentComponentGrade[] = [];
 
   for (const cat of components) {
     const assignment = assignments.find((a) => a.gradeCategoryId === cat.id);
     const sub = assignment?.submissions.find((s) => s.studentId === studentId);
     const score = sub ? studentVisibleScore(sub) : null;
-    if (assignment) {
-      parts.push({ weight: cat.weight, score, maxScore: assignment.maxScore });
-    }
     rows.push({
       categoryId: cat.id,
       name: cat.name,
@@ -56,10 +54,13 @@ export async function loadStudentPublishedGrades(
     });
   }
 
+  const computed = await computeEnrollmentFinalGrade(subjectId, studentId);
+
   return {
     components: rows,
-    overallGrade: computeWeightedFinal(parts, plan.scaleMax),
+    overallGrade: computed.finalGrade,
     scaleMax: plan.scaleMax,
+    gradeComputation: computed,
   };
 }
 
@@ -88,20 +89,23 @@ export async function loadSubjectCurrentGradesMap(
     }),
   ]);
 
-  const map = new Map<string, { components: StudentComponentGrade[]; overallGrade: number | null }>();
+  const map = new Map<
+    string,
+    {
+      components: StudentComponentGrade[];
+      overallGrade: number | null;
+      gradeComputation: FinalGradeComputation;
+    }
+  >();
 
   for (const enrollment of enrollments) {
     const studentId = enrollment.studentId;
-    const parts: { weight: number; score: number | null; maxScore: number }[] = [];
     const rows: StudentComponentGrade[] = [];
 
     for (const cat of components) {
       const assignment = assignments.find((a) => a.gradeCategoryId === cat.id);
       const sub = assignment?.submissions.find((s) => s.studentId === studentId);
       const score = sub ? studentVisibleScore(sub) : null;
-      if (assignment) {
-        parts.push({ weight: cat.weight, score, maxScore: assignment.maxScore });
-      }
       rows.push({
         categoryId: cat.id,
         name: cat.name,
@@ -111,9 +115,12 @@ export async function loadSubjectCurrentGradesMap(
       });
     }
 
+    const gradeComputation = await computeEnrollmentFinalGrade(subjectId, studentId);
+
     map.set(studentId, {
       components: rows,
-      overallGrade: computeWeightedFinal(parts, plan.scaleMax),
+      overallGrade: gradeComputation.finalGrade,
+      gradeComputation,
     });
   }
 

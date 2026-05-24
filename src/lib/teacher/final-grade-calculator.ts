@@ -1,4 +1,10 @@
 import { prisma } from '@/lib/db';
+import {
+  computeSubjectFinalGrade,
+  computeWeightedFinal,
+  type FinalGradeComputation,
+  type GradePartInput,
+} from '@/lib/academics/final-exam-replacement-rule';
 import { ensureAssignmentTables } from '@/lib/db/ensure-assignment-schema';
 import { buildGradebookStructure, parseCategoryMeta } from '@/lib/teacher/gradebook-structure';
 import { getSubjectGradingPlan, listGradeCategories } from '@/lib/teacher/teacher-gradebook';
@@ -14,19 +20,55 @@ export type ComponentGradeStatus = {
   complete: boolean;
 };
 
-export function computeWeightedFinal(
-  components: { weight: number; score: number | null; maxScore: number }[],
-  scaleMax: number
-): number | null {
-  const graded = components.filter((c) => c.score != null);
-  if (graded.length === 0) return null;
+export { computeSubjectFinalGrade, computeWeightedFinal, type FinalGradeComputation };
 
-  let sum = 0;
-  for (const c of graded) {
-    const normalized = (c.score! / c.maxScore) * scaleMax;
-    sum += normalized * (c.weight / 100);
+export async function computeEnrollmentFinalGrade(
+  subjectId: string,
+  studentId: string
+): Promise<FinalGradeComputation> {
+  await ensureAssignmentTables();
+  const plan = await getSubjectGradingPlan(subjectId);
+  const categories = await listGradeCategories(subjectId);
+  const components = categories.filter(
+    (c) => parseCategoryMeta(c.rulesJson).kind === 'component'
+  );
+
+  const assignments = await prisma.assignment.findMany({
+    where: {
+      subjectId,
+      gradeCategoryId: { in: components.map((c) => c.id) },
+    },
+    include: { submissions: true },
+  });
+
+  const parts: GradePartInput[] = [];
+  let allPublished = components.length > 0;
+
+  for (const cat of components) {
+    const assignment = assignments.find((a) => a.gradeCategoryId === cat.id);
+    if (!assignment) {
+      allPublished = false;
+      continue;
+    }
+    const sub = assignment.submissions.find((s) => s.studentId === studentId);
+    const score = sub ? studentVisibleScore(sub) : null;
+    if (score == null) allPublished = false;
+    parts.push({
+      categoryId: cat.id,
+      weight: cat.weight,
+      score,
+      maxScore: assignment.maxScore,
+    });
   }
-  return Math.round(sum * 100) / 100;
+
+  return computeSubjectFinalGrade({
+    mode: plan.mode,
+    scaleMax: plan.scaleMax,
+    replacementRuleEnabled: plan.finalExamReplacementRule,
+    categories,
+    parts,
+    allPublished,
+  });
 }
 
 export async function getComponentGradeStatuses(
@@ -83,17 +125,7 @@ export async function recalculateSubjectFinalGrades(subjectId: string): Promise<
   const plan = await getSubjectGradingPlan(subjectId);
   const categories = await listGradeCategories(subjectId);
   const structure = buildGradebookStructure(categories, plan.mode, plan.scaleMax);
-  const components = categories.filter(
-    (c) => parseCategoryMeta(c.rulesJson).kind === 'component'
-  );
-
-  const assignments = await prisma.assignment.findMany({
-    where: {
-      subjectId,
-      gradeCategoryId: { in: components.map((c) => c.id) },
-    },
-    include: { submissions: true, gradeCategory: true },
-  });
+  void structure;
 
   const enrollments = await prisma.subjectEnrollment.findMany({
     where: { subjectId },
@@ -101,34 +133,12 @@ export async function recalculateSubjectFinalGrades(subjectId: string): Promise<
   });
 
   for (const enrollment of enrollments) {
-    const parts: { weight: number; score: number | null; maxScore: number }[] = [];
-
-    for (const cat of components) {
-      const assignment = assignments.find((a) => a.gradeCategoryId === cat.id);
-      if (!assignment) continue;
-      const sub = assignment.submissions.find((s) => s.studentId === enrollment.studentId);
-      parts.push({
-        weight: cat.weight,
-        score: sub ? studentVisibleScore(sub) : null,
-        maxScore: assignment.maxScore,
-      });
-    }
-
-    const allPublished = components.every((cat) => {
-      const assignment = assignments.find((a) => a.gradeCategoryId === cat.id);
-      if (!assignment) return false;
-      const sub = assignment.submissions.find((s) => s.studentId === enrollment.studentId);
-      return sub != null && studentVisibleScore(sub) != null;
-    });
-
-    const finalGrade = allPublished ? computeWeightedFinal(parts, plan.scaleMax) : null;
+    const result = await computeEnrollmentFinalGrade(subjectId, enrollment.studentId);
     await prisma.subjectEnrollment.update({
       where: { id: enrollment.id },
-      data: { grade: finalGrade },
+      data: { grade: result.finalGrade },
     });
   }
-
-  void structure;
 }
 
 export async function allComponentsFullyPublished(subjectId: string): Promise<boolean> {

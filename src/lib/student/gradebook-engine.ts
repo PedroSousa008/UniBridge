@@ -1,3 +1,4 @@
+import { computeFinalGradeFromWorkspace } from '@/lib/academics/final-exam-replacement-rule';
 import type { SubjectWorkspace } from './subject-context';
 import { studentVisibleScore } from '@/lib/teacher/teacher-grading';
 
@@ -143,6 +144,9 @@ export interface SubjectGradebookSnapshot {
   projectedRealistic: number | null;
   projectedWorst: number | null;
   evolution: { date: string; grade: number; label: string }[];
+  finalGradeReason?: string | null;
+  finalGradePassed?: boolean | null;
+  usesReplacementRule?: boolean;
 }
 
 export interface GradebookDashboard {
@@ -561,7 +565,12 @@ export function formatEvaluationMethod(categories: CategoryBreakdown[]): string 
 export function buildSubjectSnapshot(
   ws: SubjectWorkspace,
   thresholds: GradeThresholds,
-  credits: number
+  credits: number,
+  gradingPlan?: {
+    mode: 'single' | 'continuous_final';
+    scaleMax: number;
+    finalExamReplacementRule: boolean;
+  }
 ): SubjectGradebookSnapshot {
   const rows = buildGradeRows(ws);
   const categories = ws.gradeCategories.map((c) => ({
@@ -573,6 +582,26 @@ export function buildSubjectSnapshot(
   }));
 
   const { average, breakdown, missingWeight } = computeWeightedAverageAdvanced(rows, categories);
+
+  let currentGrade = average;
+  let finalGradeReason: string | null = null;
+  let finalGradePassed: boolean | null = null;
+  let usesReplacementRule = false;
+
+  if (gradingPlan) {
+    const computed = computeFinalGradeFromWorkspace(ws, gradingPlan, (sub) =>
+      sub ? studentVisibleScore(sub) : null
+    );
+    if (computed.finalGrade != null) currentGrade = computed.finalGrade;
+    else if (ws.enrollment.grade != null) currentGrade = ws.enrollment.grade;
+    finalGradeReason = computed.reason;
+    finalGradePassed = computed.passed;
+    usesReplacementRule =
+      gradingPlan.finalExamReplacementRule && gradingPlan.mode === 'continuous_final';
+  } else if (ws.enrollment.grade != null) {
+    currentGrade = ws.enrollment.grade;
+  }
+
   const scenarios = projectScenarios(rows, categories);
   const timeline = buildEvaluationTimeline(rows);
   const att = attendanceSummary(ws.attendanceSessions, ws.enrollment.attendance);
@@ -590,8 +619,8 @@ export function buildSubjectSnapshot(
     subjectCode: ws.subject.code,
     professor,
     credits,
-    currentGrade: average,
-    status: gradeStatus(average, thresholds),
+    currentGrade,
+    status: gradeStatus(currentGrade, thresholds),
     progressPercent: progress,
     attendancePercent: att.pct,
     categories: breakdown,
@@ -605,6 +634,9 @@ export function buildSubjectSnapshot(
     projectedRealistic: scenarios.realistic,
     projectedWorst: scenarios.worst,
     evolution: buildGradeEvolution(rows),
+    finalGradeReason,
+    finalGradePassed,
+    usesReplacementRule,
   };
 }
 
@@ -656,11 +688,20 @@ export function buildGradebookDashboard(
     creditsCompleted: number;
     creditsRequired: number;
     ectsPerSubject: number;
-  }
+  },
+  gradingPlans?: Map<
+    string,
+    { mode: 'single' | 'continuous_final'; scaleMax: number; finalExamReplacementRule: boolean }
+  >
 ): GradebookDashboard {
   const thresholds = thresholdsFromPrefs(prefs);
   const subjects = workspaces.map((ws) =>
-    buildSubjectSnapshot(ws, thresholds, prefs.ectsPerSubject)
+    buildSubjectSnapshot(
+      ws,
+      thresholds,
+      prefs.ectsPerSubject,
+      gradingPlans?.get(ws.subject.id)
+    )
   );
 
   const graded = subjects.filter((s) => s.currentGrade != null);

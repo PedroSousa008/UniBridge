@@ -1,17 +1,15 @@
 import { prisma } from '@/lib/db';
 import {
   allComponentsFullyPublished,
-  computeWeightedFinal,
+  computeEnrollmentFinalGrade,
   getComponentGradeStatuses,
 } from '@/lib/teacher/final-grade-calculator';
 import {
   buildGradebookStructure,
   isGradebookStructureComplete,
-  parseCategoryMeta,
 } from '@/lib/teacher/gradebook-structure';
 import { getSubjectGradingPlan, listGradeCategories } from '@/lib/teacher/teacher-gradebook';
 import { syncEvaluationAssignments } from '@/lib/teacher/teacher-evaluation-sync';
-import { studentVisibleScore } from '@/lib/teacher/teacher-grading';
 
 export interface WorkspaceGradingComponent {
   assignmentId: string;
@@ -30,12 +28,17 @@ export interface WorkspaceFinalGradeRow {
   studentEmail: string;
   studentRef: string;
   finalGrade: number | null;
+  statusLabel: string;
+  passed: boolean | null;
+  reason: string | null;
 }
 
 export interface TeacherWorkspaceGradingHub {
   subjectId: string;
   subjectName: string;
   scaleMax: number;
+  finalExamReplacementRule: boolean;
+  gradingMode: 'single' | 'continuous_final';
   structureComplete: boolean;
   operational: boolean;
   components: WorkspaceGradingComponent[];
@@ -100,39 +103,28 @@ export async function loadTeacherWorkspaceGradingHub(
     orderBy: { student: { name: 'asc' } },
   });
 
-  const assignments = await prisma.assignment.findMany({
-    where: { subjectId, gradeCategoryId: { not: null } },
-    include: { submissions: true },
-  });
-
-  const componentCats = categories.filter(
-    (c) => parseCategoryMeta(c.rulesJson).kind === 'component'
-  );
-
-  const finalGrades: WorkspaceFinalGradeRow[] = enrollments.map((e) => {
-    const parts = componentCats.map((cat) => {
-      const a = assignments.find((x) => x.gradeCategoryId === cat.id);
-      const sub = a?.submissions.find((s) => s.studentId === e.studentId);
+  const finalGrades: WorkspaceFinalGradeRow[] = await Promise.all(
+    enrollments.map(async (e) => {
+      const computed = await computeEnrollmentFinalGrade(subjectId, e.studentId);
       return {
-        weight: cat.weight,
-        score: sub ? studentVisibleScore(sub) : null,
-        maxScore: a?.maxScore ?? plan.scaleMax,
+        studentId: e.studentId,
+        studentName: e.student?.name ?? 'Student',
+        studentEmail: e.student?.email ?? '',
+        studentRef: e.student?.email?.split('@')[0] ?? e.studentId.slice(-8),
+        finalGrade: allComponentsComplete ? (e.grade ?? computed.finalGrade) : null,
+        statusLabel: allComponentsComplete ? computed.statusLabel : 'Pending',
+        passed: allComponentsComplete ? computed.passed : null,
+        reason: allComponentsComplete ? computed.reason : computed.reason,
       };
-    });
-    const computed = computeWeightedFinal(parts, plan.scaleMax);
-    return {
-      studentId: e.studentId,
-      studentName: e.student?.name ?? 'Student',
-      studentEmail: e.student?.email ?? '',
-      studentRef: e.student?.email?.split('@')[0] ?? e.studentId.slice(-8),
-      finalGrade: allComponentsComplete ? (e.grade ?? computed) : null,
-    };
-  });
+    })
+  );
 
   return {
     subjectId,
     subjectName: subject.name,
     scaleMax: plan.scaleMax,
+    finalExamReplacementRule: plan.finalExamReplacementRule,
+    gradingMode: plan.mode,
     structureComplete,
     operational,
     components,

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { GradebookStructure, GradeCategoryRow } from '@/lib/teacher/gradebook-structure';
 import { isExamStyleComponent } from '@/lib/teacher/gradebook-structure';
+import { FinalExamReplacementRuleControl } from '@/components/academics/final-exam-replacement-rule-control';
 import { EVALUATION_COMPONENT_PRESETS } from '@/lib/teacher/teacher-gradebook';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ type GradebookPayload = {
     mode: 'single' | 'continuous_final';
     scaleMax: number;
     blocksConfirmed: boolean;
+    finalExamReplacementRule: boolean;
   };
   structure: GradebookStructure;
   complete: boolean;
@@ -335,6 +337,19 @@ export function TeacherSubjectGradebookPanel({ subjectId }: { subjectId: string 
                   Main blocks confirmed — you can add components inside each block.
                 </p>
               )}
+
+              <FinalExamReplacementRuleControl
+                enabled={plan.finalExamReplacementRule}
+                onChange={(enabled) =>
+                  void patch({
+                    plan: {
+                      mode: plan.mode,
+                      scaleMax: plan.scaleMax,
+                      finalExamReplacementRule: enabled,
+                    },
+                  })
+                }
+              />
             </>
           )}
 
