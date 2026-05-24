@@ -93,11 +93,33 @@ export function groupPartsForContinuousFinal(
   };
 }
 
+/**
+ * Average grade for a block (Continuous or Final) on the 0–scaleMax scale.
+ * Component weights are relative within the block (e.g. 25% + 25% inside a 50% block → average of the two scores).
+ */
+export function computeBlockAverageGrade(
+  parts: { weight: number; score: number | null; maxScore: number }[],
+  scaleMax: number
+): number | null {
+  const graded = parts.filter((c) => c.score != null && c.weight > 0);
+  if (graded.length === 0) return null;
+
+  const weightSum = graded.reduce((sum, c) => sum + c.weight, 0);
+  if (weightSum <= 0) return null;
+
+  let total = 0;
+  for (const c of graded) {
+    const onScale = (c.score! / c.maxScore) * scaleMax;
+    total += onScale * (c.weight / weightSum);
+  }
+  return Math.round(total * 100) / 100;
+}
+
 function blockGrade(
   parts: { weight: number; score: number | null; maxScore: number }[],
   scaleMax: number
 ): number | null {
-  return computeWeightedFinal(parts, scaleMax);
+  return computeBlockAverageGrade(parts, scaleMax);
 }
 
 export function computeFinalExamReplacementGrade(input: {
