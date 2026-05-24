@@ -8,6 +8,7 @@ import {
   engagementLabel,
   participationLabel,
 } from '@/lib/teacher/teacher-students-shared';
+import { countAssignmentSubmissionGaps } from '@/lib/teacher/teacher-grading';
 
 export async function loadTeacherStudentAcademicProfile(
   actorUserId: string,
@@ -115,15 +116,13 @@ export async function loadTeacherStudentAcademicProfile(
 
   const attRow = attendanceReport.students.find((s) => s.studentId === studentId);
   const now = Date.now();
-  let missingAssignments = 0;
-  let overdueMissing = 0;
-  for (const a of subjectAssignments) {
-    const sub = a.submissions[0];
-    if (!sub?.submittedAt) {
-      missingAssignments += 1;
-      if (a.dueDate.getTime() < now) overdueMissing += 1;
-    }
-  }
+  const { missingAssignments, overdueMissing } = countAssignmentSubmissionGaps(
+    subjectAssignments.map((a) => ({
+      dueDate: a.dueDate,
+      submission: a.submissions[0] ?? null,
+    })),
+    now
+  );
 
   const sp = enrollment.student.studentProfile;
   const engagement = sp?.engagementScore ?? null;

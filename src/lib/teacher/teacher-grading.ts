@@ -36,6 +36,41 @@ export function studentVisibleScore(sub: SubmissionGradeFields): number | null {
   return null;
 }
 
+/** Missing work: no published grade and no student submission (gradebook grades are not missing). */
+export function isStudentAssignmentMissing(
+  sub: SubmissionGradeFields | null | undefined,
+  dueDate: Date,
+  now = Date.now()
+): { pending: boolean; overdue: boolean } {
+  if (studentVisibleScore(sub ?? {}) != null) {
+    return { pending: false, overdue: false };
+  }
+  if (sub?.submittedAt) {
+    return { pending: false, overdue: false };
+  }
+  const overdue = dueDate.getTime() < now;
+  return { pending: true, overdue };
+}
+
+export function countAssignmentSubmissionGaps(
+  assignments: Array<{
+    dueDate: Date;
+    submission: SubmissionGradeFields | null | undefined;
+  }>,
+  now = Date.now()
+): { missingAssignments: number; overdueMissing: number } {
+  let missingAssignments = 0;
+  let overdueMissing = 0;
+  for (const { dueDate, submission } of assignments) {
+    const gap = isStudentAssignmentMissing(submission, dueDate, now);
+    if (gap.pending) {
+      missingAssignments += 1;
+      if (gap.overdue) overdueMissing += 1;
+    }
+  }
+  return { missingAssignments, overdueMissing };
+}
+
 export async function saveTeacherSubmissionGrade(input: {
   submissionId: string;
   teacherUserId: string;

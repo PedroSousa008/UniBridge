@@ -10,7 +10,10 @@ import {
   studentNeedsSupport,
   type StudentSupportAlert,
 } from '@/lib/teacher/teacher-students-shared';
-import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
+import {
+  isPendingGradePublish,
+  isStudentAssignmentMissing,
+} from '@/lib/teacher/teacher-grading';
 
 export type TeacherClassGroup = {
   id: string;
@@ -107,6 +110,7 @@ export async function loadTeacherClassStudentsHub(
               studentId: true,
               submittedAt: true,
               gradePublished: true,
+              score: true,
             },
           },
         },
@@ -150,9 +154,11 @@ export async function loadTeacherClassStudentsHub(
         const t = new Date(sub.submittedAt).getTime();
         if (t >= monthAgo) submissionsThisMonth += 1;
         if (isPendingGradePublish(sub)) pendingGradingForStudent = true;
-      } else {
+      }
+      const gap = isStudentAssignmentMissing(sub, a.dueDate, now);
+      if (gap.pending) {
         missingAssignments += 1;
-        if (a.dueDate.getTime() < now) overdueMissing += 1;
+        if (gap.overdue) overdueMissing += 1;
       }
     }
 

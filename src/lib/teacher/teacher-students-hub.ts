@@ -1,7 +1,10 @@
 import { prisma } from '@/lib/db';
 import { ensureTeacherStudentsSchema } from '@/lib/db/ensure-teacher-students-schema';
 import { ensureTeacherAcademicSchema } from '@/lib/teacher/ensure-teacher-schema';
-import { isPendingGradePublish } from '@/lib/teacher/teacher-grading';
+import {
+  isPendingGradePublish,
+  isStudentAssignmentMissing,
+} from '@/lib/teacher/teacher-grading';
 import { loadSubjectCurrentGradesMap } from '@/lib/teacher/teacher-students-grade-utils';
 
 export interface TeacherStudentsClassCard {
@@ -46,6 +49,7 @@ export async function loadTeacherStudentsHub(actorUserId: string): Promise<Teach
                   studentId: true,
                   submittedAt: true,
                   gradePublished: true,
+                  score: true,
                 },
               },
             },
@@ -75,10 +79,10 @@ export async function loadTeacherStudentsHub(actorUserId: string): Promise<Teach
     const now = Date.now();
 
     for (const a of s.assignments) {
-      const overdue = a.dueDate.getTime() < now;
       for (const sub of a.submissions) {
         if (isPendingGradePublish(sub)) pendingGrading += 1;
-        if (overdue && !sub.submittedAt) missingWorkStudents.add(sub.studentId);
+        const gap = isStudentAssignmentMissing(sub, a.dueDate, now);
+        if (gap.overdue) missingWorkStudents.add(sub.studentId);
       }
     }
 
